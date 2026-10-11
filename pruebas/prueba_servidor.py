@@ -209,7 +209,12 @@ walks = [c["id"] for c in stage2 if c.get("andar")]
 check(len(walks) >= 12 and stage2[0]["id"] == "andar" and {"andar-rapido", "andar-alto", "trote-rapido", "andar-lado"} <= set(walks),
       f"rutinas de andar (van primero): {len(walks)}")
 check(len([c for c in stage2 if c.get("creativa")]) == 10, "10 marchas creativas (caballo y compañía)")
-check(len([c for c in stage2 if c.get("nueva")]) == 21, "21 rutinas nuevas (verdes)")
+check(len([c for c in stage2 if c.get("nueva")]) == 16, "16 rutinas nuevas (verdes)")
+check(len([c for c in stage2 if c.get("curiosa")]) == 5, "5 cosas curiosas (azules, sin estrellas)")
+check([c["id"] for c in stage2 if c.get("plata")][:1] == ["plata-galope"] and len([c for c in stage2 if c.get("plata")]) == 6,
+      "6 ganadoras de plata")
+rt = call("/api/routine_rate", {"id": "plata-galope", "estrellas": 4})
+check(rt["valoraciones"].get("plata-galope") == 4, "las de plata también se valoran")
 check([c["id"] for c in stage2 if c.get("suave")] == ["pie-suave", "pie-ayuda-d", "pie-dos-tiempos", "pie-ivan"], "de pie suaves (amarillas) y la de Iván (rosa)")
 rt = call("/api/routine_rate", {"id": "galope-alto", "estrellas": 6})
 check(rt["valoraciones"].get("galope-alto") == 6, "valorar una rutina con 6 estrellas")

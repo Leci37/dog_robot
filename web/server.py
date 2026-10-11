@@ -755,10 +755,11 @@ def trot_program(conv, step=12, cycles=4, lift=16, fast=False):
             {"op": "esperar", "s": 0.5}, {"op": "repetir", "n": cycles, "pasos": cycle}, S(base_stance(conv), juntos=True)]
 
 
-def phase_gait(conv, fases, duty=0.6, step=12, lift=16, ticks=12, cycles=3, v="normal"):
+def phase_gait(conv, fases, duty=0.6, step=12, lift=16, ticks=12, cycles=3, v="normal", press=0):
     """Marcha por fases (como los SpotMicro de GitHub y los aires del caballo): cada pata tiene su fase en el ciclo
     (0-1). Mientras apoya (fracción `duty`) el pie va de delante a atrás empujando el cuerpo; en el aire vuelve
-    adelante trazando un arco (seno) de altura `lift`. Cada tick = un paso `set` con las 12 a la vez."""
+    adelante trazando un arco (seno) de altura `lift`. Cada tick = un paso `set` con las 12 a la vez. `press`: pisada
+    firme, el pie apoyado empuja un poco hacia el suelo (la "penetration depth" de spot_mini_mini) para no resbalar."""
     k0, h0, hom, cod = _gait(conv)
     cycle = []
     for t in range(ticks):
@@ -767,7 +768,7 @@ def phase_gait(conv, fases, duty=0.6, step=12, lift=16, ticks=12, cycles=3, v="n
             p = (t / ticks - fases[L]) % 1.0
             sl = step[L] if isinstance(step, dict) else step  # paso distinto por pata = girar
             if p < duty:                                   # apoyada: empuja de delante a atrás
-                x, z = sl / 2 - sl * p / duty, 0.0
+                x, z = sl / 2 - sl * p / duty, -press * math.sin(math.pi * p / duty)
             else:                                          # en el aire: vuelve adelante en arco
                 s = (p - duty) / (1 - duty)
                 x, z = -sl / 2 + sl * s, lift * math.sin(math.pi * s)
@@ -913,6 +914,42 @@ def nuevas_routines(c):
         ("desperezarse", "Desperezarse", "Delanteras estiradas y bajas con el culo en alto, y luego al revés", estirarse),
         ("menear", "Menear el culete", "Las traseras de lado a lado, rápido", menear),
         ("baile", "Baile", "De lado a lado subiendo y bajando, y un meneo final", baile),
+    ]
+
+
+CURIOSAS = {"balanceo-potente", "baile", "menear", "pis", "desperezarse"}  # azules, sin estrellas (12-10)
+
+
+def plata_routines(c):
+    """Las 6 ganadoras (plata, 12-10), sacadas de las estrellas del usuario: galope a la derecha 5, galope alto 4,
+    galope largo/rápido, camello, canguro (gira mucho a la derecha) y caballo de tiro atrás 3; turbo, otra mano y
+    caballo de tiro 1. Se cruzan las mejores (altura alta + galope) y se añade la pisada firme de spot_mini_mini.
+    Dar la pata se caía hacia delante (el peso va delante): aquí se sienta antes, como un perro."""
+    k0, h0, hom, cod = _gait(c)
+    p0 = c.get("pectoral", 0)
+    pec = lambda L, s: {"pata": L, "art": "pectoral", "angulo": dev_angle(L, "pectoral", p0 + (s if L in ("A", "D") else -s), c)}  # noqa: E731
+    alta = c | {"delanteras": ALTA, "traseras": ALTA}
+    g = lambda **kw: phase_gait(alta, **({"fases": GALOPE, "duty": 0.45, "step": 14, "press": 3, "v": "rapido", "cycles": 5} | kw))  # noqa: E731
+    sentado = S(no_pec(stance(c, 52, ["C", "D"])) + no_pec(stance(c, 18, ["A", "B"])), juntos=True)
+    pata_sentado = [{"op": "velocidad", "v": "lento"}, S(base_stance(c), juntos=True), sentado, {"op": "esperar", "s": 0.8},
+                    S([pec(L, -6) for L in LEGS], juntos=True),  # el cuerpo un poco a la izquierda, lejos de B
+                    S([hom("B", 50), cod("B", 15)], juntos=True),
+                    {"op": "repetir", "n": 3, "pasos": [S([pec("B", -12)]), S([pec("B", 12)])]},
+                    S(no_pec(stance(c, 18, ["B"])), juntos=True), S([pec(L, 0) for L in LEGS], juntos=True),
+                    {"op": "esperar", "s": 0.5}, S(base_stance(c), juntos=True)]
+    return [
+        ("plata-galope", "Galope plata", "Galope alto (4★) con pisada firme y las derechas un poco más largas para no torcerse",
+         g(step={"A": 13, "D": 13, "B": 15, "C": 15})),
+        ("plata-galope-der", "Galope plata a la derecha", "Cruce de las dos mejores: galope a la derecha (5★) a la altura del galope alto (4★)",
+         g(step={"A": 18, "D": 18, "B": 6, "C": 6})),
+        ("plata-galope-suave", "Galope plata suave", "Galope alto más apoyado (50 %), pie más bajo y a velocidad normal: menos tirones de corriente",
+         g(duty=0.5, lift=14, press=4, v="normal")),
+        ("plata-canguro", "Canguro plata", "Saltos de canguro (iba bien pero muy girado a la derecha), altos y con las derechas más largas",
+         g(fases={"C": 0, "D": 0, "A": 0.45, "B": 0.45}, duty=0.4, step={"A": 10, "D": 10, "B": 16, "C": 16}, lift=14)),
+        ("plata-camello", "Camello plata", "El camello al revés (3★) a la altura alta y con pisada firme",
+         phase_gait(alta, fases=CAMELLO, duty=0.55, step=-12, press=3, cycles=4)),
+        ("plata-pata-sentado", "Dar la pata sentado", "Se sienta (peso atrás, como un perro) y da la B: de pie se caía hacia delante",
+         pata_sentado),
     ]
 
 
@@ -1076,8 +1113,11 @@ def candidate_routines(conv_saved):
     for rid, name, desc, kw in CREATIVAS:
         cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "creativa": True,
                       "programa": phase_gait(c, **kw)})
-    for rid, name, desc, prog in nuevas_routines(c):  # las verdes
-        cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "nueva": True, "programa": prog})
+    for rid, name, desc, prog in nuevas_routines(c):  # las verdes (las curiosas, azules y sin estrellas)
+        kind = {"curiosa": True, "color": "azul"} if rid in CURIOSAS else {"nueva": True}
+        cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "programa": prog} | kind)
+    for rid, name, desc, prog in plata_routines(c):  # las 6 ganadoras
+        cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "plata": True, "color": "plata", "programa": prog})
     for rid, name, desc, prog in amarillas_routines(c):  # de pie suaves: amarillas; la de Iván, rosa
         cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "suave": True, "programa": prog,
                       "color": "rosa" if rid == "pie-ivan" else "amarillo"})

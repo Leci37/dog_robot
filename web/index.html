@@ -163,6 +163,18 @@ button.rosa{background:#e8559a;border-color:#e8559a;color:#fff}button.rosa:hover
 .stars button{border:0;background:none;padding:0 1px;font-size:15px;color:var(--line);cursor:pointer;min-height:0}
 .stars button.on{color:#f5a700}.stars button:hover{color:#f5c84a}
 .qitem{display:inline-flex;flex-direction:column;align-items:center;gap:1px}
+.silverbox{border:2px solid #9aa1a9;border-radius:14px;padding:10px 12px 12px;margin-bottom:14px;
+  background:linear-gradient(135deg,#f6f7f9,#d9dde2);color:#1d2228}
+.silverbox h3{margin:0 0 6px;font-size:16px}.silverbox .pz{color:#4a525c}
+.silverbox .stars button{color:#a3aab2}.silverbox .stars button.on{color:#e09800}
+.silverbox .row{align-items:flex-start;margin-top:6px}
+.silverbox details{margin-top:8px}.silverbox summary{cursor:pointer;font-size:13px}
+.rank{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:2px 14px;font-size:13px;margin-top:6px}
+.rank span b{color:#e09800;letter-spacing:1px}
+button.plata{background:linear-gradient(180deg,#f3f4f6,#b9c0c8);border-color:#8d949c;color:#1d2228;font-weight:600}
+button.plata:hover{background:linear-gradient(180deg,#ffffff,#c9cfd6)}
+button.azul{background:#2f6fd6;border-color:#2f6fd6;color:#fff}button.azul:hover{background:#245cb5}
+.card.plata{border-color:#8d949c;box-shadow:inset 4px 0 0 #8d949c}.card.azul{border-color:#2f6fd6;box-shadow:inset 4px 0 0 #2f6fd6}
 button.nueva{background:#1e9e4a;border-color:#1e9e4a;color:#fff}button.nueva:hover{background:#178a3f}
 .card.nueva{border-color:#1e9e4a;box-shadow:inset 4px 0 0 #1e9e4a}
 .tvrt button{font-size:19px;padding:12px 20px;border-radius:12px}
@@ -189,6 +201,7 @@ button.nueva{background:#1e9e4a;border-color:#1e9e4a;color:#fff}button.nueva:hov
 <aside id="alerts" aria-live="polite"></aside>
 <div id="mapTip" hidden></div>
 <main>
+  <section id="silver" class="silverbox" hidden aria-label="Las 6 ganadoras"></section>
   <section id="quick" class="quick" hidden aria-label="Botones rápidos"></section>
   <section id="tvdash" class="tvdash" hidden>
     <div class="tvtiles">
@@ -1325,7 +1338,8 @@ function renderRunning(ex) {
     $('rtGear').innerHTML = Object.entries(rts.marchas).map(([n, t]) => `<option value="${n}" ${+n === rts.marcha ? 'selected' : ''}>${esc(t)}</option>`).join('');
   }
 }
-let lastFin = '', lastTryInfo = '', lastQuick = '', tuneOpen = true;
+let lastFin = '', lastTryInfo = '', lastQuick = '', lastSilver = '', tuneOpen = true, rankOpen = false;
+document.addEventListener('toggle', e => { if (e.target.id === 'rankBox') rankOpen = e.target.open; }, true);
 document.addEventListener('toggle', e => { if (e.target.id === 'tuneBox') tuneOpen = e.target.open; }, true);
 function renderRt() {
   if (!rts) return;
@@ -1365,17 +1379,19 @@ function renderRt() {
   const val = rts.valoraciones || {};
   const stars = id => `<span class="stars" title="Valórala de 0 a 6 (pulsa otra vez la misma para quitar)">${[1, 2, 3, 4, 5, 6].map(n =>
     `<button data-rate="${esc(id)}" data-estrellas="${n}" class="${(val[id] || 0) >= n ? 'on' : ''}" aria-label="${n} estrellas">★</button>`).join('')}</span>`;
-  const wrap = (c, btn) => c.etapa === 2 || c.ayuda ? `<span class="qitem">${btn}${c.ayuda ? '' : stars(c.id)}</span>` : btn;
+  const wrap = (c, btn) => (c.etapa === 2 && !c.curiosa) || c.ayuda ? `<span class="qitem">${btn}${c.ayuda ? '' : stars(c.id)}</span>` : btn;
   const qb = (c, label) => wrap(c, `<button data-try="${esc(c.id)}" title="${esc(c.desc)}" class="${chosen(c.id) ? 'pri' : ''}">${esc(label)}${chosen(c.id) ? ' ✓' : ''}</button>`);
   const favs = rts.candidatas.filter(c => c.favorita).sort((a, b) => a.favorita - b.favorita);
   const bajar = rts.candidatas.find(c => c.id === 'bajar'), walks = rts.candidatas.filter(c => c.andar);
   const creat = rts.candidatas.filter(c => c.creativa), nuevas = rts.candidatas.filter(c => c.nueva);
-  const suaves = rts.candidatas.filter(c => c.suave);
+  const suaves = rts.candidatas.filter(c => c.suave), curiosas = rts.candidatas.filter(c => c.curiosa);
+  const platas = rts.candidatas.filter(c => c.plata);
   const qc = c => wrap(c, `<button class="${c.color}" data-try="${esc(c.id)}" title="${esc(c.desc)}">${esc(c.nombre)}</button>`);
   const qg = c => wrap(c, `<button class="nueva" data-try="${esc(c.id)}" title="${esc(c.desc)}">${esc(c.nombre)}</button>`);
   const quick = `<div class="row"><span class="lbl">De pie</span>${favs.map(c => qb(c, c.nombre.replace('De pie ', ''))).join('')}${bajar ? qb(bajar, 'Bajar despacio') : ''}</div>
     ${suaves.length ? `<div class="row"><span class="lbl">De pie suave</span>${suaves.map(qc).join('')}</div>` : ''}
     ${nuevas.length ? `<div class="row"><span class="lbl">Nuevas</span>${nuevas.map(qg).join('')}</div>` : ''}
+    ${curiosas.length ? `<div class="row"><span class="lbl">Curiosas</span>${curiosas.map(qc).join('')}</div>` : ''}
     ${walks.length ? `<div class="row"><span class="lbl">Andar</span>${walks.map(c => qb(c, c.nombre.replace('Andar · ', ''))).join('')}</div>` : ''}
     ${creat.length ? `<div class="row"><span class="lbl">Creativas</span>${creat.map(c => qb(c, c.nombre)).join('')}</div>` : ''}
     <div class="row"><span class="lbl">Velocidad</span>${Object.entries(rts.marchas || {}).map(([n, t]) => `<button data-gear="${n}" class="${+n === rts.marcha ? 'pri' : ''}">${esc(t)}</button>`).join('')}
@@ -1384,8 +1400,18 @@ function renderRt() {
   if (home) { $('homeBtn').dataset.try = home.id; $('homeBtn').textContent = '▲ ' + home.nombre.split(' · ')[0]; }
   if (quick !== lastQuick) { $('quick').innerHTML = quick; lastQuick = quick; }
   $('quick').hidden = TV;
-  const list = stage === 1 ? rts.candidatas : [...rts.candidatas.filter(c => c.suave), ...rts.candidatas.filter(c => c.nueva),
-    ...rts.candidatas.filter(c => c.etapa === 2 && !c.nueva && !c.suave),
+  const rtName = Object.fromEntries(rts.candidatas.map(c => [c.id, c.nombre]));
+  const ranked = Object.entries(val).filter(([id]) => rtName[id]).sort((a, b) => b[1] - a[1]);
+  const silver = platas.length ? `<h3>Las 6 ganadoras</h3>
+    <div class="pz">Sacadas de tus estrellas (galope a la derecha 5★, galope alto 4★, canguro y camello 3★…) cruzando las mejores,
+      con la pisada firme de spot_mini_mini. Valóralas igual.</div>
+    <div class="row">${platas.map(qc).join('')}</div>
+    <details ${rankOpen ? 'open' : ''} id="rankBox"><summary>Tus estrellas: ${ranked.length} rutinas valoradas, de mejor a peor</summary>
+      <div class="rank">${ranked.map(([id, n]) => `<span><b>${'★'.repeat(n)}${'☆'.repeat(6 - n)}</b> ${esc(rtName[id])}</span>`).join('') || '<span class="pz">todavía ninguna</span>'}</div></details>` : '';
+  if (silver !== lastSilver) { $('silver').innerHTML = silver; lastSilver = silver; }
+  $('silver').hidden = TV || !platas.length;
+  const list = stage === 1 ? rts.candidatas : [...platas, ...rts.candidatas.filter(c => c.suave), ...rts.candidatas.filter(c => c.nueva),
+    ...curiosas, ...rts.candidatas.filter(c => c.etapa === 2 && !c.nueva && !c.suave && !c.curiosa && !c.plata),
     ...rts.candidatas.filter(c => c.etapa === 1)];
   const firstStand = list.find(c => c.etapa === 1);
   $('tries').innerHTML = list.map(c => {
@@ -1393,7 +1419,7 @@ function renderRt() {
     const mk = pr[c.id] && pr[c.id].mark;
     return `${sep}<div class="card ${mk === 'bien' ? 'hl' : ''} ${c.nueva ? 'nueva' : ''} ${c.color || ''}"><div class="top"><span class="ch">${esc(c.nombre)}</span>${mk ? `<span class="tag ${mk === 'bien' ? 'ok' : 'bad'}">${mk === 'bien' ? '✓ funciona' : '✗ no'}</span>` : ''}</div>
       <div class="pz">${esc(c.desc)} · ${c.pasos} pasos</div>
-      ${c.etapa === 2 ? `<div class="row" style="align-items:center">${stars(c.id)}<span class="pz">${val[c.id] != null ? val[c.id] + '/6' : 'sin valorar'}</span></div>` : ''}
+      ${c.etapa === 2 && !c.curiosa ? `<div class="row" style="align-items:center">${stars(c.id)}<span class="pz">${val[c.id] != null ? val[c.id] + '/6' : 'sin valorar'}</span></div>` : ''}
       <div class="row"><button class="${c.color || (c.nueva ? 'nueva' : 'pri')}" data-try="${esc(c.id)}">▶ Probar</button>${c.ayuda ? '' : `<button data-mark="${esc(c.id)}" data-mk="bien">✓ Funciona</button>
         <button data-mark="${esc(c.id)}" data-mk="mal">✗ No</button>${mk ? `<button data-mark="${esc(c.id)}" data-mk="">borrar marca</button>` : ''}`}
         <button data-viewtry="${esc(c.id)}" title="Abrirla en el editor de bloques">bloques</button></div>

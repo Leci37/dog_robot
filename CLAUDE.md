@@ -265,3 +265,15 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   → al pulsar la estrella 5 mandaba `/api/angle {ch: 5, angle: null}` (500) y no valoraba. Ahora `data-estrellas`, y
   `/api/angle` rechaza un ángulo que no sea número (400, "no se mueve nada"). OJO con los nombres de `data-*`: varios
   manejadores de clic de la página miran el mismo `dataset`.
+- 2026-10-12 (11): **ronda de estrellas** (con la marcha en 6ª turbo y el límite de consumo desactivado: la Pi se apagó
+  de golpe en "De pie en dos tiempos" y "ayudando a la D"). Estrellas: galope a la derecha 5; galope alto 4; galope
+  largo, galope rápido, camello al revés, camello rápido, canguro, caballo de tiro atrás y de pie suave 3; galope a la
+  izquierda y ayudando a la D 2; galope turbo, galope a la otra mano y caballo de tiro 1. De palabra: caballo de tiro se
+  cae hacia delante; canguro va bien pero muy girado a la derecha; dar la pata B y A (estables) se caen hacia delante
+  (el peso del robot va delante); de pie suave: el codo de D se queda sin fuerza al final. Mapa: lo que avanza es la
+  familia del galope (orden D C A B, apoyo 45 %, ritmo) y mejor alta; la zancada asimétrica decide el giro.
+  → **6 de plata** (`plata_routines`, candidatas `plata`, caja plateada arriba con el ranking de estrellas): galope
+  plata (alto, pisada firme `press`, derechas +2), galope plata a la derecha (cruce 5★ + 4★), galope plata suave,
+  canguro plata (derechas más largas), camello plata y dar la pata sentado. `phase_gait(press=…)`: el pie apoyado
+  empuja hacia el suelo (penetration depth de spot_mini_mini, OpenQuadruped; allí un RL/ARS ajusta altura del pie y
+  penetración). **Curiosas** (azules, sin estrellas, `CURIOSAS`): balanceo potente, baile, menear, pis, desperezarse.

@@ -1,6 +1,6 @@
 {
   "potencia": {
-    "limitar": true,
+    "limitar": false,
     "amperios": 5.0,
     "permitir_sin_corriente": true
   },
@@ -28,6 +28,10 @@
     "de-pie-6.7": {
       "mark": "bien",
       "hora": "2026-10-11T23:15:08"
+    },
+    "galope-largo": {
+      "mark": "bien",
+      "hora": "2026-10-12T00:33:20"
     }
   },
   "convencion": {
@@ -38,5 +42,64 @@
     "delanteras": 30,
     "traseras": 30,
     "pectoral": 5
+  },
+  "marcha": 6,
+  "valoraciones": {
+    "galope-largo": {
+      "estrellas": 3,
+      "hora": "2026-10-12T00:37:24"
+    },
+    "galope-rapido": {
+      "estrellas": 3,
+      "hora": "2026-10-12T00:37:39"
+    },
+    "galope-alto": {
+      "estrellas": 4,
+      "hora": "2026-10-12T00:37:54"
+    },
+    "galope-turbo": {
+      "estrellas": 1,
+      "hora": "2026-10-12T00:38:09"
+    },
+    "galope-otra-mano": {
+      "estrellas": 1,
+      "hora": "2026-10-12T00:38:26"
+    },
+    "galope-izq": {
+      "estrellas": 2,
+      "hora": "2026-10-12T00:38:46"
+    },
+    "galope-der": {
+      "estrellas": 5,
+      "hora": "2026-10-12T00:39:05"
+    },
+    "camello-adelante": {
+      "estrellas": 3,
+      "hora": "2026-10-12T00:39:22"
+    },
+    "camello-rapido": {
+      "estrellas": 3,
+      "hora": "2026-10-12T00:39:43"
+    },
+    "canguro": {
+      "estrellas": 3,
+      "hora": "2026-10-12T00:39:59"
+    },
+    "caballo-tiro": {
+      "estrellas": 1,
+      "hora": "2026-10-12T00:40:11"
+    },
+    "caballo-tiro-atras": {
+      "estrellas": 3,
+      "hora": "2026-10-12T00:40:34"
+    },
+    "pie-suave": {
+      "estrellas": 3,
+      "hora": "2026-10-12T00:42:16"
+    },
+    "pie-ayuda-d": {
+      "estrellas": 2,
+      "hora": "2026-10-12T00:42:39"
+    }
   }
 }
