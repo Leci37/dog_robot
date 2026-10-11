@@ -45,7 +45,9 @@
     },
     "10": {
       "pata": "C",
-      "articulacion": "pectoral"
+      "articulacion": "pectoral",
+      "offset": -5,
+      "invertir": false
     },
     "11": {
       "pata": "D",
@@ -65,7 +67,9 @@
     },
     "15": {
       "pata": "D",
-      "articulacion": "codo"
+      "articulacion": "codo",
+      "offset": 10,
+      "invertir": false
     }
   },
   "nomenclatura": 2

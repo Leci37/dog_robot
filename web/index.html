@@ -1309,20 +1309,31 @@ function renderRunning(ex) {
     $('rtGear').innerHTML = Object.entries(rts.marchas).map(([n, t]) => `<option value="${n}" ${+n === rts.marcha ? 'selected' : ''}>${esc(t)}</option>`).join('');
   }
 }
-let lastFin = '';
+let lastFin = '', lastTryInfo = '', tuneOpen = true;
+document.addEventListener('toggle', e => { if (e.target.id === 'tuneBox') tuneOpen = e.target.open; }, true);
 function renderRt() {
   if (!rts) return;
   renderRunning(rts.ejecutando);
   const conv = rts.convencion, pr = rts.pruebas || {}, stage = conv ? 2 : 1;
-  const nudge = leg => {  // ajuste del codo delantero (calibración de su canal): corre ese servo en todas las posturas
-    const ch = Object.keys(st.map || {}).find(k => st.map[k].pata === leg && st.map[k].articulacion === 'codo');
-    if (ch === undefined) return '';
-    const off = st.map[ch].offset || 0;
-    return `<span class="row" style="display:inline-flex;align-items:center;margin-right:12px">${leg}3 (canal ${ch}) ajuste <b>${off > 0 ? '+' : ''}${off}°</b>
-      ${[-15, -5, 5, 15].map(d => `<button data-nudge="${ch}" data-d="${d}">${d > 0 ? '+' : ''}${d}</button>`).join('')}
-      ${Math.abs(off) > 40 ? '<span class="tag warn">llega a su tope al recoger y al levantar el pie andando (la pata B levanta menos): mejor girar su horn 3 dientes</span>' : ''}</span>`;
+  const LEG_NAME = {A: 'A · delantera izq.', B: 'B · delantera der.', C: 'C · trasera der.', D: 'D · trasera izq.'};
+  const tuneLeg = leg => {  // ajuste (calibración) de los 3 servos de una pata: corre ese servo en todas las posturas
+    const rows = ['pectoral', 'hombro', 'codo'].map((art, i) => {
+      const ch = Object.keys(st.map || {}).find(k => st.map[k].pata === leg && st.map[k].articulacion === art);
+      if (ch === undefined) return '';
+      const off = st.map[ch].offset || 0, a = st.angles[ch];
+      return `<div class="row" style="align-items:center;margin-top:4px"><span style="min-width:150px">${leg}${i + 1} ${art}
+          <span class="pz">c${ch} · ${a == null ? 'suelto' : a + '°'}</span> · <b>${off > 0 ? '+' : ''}${off}°</b></span>
+        ${[-5, -1, 1, 5].map(d => `<button data-nudge="${ch}" data-d="${d}">${d > 0 ? '+' : '−'}${Math.abs(d)}</button>`).join('')}
+        ${Math.abs(off) > 40 ? '<span class="tag warn">en su tope al recoger y al levantar el pie: girar el horn 3 dientes</span>' : ''}</div>`;
+    }).join('');
+    return `<div class="card"><div class="top"><span class="ch">${LEG_NAME[leg]}</span></div>${rows}</div>`;
   };
-  $('tryInfo').innerHTML = (conv
+  const tune = `<details id="tuneBox" ${tuneOpen ? 'open' : ''} style="margin-top:10px"><summary style="cursor:pointer"><b>Afinar patas</b>: ajuste de cada servo, para que las 4 queden simétricas</summary>
+      <div class="pz" style="margin:4px 0">Con el robot de pie en la elegida, compara cada pata con su pareja (A con B, D con C) y pulsa ±1/±5 hasta que quede igual:
+      si el servo está sujeto se mueve en el momento, y el ajuste vale para todas las posturas y rutinas. Las derechas (B, C) van en espejo:
+      el mismo gesto es el signo contrario. Vista desde arriba, cabeza arriba.</div>
+      <div class="grid legs" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">${['A', 'B', 'D', 'C'].map(tuneLeg).join('')}</div></details>`;
+  const infoHtml = (conv
     ? `<b>De pie elegida:</b> ${conv.variante ? 'la ' + esc(conv.variante) : 'variante 6'} (hombro ${conv.sh > 0 ? '+' : '−'}, codo ${conv.sk > 0 ? '+' : '−'}, delanteras ${conv.fi ? 'invertidas' : 'igual'}).
        Ya están guardadas las posturas <b>de pie</b>, <b>estirada</b> y <b>recogida</b>. Prueba estas rutinas, marca <b>✓ funciona</b> o <b>✗ no</b>
        y guarda las buenas en "Mis rutinas". Robot en el aire primero; luego en el suelo sujetándolo. <button data-convreset="1">Volver a elegir la de pie</button>`
@@ -1331,10 +1342,8 @@ function renderRt() {
        con las 4 a la vez, muy despacio (antes iban de una en una y cada pata cargaba sola con su esquina). Entre prueba y prueba, <b>Bajar despacio</b>.`)
     + `<div class="row" style="margin-top:8px;align-items:center">Velocidad de las rutinas:
        ${Object.entries(rts.marchas || {}).map(([n, t]) => `<button data-gear="${n}" class="${+n === rts.marcha ? 'pri' : ''}">${esc(t)}</button>`).join('')}
-       <span class="pz">(se puede cambiar con la rutina en marcha)</span></div>
-       <div class="row" style="margin-top:8px;align-items:center">Codos delanteros: ${nudge('B')} ${nudge('A')}</div>
-       <div class="pz">B3 lleva +45 y A3 −15 (15° hacia delante en A3 es −15 porque va en espejo de B3; si A3 se fue hacia atrás, pulsa +15 dos veces).
-       El ajuste corre ese servo en todas las posturas y rutinas.</div>`;
+       <span class="pz">(se puede cambiar con la rutina en marcha)</span></div>` + tune;
+  if (infoHtml !== lastTryInfo) { $('tryInfo').innerHTML = infoHtml; lastTryInfo = infoHtml; }  // sin repintar cada 5 s
   const list = stage === 1 ? rts.candidatas : [...rts.candidatas.filter(c => c.etapa === 2), ...rts.candidatas.filter(c => c.etapa === 1)];
   const firstStand = list.find(c => c.etapa === 1);
   $('tries').innerHTML = list.map(c => {

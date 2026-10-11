@@ -88,7 +88,10 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
 - Web > "Rutinas para probar". Paso 1: la buena es la "De pie 6" (encontrada el 11-10). Prueba la 6 y
   sus variantes (6.1 baja, 6.2 alta, 6.3 y 6.4 inclinadas, 6.5 y 6.6 pectorales) y marca ✓ la mejor.
   Cada una recoge las 4 patas y se levanta con las 4 a la vez, muy despacio. Entre prueba y prueba,
-  "Bajar despacio". Los codos delanteros tienen su ajuste ahí mismo (B3 +45, A3 -15; botones ±5/±15).
+  "Bajar despacio".
+- "Afinar patas" (en "Rutinas para probar"): el ajuste de cada uno de los 12 servos con ±1/±5. Con el robot
+  de pie, compara cada pata con su pareja (A con B, D con C) y ajusta hasta que queden iguales: vale para
+  todas las posturas y rutinas. Ajustes puestos: A3 -15, B3 +45, C1 -5, D3 +10.
   Al marcar ✓ se guardan las posturas "de pie", "estirada" y "recogida", y aparecen las rutinas. Primero
   las 5 de andar: paso a paso, con balanceo, trote lento, hacia atrás y paseo (adelante, gira, adelante,
   gira). Luego girar a izquierda/derecha, marcar el paso, de pie alto/bajo, tumbarse, levantarse, sentarse,

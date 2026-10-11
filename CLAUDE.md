@@ -97,7 +97,9 @@ en `.gitignore`, **nunca** subirlo).
 - **Paso `set` con `juntos`**: `move_many(..., juntos=True)` mueve todos los servos a la vez (1° cada uno por paso)
   aunque el límite de consumo diga tandas: en tandas, cada pata levantaba sola su esquina y su servo no podía.
 - **Ajuste fino** `/api/calibrate` `{action: "nudge", delta: ±1-30}`: corre el `offset` del canal (máx. ±60) sin
-  cambiar el ángulo lógico; si está sujeto se ve moverse. En la web, botones ±5/±15 de A3 y B3 en "Rutinas para probar".
+  cambiar el ángulo lógico; si está sujeto se ve moverse. En la web, panel "Afinar patas" en "Rutinas para probar"
+  (los 12 servos en vista desde arriba A B / D C, ±1/±5; `tuneOpen` recuerda si está abierto; `tryInfo` solo se repinta
+  si cambia el HTML).
   Las variantes avisan si su postura final lleva un servo más allá de 5-175° físicos (`tope_warnings`).
 - **Mis rutinas** (`rutinas.json`): ejecutar, ver/editar en bloques, borrar. Teclas 1-9 en el HDMI.
 - **Programar con bloques** (Blockly 13.3.0 servido desde `web/static/blockly`, funciona sin internet; renderer
@@ -217,3 +219,9 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   Con B3 a +45, al levantar la pata B andando el codo llega a 175° (le faltan ~6°): la pata B levanta menos hasta
   girar su horn. Pruebas con simulador: TODO BIEN. OJO al probar: `pkill -f` con la ruta absoluta no encuentra un
   servidor de prueba lanzado con ruta relativa (se quedó uno vivo en el 8097 con el simulador): parar por el puerto.
+- 2026-10-12 (3): probó paso a paso, con balanceo, girar a la derecha y trote lento (todas terminadas; la Pi sin caídas
+  de tensión). El "7,2 A" del trote es la estimación de la web (4 servos moviéndose ×1,2 + 8 sujetos ×0,3), no una medida.
+  Pidió de calibración por defecto C1 −5 y D3 +10 (puestos en servo_map.json; ojo: a mano había dejado C1 en 75 = −10 y
+  D3 en 115 = −5 respecto a la 6.7, y D1 en 100 = +5, D2 en 70 = −5; se le dijo) y "10° a un hombro hacia la posición
+  del otro" (no dijo cuál ni hacia dónde: se le dio el panel "Afinar patas" con los 12 servos para que lo ajuste él).
+  Comentó que las patas tienen "cierta (a)simetría": de ahí el panel.
