@@ -23,6 +23,7 @@ Control web para un robot cuadrúpedo **SpotMicro** (impreso en 3D) con **Raspbe
 | `pruebas/` | Simulador de la placa de servos y pruebas del servidor (no mueven nada) |
 | `servo_map.json`, `poses.json`, `config.json`, `rutinas.json` | Datos de este robot (mapa, posturas, sentido, rutinas) |
 | `AYUDA.md` | Guía de uso (conexión, pantalla, alimentación, rutinas, fallos) |
+| `web/static/esquema.svg` | **Esquema de conexiones**: Pi, placa, fuentes y los 12 servos con su canal (lo genera `sistema/gen_esquema.py`) |
 | `CLAUDE.md` / `AGENTS.md` | Contexto técnico completo para quien siga el proyecto (personas o IA) |
 
 ## Instalar en una Raspberry Pi (Raspberry Pi OS Lite 32-bit, Trixie)

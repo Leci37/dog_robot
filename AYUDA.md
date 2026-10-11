@@ -96,6 +96,14 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
 - Web > Sistema > "Informe para la mudanza" > Comprobar ahora: revisa red, alimentación, servicios,
   SSH, SD, placa de servos, mapa, rutinas y copias. Verde = bien, amarillo = aviso, rojo = fallo.
 
+5b. LÍMITE DE CONSUMO Y ESQUEMA DE CONEXIONES
+---------------------------------------------
+- Arriba del todo en la web: casilla "Limitar el consumo de los servos a la fuente" y deslizador con los
+  amperios de la fuente (ahora 5 A). Con el límite, los movimientos se hacen en tandas para no pasar de
+  esos amperios (con 5 A, de uno en uno). Con una fuente de 15-20 A, sube el deslizador.
+- Esquema de conexiones (Pi, placa, fuentes y los 12 servos con su canal y avisos): al final de la web,
+  en http://<ip>/static/esquema.svg y en web/static/esquema.svg del proyecto.
+
 6. SI ALGO VA MAL
 -----------------
 - Los servos hacen cosas raras: "Soltar todo" (botón rojo de la web, o tecla S en la pantalla).

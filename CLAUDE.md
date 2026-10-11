@@ -92,8 +92,15 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
 - `web/` (server.py, index.html, static/blockly, unidad), `pantalla/` (panel.py, navegador.sh, unidad, PAM),
   `sistema/` (led_vivo.py + unidad, instala-navegador.sh, migrar_nombres.py, red_prueba.sh), `pruebas/`
   (simulador de servos `fake/adafruit_servokit.py` + `prueba_servidor.py`: ~45 comprobaciones sin tocar la placa).
-- Datos: `servo_map.json`, `poses.json`, `config.json`, `rutinas.json`. Registros (no van a git): `energia.log`,
-  `web/acciones.log`, `pantalla/{modo,estado,menu_visto}`.
+- Datos: `servo_map.json`, `poses.json`, `config.json` (convención, pruebas y `potencia` {limitar, amperios}),
+  `rutinas.json`. Registros (no van a git): `energia.log`, `vigilante.log`, `web/acciones.log`,
+  `pantalla/{modo,estado,menu_visto}`.
+- **Esquema de conexiones**: `web/static/esquema.svg` (al final de la web y en `/static/esquema.svg`), generado con
+  `sistema/gen_esquema.py` (mapa de canales y avisos dentro del script: actualízalo si cambia el cableado).
+- **Límite de consumo** (`move_many` en server.py): servo moviéndose ~1,2 A, sujetando ~0,3 A; con el límite activado
+  mueve en tandas de `max_movers()` servos para no pasar de los amperios de la fuente (5 A → de uno en uno).
+- `sistema/vigilante.sh` + `spotmicro-vigilante.timer` (cada minuto): repone 169.254.42.1/perfil de red, reinicia la
+  web si no responde, pone la consola en tty1 si el panel falla, arranca el LED; registro en `vigilante.log`.
 - Probar cambios del servidor sin tocar servos (en la Pi, desde una copia):
   `FAKE_LOG=/tmp/fake.log SPOTMICRO_PORTS=8099 SPOTMICRO_FAST=1 PYTHONPATH=pruebas/fake python3 web/server.py &`
   y `python3 pruebas/prueba_servidor.py`.
@@ -114,3 +121,6 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   pruebas con simulador (todo bien); credenciales fuera de los documentos; copia para GitHub en el PC.
 - 2026-10-11 14:11: tercer apagado de golpe, en el mismo segundo en que se movía el canal 4. Desde las 14:05 los servos no se movían aunque la PCA sacaba bien el PWM → sospecha: GND de la fuente de servos con mal contacto en la clema; la corriente de los servos volvía por la Pi (pin 6) y el cable micro USB, que se quemó (el usuario lo cambió y la Pi revivió). Tras cambiar el cable seguía con falta de corriente (throttled=0x50005 continuo): revisar cargador/cable de la Pi y el GND de la clema ANTES de mover servos. Fuente de servos actual: 5 A (insuficiente para los 12 de pie). Añadido el vigilante (spotmicro-vigilante.timer).
 - 2026-10-11 15:30: límite de consumo de los servos (barra arriba, 5 A por defecto: movimientos en tandas); instalación del navegador relanzada (4G a ~470 KB/s).
+- 2026-10-11 15:40: esquema de conexiones (web/static/esquema.svg, al final de la web, en la documentación y como
+  artefacto: https://claude.ai/artifact/T9jZtMM2dSXeoykRx2TbbN). Avisos: codo A (canal 0) no responde, codo B
+  (canal 6) girado, delanteras con otro orden de cables (posible cable cruzado), traseras C y D bien.
