@@ -1,23 +1,40 @@
 #!/home/luislecinana/robot/bin/python
-"""Web de mapeo de servos del SpotMicro.
+"""Web de control del SpotMicro.
 
-http://<ip-de-la-pi>:8080  ·  servicio systemd: spotmicro-web
-Guarda el mapa en ../servo_map.json y deja un log de acciones en acciones.log.
+http://<ip-de-la-pi> (puerto 80) y :8080  ·  servicio systemd: spotmicro-web
+Guarda el mapa en ../servo_map.json, las posturas en ../poses.json, un log de acciones en
+acciones.log y un registro permanente de arranques y cortes de corriente en ../energia.log.
 """
 import json
+import os
+import shutil
+import signal
+import socket
+import subprocess
 import threading
 import time
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from adafruit_servokit import ServoKit
 
 WEB = Path(__file__).resolve().parent
-MAP_FILE = WEB.parent / "servo_map.json"
-POSES_FILE = WEB.parent / "poses.json"  # {"A": {"recogida": {"hombro": 90, ...}, "estirada": {...}}, ...}
+ROOT = WEB.parent
+MAP_FILE = ROOT / "servo_map.json"
+POSES_FILE = ROOT / "poses.json"  # {"A": {"recogida": {"hombro": 90, ...}, "estirada": {...}}, ...}
 LOG_FILE = WEB / "acciones.log"
-PORT = 8080
+ENERGY_LOG = ROOT / "energia.log"
+HELP_FILE = ROOT / "AYUDA.md"
+SCREEN_DIR = ROOT / "pantalla"
+SCREEN_MODE = SCREEN_DIR / "modo"          # lo que se pide mostrar en el HDMI: panel | web | consola
+SCREEN_BOOT = SCREEN_DIR / "arranque"      # opción por defecto del menú al arrancar
+SCREEN_STATUS = SCREEN_DIR / "estado"      # lo que muestra ahora (lo escribe el panel)
+BROWSER_SCRIPT = SCREEN_DIR / "navegador.sh"
+PORTS = (8080, 80)
+LINK_LOCAL_IP = "169.254.42.1"             # dirección fija para cable directo (ver CLAUDE.md)
+IPV6_LL = "fe80::ba27:ebff:fe16:ec15"      # IPv6 link-local fija (EUI-64 de la MAC)
 
 MIN_US, MAX_US = 500, 2500   # MG996R aprox. 0-180 grados
 SAFE_MIN, SAFE_MAX = 30, 150   # límites del ángulo lógico (el que ve el usuario)
@@ -27,6 +44,23 @@ CENTER = 90
 SPEEDS = {"lento": 0.05, "normal": 0.03, "rapido": 0.012}  # segundos por grado
 LEGS = ["A", "B", "C", "D"]
 RIGHT = {"B", "C"}  # patas derechas: servos en espejo respecto a las izquierdas
+FRONT = {"A", "B"}
+
+# Posturas candidatas para descubrir el sentido de cada articulación: ángulos lógicos de la pata
+# izquierda trasera; derechas en espejo (180 - a) y, en la variante "delanteras invertidas", las
+# delanteras también en espejo en rodilla y tobillo. El usuario marca cuáles quedan bien.
+CANDIDATE_BASES = [
+    ("neutra", "Neutra (todo a 90°)", {"hombro": 90, "rodilla": 90, "tobillo": 90}),
+    ("r+t-", "Rodilla +25 · tobillo −40", {"hombro": 90, "rodilla": 115, "tobillo": 50}),
+    ("r-t+", "Rodilla −25 · tobillo +40", {"hombro": 90, "rodilla": 65, "tobillo": 130}),
+    ("r+t+", "Rodilla +25 · tobillo +40", {"hombro": 90, "rodilla": 115, "tobillo": 130}),
+    ("r-t-", "Rodilla −25 · tobillo −40", {"hombro": 90, "rodilla": 65, "tobillo": 50}),
+]
+CANDIDATES = []
+for _id, _name, _base in CANDIDATE_BASES:
+    CANDIDATES.append({"id": _id + "|igual", "nombre": _name, "delanteras": "igual", "base": _base})
+    if _id != "neutra":
+        CANDIDATES.append({"id": _id + "|inv", "nombre": _name, "delanteras": "invertidas", "base": _base})
 JOINTS = ["hombro", "rodilla", "tobillo"]  # nombres del usuario, del cuerpo hacia el suelo
 
 kit = ServoKit(channels=16)
@@ -60,10 +94,204 @@ def load_map():
     return data
 
 
+def fsync_dir(path):
+    fd = os.open(path, os.O_DIRECTORY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def write_json(path, data):
+    """Escritura a prueba de cortes de corriente: fichero temporal + fsync + copia .bak + rename."""
     tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    with tmp.open("w") as f:
+        f.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        f.flush()
+        os.fsync(f.fileno())
+    if path.exists():
+        shutil.copy2(path, path.with_name(path.name + ".bak"))
     tmp.replace(path)
+    fsync_dir(path.parent)
+
+
+# ---------- sistema: energía, red, pantalla ----------
+
+THROTTLE_BITS = [
+    (0, "FALTA DE CORRIENTE AHORA"), (1, "frecuencia limitada ahora"), (2, "CPU frenada ahora"),
+    (3, "límite de temperatura ahora"), (16, "hubo falta de corriente desde el arranque"),
+    (17, "hubo frecuencia limitada"), (18, "hubo CPU frenada"), (19, "hubo límite de temperatura"),
+]
+power = {"throttled": None}
+_sys_cache = {"t": 0, "data": None}
+
+
+def boot_id():
+    return Path("/proc/sys/kernel/random/boot_id").read_text().strip()[:8]
+
+
+def energy_log(msg):
+    with ENERGY_LOG.open("a") as f:
+        f.write(f"{datetime.now():%Y-%m-%d %H:%M:%S} {msg}\n")
+        f.flush()
+        os.fsync(f.fileno())
+
+
+def run(cmd, timeout=4):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout).stdout.strip()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def read_throttled():
+    out = run(["vcgencmd", "get_throttled"])
+    try:
+        return int(out.split("=")[1], 16)
+    except (IndexError, ValueError):
+        return None
+
+
+def power_monitor():
+    """Vigila la alimentación cada 2 s y apunta en energia.log cada cambio (se guarda aunque se corte)."""
+    last = None
+    while True:
+        t = read_throttled()
+        if t is not None:
+            power["throttled"] = t
+            if last is not None and t != last:
+                if t & 1 and not last & 1:
+                    energy_log("FALTA DE CORRIENTE detectada (under-voltage)")
+                elif last & 1 and not t & 1:
+                    energy_log("tensión normal otra vez")
+                elif t & 0x10000 and not last & 0x10000:
+                    energy_log("caída de tensión breve (entre dos lecturas)")
+                if t & 4 and not last & 4:
+                    energy_log("CPU frenada por alimentación o temperatura")
+                if t & 8 and not last & 8:
+                    energy_log("límite de temperatura alcanzado")
+            last = t
+        time.sleep(2)
+
+
+def boot_check():
+    """Al arrancar el servidor: ¿es un arranque nuevo de la Pi? ¿terminó bien el anterior?"""
+    bid = boot_id()
+    try:
+        lines = ENERGY_LOG.read_text(errors="replace").splitlines()
+    except FileNotFoundError:
+        lines = []
+    boots = [ln for ln in lines if " ARRANQUE " in ln]
+    if boots and f"boot={bid}" in boots[-1]:
+        energy_log(f"servidor web reiniciado (misma sesión de la Pi, boot={bid})")
+        return
+    if boots:
+        prev = boots[-1].split("boot=")[1].split()[0].rstrip(";")
+        clean = any(f"APAGADO-LIMPIO boot={prev}" in ln for ln in lines)
+        how = "limpio" if clean else "DE GOLPE (corte de corriente, cuelgue o desenchufe sin apagar)"
+    else:
+        how = "desconocido (primer registro)"
+    t = read_throttled()
+    up = float(Path("/proc/uptime").read_text().split()[0])
+    energy_log(f"ARRANQUE boot={bid}; la Pi lleva {up:.0f} s encendida; el arranque anterior terminó: {how}; "
+               f"throttled={hex(t) if t is not None else '?'}")
+
+
+def on_sigterm(signum, frame):
+    state = run(["systemctl", "is-system-running"], timeout=2)
+    if state == "stopping":
+        energy_log(f"APAGADO-LIMPIO boot={boot_id()}")
+    else:
+        energy_log(f"servidor web parado (sistema: {state or '?'})")
+    os._exit(0)
+
+
+def read_text(path, default=""):
+    try:
+        return path.read_text().strip()
+    except (FileNotFoundError, PermissionError):
+        return default
+
+
+def net_info():
+    try:
+        addrs = json.loads(run(["ip", "-j", "addr", "show"]) or "[]")
+        routes = json.loads(run(["ip", "-j", "route", "show", "default"]) or "[]")
+    except json.JSONDecodeError:
+        addrs, routes = [], []
+    ipv4, ipv6_ll = [], ""
+    for it in addrs:
+        if it.get("ifname") == "lo":
+            continue
+        for a in it.get("addr_info", []):
+            if a.get("family") == "inet":
+                ipv4.append({"if": it["ifname"], "ip": a["local"], "prefix": a["prefixlen"]})
+            elif a.get("family") == "inet6" and a.get("scope") == "link" and it.get("ifname") == "eth0":
+                ipv6_ll = a["local"]
+    carrier = read_text(Path("/sys/class/net/eth0/carrier"), "0") == "1"
+    gw = next((r.get("gateway") for r in routes if r.get("gateway")), "")
+    mode = "sin-cable" if not carrier else ("router" if gw else "directo")
+    port = "" if bound_ports and 80 in bound_ports else ":8080"
+    urls = [f"http://{a['ip']}{port}" for a in ipv4 if a["if"] == "eth0" and a["ip"] != LINK_LOCAL_IP]
+    urls.append(f"http://{LINK_LOCAL_IP}{port}")
+    return {"mode": mode, "carrier": carrier, "gateway": gw, "ipv4": ipv4, "ipv6_ll": ipv6_ll,
+            "urls": urls, "hostname": socket.gethostname()}
+
+
+def screen_info():
+    def active(unit):
+        return run(["systemctl", "is-active", unit], timeout=2) == "active"
+    hdmi = ""
+    for st in Path("/sys/class/drm").glob("card*-HDMI-A-1/status"):
+        hdmi = read_text(st)
+    return {"modo": read_text(SCREEN_MODE, "panel"), "arranque": read_text(SCREEN_BOOT, "panel"),
+            "estado": read_text(SCREEN_STATUS, ""), "panel_activo": active("spotmicro-pantalla.service"),
+            "consola_activa": active("getty@tty1.service"),
+            "navegador_instalado": BROWSER_SCRIPT.exists() and bool(shutil.which("cage")) and bool(shutil.which("chromium")),
+            "hdmi": hdmi}
+
+
+def system_info():
+    now = time.time()
+    if _sys_cache["data"] and now - _sys_cache["t"] < 3:
+        return _sys_cache["data"]
+    t = power["throttled"] if power["throttled"] is not None else read_throttled()
+    temp = run(["vcgencmd", "measure_temp"]).replace("temp=", "").replace("'C", "")
+    uv = run(["journalctl", "-k", "-b", "-q", "--no-pager", "-g", "Undervoltage detected"], timeout=6)
+    try:
+        energy = ENERGY_LOG.read_text(errors="replace").splitlines()[-15:]
+    except FileNotFoundError:
+        energy = []
+    data = {
+        "uptime_s": int(float(Path("/proc/uptime").read_text().split()[0])),
+        "temp_c": temp,
+        "throttled": t,
+        "throttled_txt": [txt for bit, txt in THROTTLE_BITS if t is not None and t >> bit & 1],
+        "caidas_tension_arranque": len(uv.splitlines()) if uv else 0,
+        "net": net_info(),
+        "screen": screen_info(),
+        "energia": energy,
+        "ports": sorted(bound_ports),
+        "ipv6_ll_fija": IPV6_LL,
+        "ip_directa": LINK_LOCAL_IP,
+    }
+    _sys_cache.update(t=now, data=data)
+    return data
+
+
+def set_screen(mode):
+    if mode not in ("panel", "web", "consola"):
+        raise ValueError("modo de pantalla no válido")
+    SCREEN_DIR.mkdir(exist_ok=True)
+    SCREEN_MODE.write_text(mode + "\n")
+    if mode == "consola":
+        subprocess.Popen(["sudo", "-n", "systemctl", "start", "getty@tty1.service"])
+    elif run(["systemctl", "is-active", "spotmicro-pantalla.service"], timeout=2) != "active":
+        subprocess.Popen(["sudo", "-n", "systemctl", "start", "spotmicro-pantalla.service"])
+    _sys_cache["data"] = None
+
+
+bound_ports = set()
 
 
 def save_map(data):
@@ -177,14 +405,19 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def state(self):
-        return {"angles": angles, "map": load_map()["canales"], "poses": load_poses(),
+        return {"angles": angles, "map": load_map()["canales"], "poses": load_poses(), "candidatas": CANDIDATES,
                 "limits": {"min": SAFE_MIN, "max": SAFE_MAX, "max_delta": MAX_DELTA}}
 
     def do_GET(self):
-        if self.path in ("/", "/index.html"):
+        path = urlsplit(self.path).path
+        if path in ("/", "/index.html"):
             self._send(200, (WEB / "index.html").read_bytes(), "text/html; charset=utf-8")
-        elif self.path == "/api/state":
+        elif path == "/api/state":
             self._send(200, self.state())
+        elif path == "/api/system":
+            self._send(200, system_info())
+        elif path in ("/ayuda", "/ayuda.txt"):
+            self._send(200, HELP_FILE.read_bytes() if HELP_FILE.exists() else b"sin ayuda", "text/plain; charset=utf-8")
         else:
             self._send(404, {"error": "no existe"})
 
@@ -192,6 +425,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             n = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(n) or b"{}")
+            if urlsplit(self.path).path in ("/api/screen", "/api/screen_boot", "/api/system_action"):
+                self.route_system(body)  # no tocan servos: sin esperar al cerrojo de movimiento
+                return
             with lock:
                 self.route(body)
         except ValueError as e:
@@ -200,8 +436,36 @@ class Handler(BaseHTTPRequestHandler):
             log(f"ERROR {self.path}: {e!r}")
             self._send(500, {"error": repr(e)})
 
+    def route_system(self, b):
+        p = urlsplit(self.path).path
+        if p == "/api/screen":
+            set_screen(b.get("modo", ""))
+            log(f"pantalla HDMI -> {b.get('modo')}")
+        elif p == "/api/screen_boot":
+            mode = b.get("modo", "")
+            if mode not in ("panel", "web", "consola"):
+                raise ValueError("modo de arranque no válido")
+            SCREEN_DIR.mkdir(exist_ok=True)
+            SCREEN_BOOT.write_text(mode + "\n")
+            log(f"pantalla HDMI al arrancar -> {mode}")
+        elif p == "/api/system_action":
+            action = b.get("accion")
+            if action not in ("apagar", "reiniciar"):
+                raise ValueError("acción no válida")
+            with lock:
+                for ch in range(16):
+                    release(ch)
+            log(f"SISTEMA: {action} (servos soltados antes)")
+            energy_log(f"{action} pedido desde la web/panel")
+            verb = "poweroff" if action == "apagar" else "reboot"
+            # temporizador fuera de este servicio, para que la respuesta llegue antes de apagar
+            subprocess.Popen(["sudo", "-n", "systemd-run", "--on-active=2", "--timer-property=AccuracySec=100ms",
+                              "/usr/bin/systemctl", verb])
+        _sys_cache["data"] = None
+        self._send(200, system_info())
+
     def route(self, b):
-        p = self.path
+        p = urlsplit(self.path).path
         if p == "/api/test":
             ch = check_ch(b["ch"])
             d = min(abs(int(b.get("delta", 10))), MAX_DELTA)
@@ -315,6 +579,37 @@ class Handler(BaseHTTPRequestHandler):
             m["offset"], m["invertir"] = off, inv
             save_map(data)
             log(f"calibrar canal {ch}: {action} -> ajuste {off:+d}, invertir={inv}, angulo logico {angles[ch]}")
+        elif p == "/api/candidate_go":
+            cand = next((c for c in CANDIDATES if c["id"] == b["id"]), None)
+            if not cand:
+                raise ValueError("postura candidata desconocida")
+            mirror = b.get("mirror", {})
+            per_leg = {}
+            for leg in LEGS:
+                chs = leg_channels(leg)
+                per_leg[leg] = {}
+                for j, a in cand["base"].items():
+                    if j not in chs:
+                        continue
+                    if cand["delanteras"] == "invertidas" and leg in FRONT and j != "hombro":
+                        a = 180 - a
+                    if mirror.get(j, True) and leg in RIGHT:
+                        a = 180 - a
+                    per_leg[leg][j] = (chs[j], a)
+            move_many({ch: a for _, _, (ch, a) in interleaved(per_leg)}, pause_of(b))
+            log(f"candidata {cand['id']} ({cand['nombre']}, delanteras {cand['delanteras']})")
+        elif p == "/api/candidate_mark":
+            cid = b["id"]
+            if not any(c["id"] == cid for c in CANDIDATES):
+                raise ValueError("postura candidata desconocida")
+            poses = load_poses()
+            marks = poses.setdefault("_candidatas", {})
+            if b.get("mark") in ("bien", "mal"):
+                marks[cid] = {"mark": b["mark"], "nota": str(b.get("nota", ""))[:200]}
+            else:
+                marks.pop(cid, None)
+            write_json(POSES_FILE, poses)
+            log(f"candidata {cid} marcada: {marks.get(cid)}")
         elif p == "/api/release":
             ch = check_ch(b["ch"])
             release(ch)
@@ -351,6 +646,9 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, self.state())
 
 
+ThreadingHTTPServer.daemon_threads = True
+
+
 def recover_angles():
     """Al arrancar, deduce de los registros de la PCA9685 dónde están los servos que siguen sujetos,
     para que un reinicio del servidor no los haga saltar ni los dé por sueltos."""
@@ -369,8 +667,20 @@ def recover_angles():
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, on_sigterm)
     load_cal()
     recover_angles()
+    boot_check()
+    threading.Thread(target=power_monitor, daemon=True).start()
+    servers = []
+    for port in PORTS:
+        try:
+            servers.append(ThreadingHTTPServer(("0.0.0.0", port), Handler))
+            bound_ports.add(port)
+        except OSError as e:  # p. ej. el 80 sin permiso: seguimos con el 8080
+            log(f"no puedo escuchar en el puerto {port}: {e}")
     log(f"angulos recuperados de la PCA: { {c: a for c, a in angles.items() if a is not None} }")
-    log(f"servidor arrancado en puerto {PORT}; calibración {CAL}")
-    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    log(f"servidor arrancado en puertos {sorted(bound_ports)}; calibración {CAL}")
+    for srv in servers[1:]:
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+    servers[0].serve_forever()

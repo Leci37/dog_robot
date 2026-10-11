@@ -1,0 +1,3 @@
+# /etc/pam.d/spotmicro-pantalla: sesion de logind para el panel HDMI del SpotMicro
+@include common-account
+@include common-session

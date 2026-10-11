@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SpotMicro servos</title>
+<title>SpotMicro control</title>
 <style>
 :root{--bg:#f6f5f1;--card:#fff;--ink:#1f1e1c;--mut:#6b6a65;--line:#dcdad3;--acc:#534AB7;--acc-bg:#EEEDFE;--ok:#0F6E56;--ok-bg:#E1F5EE;--bad:#A32D2D;--bad-bg:#FCEBEB;--warn-bg:#FAEEDA}
 @media (prefers-color-scheme:dark){:root{--bg:#1b1b19;--card:#262624;--ink:#ecebe6;--mut:#a3a29c;--line:#3d3d3a;--acc:#AFA9EC;--acc-bg:#2e2a55;--ok:#5DCAA5;--ok-bg:#0f3a2f;--bad:#F09595;--bad-bg:#4a1b1b;--warn-bg:#41300f}}
@@ -57,16 +57,46 @@ h2.sec{font-size:16px;font-weight:600;margin:22px 0 8px}
 .jw.hl{background:var(--acc-bg);border-radius:6px;outline:2px solid var(--acc)}
 .card.hl{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-bg)}
 .sp{height:200px}
+.tag.ok{background:var(--ok-bg);color:var(--ok)}
+.tag.warn{background:var(--warn-bg);color:var(--ink)}
+.tag.bad{background:var(--bad-bg);color:var(--bad);font-weight:600}
+details.sys>summary{cursor:pointer;font-size:16px;font-weight:600;margin:6px 0 10px}
+.sysg{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.kv{font-size:13px;line-height:1.6}
+.kv code,.mono{font-family:ui-monospace,Consolas,monospace;font-size:13px}
+.ev{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--mut);max-height:160px;overflow:auto;white-space:pre-wrap}
+pre#ayuda{white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-size:13px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:8px 0 0}
+body.tv{font-size:19px}
+body.tv .row button{font-size:17px;padding:8px 12px}
 </style>
 </head>
 <body>
 <header>
-  <h1><span id="dot" class="dot"></span>SpotMicro · mapeo de servos</h1>
+  <h1><span id="dot" class="dot"></span>SpotMicro · control</h1>
+  <span id="pw" class="tag" title="Alimentación de la Pi">alimentación…</span>
+  <span id="netb" class="tag" title="Conexión de red">red…</span>
   <span id="count" class="tag">0/12</span>
   <button class="stop" id="off">Soltar todo</button>
   <div id="now" class="now" hidden></div>
 </header>
 <main>
+  <details class="sys" id="sysd">
+    <summary>Sistema: conexión, alimentación, pantalla HDMI y ayuda</summary>
+    <div class="grid sysg">
+      <div class="card"><div class="ch">Conexión</div><div class="kv" id="sysNet">…</div></div>
+      <div class="card"><div class="ch">Alimentación</div><div class="kv" id="sysPw">…</div>
+        <div class="ev" id="sysEv"></div></div>
+      <div class="card"><div class="ch">Pantalla HDMI</div><div class="kv" id="sysScr">…</div>
+        <div class="row"><button data-scr="panel">Panel</button><button data-scr="web" id="scrWeb">Página web</button><button data-scr="consola">Consola</button></div>
+        <label class="kv">Al arrancar, por defecto:
+          <select id="scrBoot"><option value="panel">panel</option><option value="web">página web</option><option value="consola">consola</option></select></label></div>
+      <div class="card"><div class="ch">Apagar</div>
+        <div class="kv">Antes de desenchufar la Pi, apágala aquí y espera unos 20 s (LED verde quieto). Así no se estropea la SD.</div>
+        <div class="row"><button class="stop" data-sys="apagar">Apagar la Pi</button><button data-sys="reiniciar">Reiniciar</button></div></div>
+    </div>
+    <details id="helpd" style="margin-top:10px"><summary class="kv"><b>Ayuda: cómo conectarse, pantalla, cortes de corriente y qué hacer si algo falla</b></summary>
+      <pre id="ayuda">cargando…</pre></details>
+  </details>
   <div class="bar">
     <label>Amplitud
       <select id="delta"><option>5</option><option selected>10</option><option>15</option><option>20</option><option>30</option><option>45</option></select>°
@@ -94,6 +124,11 @@ h2.sec{font-size:16px;font-weight:600;margin:22px 0 8px}
     &nbsp;Articulación, del cuerpo al suelo: <b>1</b> hombro (abre/cierra al lado) · <b>2</b> rodilla (pata adelante/atrás) · <b>3</b> tobillo (dobla la parte de abajo).
     Robot siempre en el aire. Límites 30–150°.
   </div>
+  <h2 class="sec">Posturas candidatas</h2>
+  <div class="legend">Cada una lleva las 4 patas a la vez (alternando, poco a poco). Pruébala, mira el robot y márcala
+    <b>✓ bien</b> o <b>✗ mal</b>. "Delanteras invertidas" = las delanteras doblan al revés que las traseras.
+    Si una queda bien, puedes guardarla como recogida o estirada. Robot en el aire.</div>
+  <div class="grid legs" id="cands"></div>
   <h2 class="sec">Secuencias</h2>
   <div class="row" style="margin-bottom:8px">
     <button class="pri" data-seq="hombro">Todos los hombros</button>
@@ -204,12 +239,29 @@ function renderGroups() {
   $('recAll').disabled = busy || !has('recogida');
   $('estAll').disabled = busy || !has('estirada');
 }
+let lastCand = null;
+function renderCands() {
+  const marks = (st.poses || {})._candidatas || {};
+  $('cands').innerHTML = (st.candidatas || []).map(c => {
+    const mk = marks[c.id], b = c.base;
+    const cls = !mk ? '' : mk.mark === 'bien' ? 'tag m' : 'tag dup';
+    return `<div class="card ${lastCand === c.id ? 'hl' : ''}">
+      <div class="top"><span class="ch">${c.nombre}</span>${mk ? `<span class="${cls}">${mk.mark === 'bien' ? '✓ bien' : '✗ mal'}</span>` : ''}</div>
+      <div class="pz">Delanteras ${c.delanteras} · h ${b.hombro}° · r ${b.rodilla}° · t ${b.tobillo}° (pata izq. trasera)</div>
+      <div class="row"><button class="pri" data-cg="${c.id}">Probar</button>
+        <button data-cm="${c.id}" data-mk="bien">✓ Bien</button><button data-cm="${c.id}" data-mk="mal">✗ Mal</button>
+        ${mk ? `<button data-cm="${c.id}" data-mk="">borrar</button>` : ''}</div>
+      ${lastCand === c.id ? `<div class="row"><button data-ps="todas" data-pn="recogida">Guardar como recogida</button><button data-ps="todas" data-pn="estirada">Guardar como estirada</button></div>` : ''}
+    </div>`;
+  }).join('');
+}
 function groupGo(j, a) {
   a = Math.max(LIM.min, Math.min(LIM.max, a));
   act('/api/group', {articulacion: j, angle: a, mirror: mirror[j], speed: speed()}, `${GROUP_NAMES[j].toLowerCase()} → ${a}°…`);
 }
 function renderLegs() {
   renderGroups();
+  renderCands();
   const poses = st.poses || {};
   let html = '';
   for (const L of Object.keys(LEGS)) {
@@ -381,6 +433,12 @@ document.addEventListener('click', e => {
     if (confirm(`Bloquear los ${n} servos a 90°, poco a poco y alternando patas. ¿Robot en el aire?`)) act('/api/pose90', {speed: speed()}, 'bloqueando todo a mitad (90°)…');
   }
   else if (d.gj) { const ref = groupRef(d.gj) ?? 90; groupGo(d.gj, ref + +d.gd); }
+  else if (d.cg) {
+    const c = st.candidatas.find(x => x.id === d.cg);
+    lastCand = d.cg;
+    act('/api/candidate_go', {id: d.cg, mirror, speed: speed()}, `probando "${c.nombre}" (delanteras ${c.delanteras})… mira el robot`);
+  }
+  else if (d.cm) act('/api/candidate_mark', {id: d.cm, mark: d.mk}, 'marcando…');
   else if (d.cz) act('/api/calibrate', {ch: +d.cz, action: 'zero'}, `canal ${d.cz}: esta posición es ahora su 90°`);
   else if (d.ci) act('/api/calibrate', {ch: +d.ci, action: 'invert'}, `canal ${d.ci}: sentido invertido`);
   else if (d.cr) act('/api/calibrate', {ch: +d.cr, action: 'reset'}, `canal ${d.cr}: ajuste quitado`);
@@ -417,14 +475,77 @@ document.addEventListener('change', e => {
   act('/api/angle', {ch: +s, angle: +e.target.value, speed: speed()}, `canal ${s} → ${e.target.value}°`);
 });
 document.addEventListener('toggle', e => {
+  if (e.target.id === 'sysd') { try { localStorage.setItem('sysd', e.target.open ? '1' : '0'); } catch {} return; }
+  if (e.target.id === 'helpd' && e.target.open) { loadHelp(); return; }
   const c = e.target.dataset && e.target.dataset.cal; if (c === undefined) return;
   e.target.open ? openCal.add(+c) : openCal.delete(+c);
 }, true);
+
+// ---------- sistema: conexión, alimentación, pantalla HDMI ----------
+const TV = new URLSearchParams(location.search).has('pantalla');
+if (TV) document.body.classList.add('tv');
+let sys = null;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+async function loadHelp() {
+  try { $('ayuda').textContent = await (await fetch('/ayuda')).text(); } catch { $('ayuda').textContent = 'No se pudo cargar la ayuda.'; }
+}
+function renderSys() {
+  if (!sys) return;
+  const n = sys.net, th = sys.throttled || 0, uv = sys.caidas_tension_arranque || 0;
+  const pw = th & 1 ? ['bad', 'FALTA CORRIENTE AHORA'] : (th & 0x10000 || uv) ? ['warn', `hubo caídas (${uv})`] : ['ok', 'alimentación OK'];
+  $('pw').className = 'tag ' + pw[0]; $('pw').textContent = pw[1];
+  const modes = {router: ['ok', 'con router'], directo: ['warn', 'cable directo'], 'sin-cable': ['bad', 'sin cable de red']};
+  const md = modes[n.mode] || ['', n.mode];
+  $('netb').className = 'tag ' + md[0]; $('netb').textContent = md[1];
+  const sshIp = (n.ipv4.find(a => a.if === 'eth0' && a.ip !== sys.ip_directa) || {}).ip || sys.ip_directa;
+  $('sysNet').innerHTML = `Modo: <b>${esc(md[1])}</b>${n.gateway ? ' · puerta de enlace ' + esc(n.gateway) : ''}<br>
+    Abre desde el PC:<br>${n.urls.map(u => `&nbsp;&nbsp;<a class="mono" href="${esc(u)}">${esc(u)}</a>${u.includes(sys.ip_directa) ? ' (cable directo)' : ''}`).join('<br>')}<br>
+    SSH: <code>ssh luislecinana@${esc(sshIp)}</code><br>
+    IPv6 fija: <code>${esc(sys.ipv6_ll_fija)}</code><br>
+    Nombre: <code>${esc(n.hostname)}.local</code> (puede funcionar o no según el PC)`;
+  const up = Math.floor(sys.uptime_s / 60);
+  $('sysPw').innerHTML = `Estado: <span class="tag ${pw[0]}">${esc(pw[1])}</span><br>
+    ${sys.throttled_txt.length ? 'Avisos: ' + sys.throttled_txt.map(esc).join(' · ') + '<br>' : ''}
+    Temperatura ${esc(sys.temp_c)} °C · encendida hace ${Math.floor(up / 60)} h ${up % 60} min<br>
+    <span class="pz">Registro permanente de arranques y cortes (energia.log):</span>`;
+  $('sysEv').textContent = (sys.energia || []).slice().reverse().join('\n') || '(vacío)';
+  const s = sys.screen;
+  const names = {panel: 'panel del robot', web: 'página web', consola: 'consola normal', menu: 'menú del arranque'};
+  const now = s.consola_activa ? 'consola normal' : s.panel_activo ? (names[s.estado] || s.estado || 'panel') : 'nada (servicio parado)';
+  $('sysScr').innerHTML = `Ahora muestra: <b>${esc(now)}</b>${s.hdmi ? ' · HDMI ' + esc(s.hdmi === 'connected' ? 'activo' : s.hdmi) : ''}<br>
+    ${s.navegador_instalado ? '' : '<span class="tag warn">navegador no instalado: la opción "Página web" no funciona</span><br>'}
+    <span class="pz">La página web en la tele va lenta en la Pi 2 y gasta más corriente.</span>`;
+  $('scrWeb').disabled = busy || !s.navegador_instalado;
+  if (document.activeElement !== $('scrBoot')) $('scrBoot').value = s.arranque;
+}
+async function pollSys() {
+  try { sys = await api('/api/system'); renderSys(); } catch {}
+}
+async function sysPost(path, body, text) {
+  $('msg').textContent = text;
+  try { sys = await api(path, body); renderSys(); $('msg').textContent = 'listo'; }
+  catch (e) { $('msg').textContent = 'Error: ' + e.message; }
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.scr) sysPost('/api/screen', {modo: b.dataset.scr}, `pantalla HDMI → ${b.dataset.scr}…`);
+  else if (b.dataset.sys) {
+    const what = b.dataset.sys === 'apagar' ? 'APAGAR' : 'REINICIAR';
+    if (confirm(`¿${what} la Pi? Se sueltan todos los servos.` + (what === 'APAGAR' ? ' Para volver a encenderla hay que desenchufar y enchufar.' : ''))) {
+      sysPost('/api/system_action', {accion: b.dataset.sys}, what === 'APAGAR' ? 'apagando… espera 20 s antes de desenchufar' : 'reiniciando… vuelve en 2-3 minutos');
+    }
+  }
+});
+document.addEventListener('change', e => {
+  if (e.target.id === 'scrBoot') sysPost('/api/screen_boot', {modo: e.target.value}, 'guardando la opción de arranque…');
+});
+try { if (localStorage.getItem('sysd') === '1') $('sysd').open = true; } catch {}
+pollSys(); setInterval(pollSys, TV ? 10000 : 5000);
 async function poll() {
   try { if (!busy && !dragging) { st = await api('/api/state'); render(); } $('dot').classList.add('on'); }
   catch { $('dot').classList.remove('on'); }
 }
-poll(); setInterval(poll, 4000);
+poll(); setInterval(poll, TV ? 8000 : 4000);
 </script>
 </body>
 </html>

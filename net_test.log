@@ -1,0 +1,31 @@
+=== 2026-10-11 13:10:17 prueba de red
+perfil anterior: Wired connection 1
+Connection 'spotmicro-eth0' (65be063b-581c-4124-a611-31ad7f7775e2) successfully added.
+connection.id:                          spotmicro-eth0
+ipv4.method:                            auto
+ipv4.addresses:                         169.254.42.1/16
+ipv4.dhcp-timeout:                      2147483647 (infinity)
+ipv6.method:                            link-local
+ipv6.addr-gen-mode:                     eui64
+-- fase 1: activar el perfil nuevo con el router
+Connection successfully activated (D-Bus active path: /org/freedesktop/NetworkManager/ActiveConnection/3)
+  13:10:28 estado=activated | eth0 UP 169.254.42.1/16 192.168.8.104/24 fe80::ba27:ebff:fe16:ec15/64 
+default via 192.168.8.1 dev eth0 proto dhcp src 192.168.8.104 metric 100 
+-- fase 2: simular que no hay router (bloqueo las respuestas DHCP que entran por eth0)
+Connection successfully activated (D-Bus active path: /org/freedesktop/NetworkManager/ActiveConnection/4)
+  13:10:41 estado=activated | eth0 UP 169.254.42.1/16 fe80::ba27:ebff:fe16:ec15/64 
+  13:10:51 estado=activated | eth0 UP 169.254.42.1/16 fe80::ba27:ebff:fe16:ec15/64 
+  13:11:01 estado=activated | eth0 UP 169.254.42.1/16 fe80::ba27:ebff:fe16:ec15/64 
+  13:11:11 estado=activated | eth0 UP 169.254.42.1/16 fe80::ba27:ebff:fe16:ec15/64 
+  13:11:22 estado=activated | eth0 UP 169.254.42.1/16 fe80::ba27:ebff:fe16:ec15/64 
+  13:11:32 estado=activated | eth0 UP 169.254.42.1/16 fe80::ba27:ebff:fe16:ec15/64 
+  13:11:42 estado=activated | eth0 UP 169.254.42.1/16 fe80::ba27:ebff:fe16:ec15/64 
+  13:11:52 estado=activated | eth0 UP 169.254.42.1/16 fe80::ba27:ebff:fe16:ec15/64 
+  13:12:02 estado=activated | eth0 UP 169.254.42.1/16 fe80::ba27:ebff:fe16:ec15/64 
+  web en 169.254.42.1 (local): 200
+  ruta por defecto: 
+-- fase 3: restaurar (quito el bloqueo y vuelvo a pedir IP al router)
+Connection successfully activated (D-Bus active path: /org/freedesktop/NetworkManager/ActiveConnection/5)
+  13:12:13 estado=activated | eth0 UP 169.254.42.1/16 192.168.8.104/24 fe80::ba27:ebff:fe16:ec15/64 
+default via 192.168.8.1 dev eth0 proto dhcp src 192.168.8.104 metric 100 
+=== fin 2026-10-11 13:12:14

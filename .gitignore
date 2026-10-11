@@ -1,3 +1,8 @@
 acciones.log
 *.tmp
+*.bak
 __pycache__/
+energia.log
+pantalla/modo
+pantalla/estado
+pantalla/menu_visto

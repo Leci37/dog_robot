@@ -7,8 +7,8 @@
       "nota": "no responde"
     },
     "1": {
-      "pata": "B",
-      "articulacion": "tobillo"
+      "libre": true,
+      "nota": "el conector del tobillo B se pasÃ³ al canal 6"
     },
     "2": {
       "pata": "A",
@@ -27,7 +27,8 @@
       "articulacion": "hombro"
     },
     "6": {
-      "libre": true
+      "pata": "B",
+      "articulacion": "tobillo"
     },
     "7": {
       "libre": true
