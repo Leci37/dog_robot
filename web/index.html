@@ -159,6 +159,10 @@ button.home:hover{background:#178a3f}
 button.amarillo{background:#f2c200;border-color:#f2c200;color:#222}button.amarillo:hover{background:#dbaf00}
 button.rosa{background:#e8559a;border-color:#e8559a;color:#fff}button.rosa:hover{background:#d13f84}
 .card.amarillo{border-color:#f2c200;box-shadow:inset 4px 0 0 #f2c200}.card.rosa{border-color:#e8559a;box-shadow:inset 4px 0 0 #e8559a}
+.stars{display:flex;gap:1px;justify-content:center;line-height:1}
+.stars button{border:0;background:none;padding:0 1px;font-size:15px;color:var(--line);cursor:pointer;min-height:0}
+.stars button.on{color:#f5a700}.stars button:hover{color:#f5c84a}
+.qitem{display:inline-flex;flex-direction:column;align-items:center;gap:1px}
 button.nueva{background:#1e9e4a;border-color:#1e9e4a;color:#fff}button.nueva:hover{background:#178a3f}
 .card.nueva{border-color:#1e9e4a;box-shadow:inset 4px 0 0 #1e9e4a}
 .tvrt button{font-size:19px;padding:12px 20px;border-radius:12px}
@@ -1358,13 +1362,17 @@ function renderRt() {
   if (infoHtml !== lastTryInfo) { $('tryInfo').innerHTML = infoHtml; lastTryInfo = infoHtml; }  // sin repintar cada 5 s
   // barra de arriba: las 5 de pie favoritas, las de andar, la velocidad y parar
   const chosen = id => pr[id] && pr[id].mark === 'bien';
-  const qb = (c, label) => `<button data-try="${esc(c.id)}" title="${esc(c.desc)}" class="${chosen(c.id) ? 'pri' : ''}">${esc(label)}${chosen(c.id) ? ' ✓' : ''}</button>`;
+  const val = rts.valoraciones || {};
+  const stars = id => `<span class="stars" title="Valórala de 0 a 6 (pulsa otra vez la misma para quitar)">${[1, 2, 3, 4, 5, 6].map(n =>
+    `<button data-rate="${esc(id)}" data-n="${n}" class="${(val[id] || 0) >= n ? 'on' : ''}" aria-label="${n} estrellas">★</button>`).join('')}</span>`;
+  const wrap = (c, btn) => c.etapa === 2 || c.ayuda ? `<span class="qitem">${btn}${c.ayuda ? '' : stars(c.id)}</span>` : btn;
+  const qb = (c, label) => wrap(c, `<button data-try="${esc(c.id)}" title="${esc(c.desc)}" class="${chosen(c.id) ? 'pri' : ''}">${esc(label)}${chosen(c.id) ? ' ✓' : ''}</button>`);
   const favs = rts.candidatas.filter(c => c.favorita).sort((a, b) => a.favorita - b.favorita);
   const bajar = rts.candidatas.find(c => c.id === 'bajar'), walks = rts.candidatas.filter(c => c.andar);
   const creat = rts.candidatas.filter(c => c.creativa), nuevas = rts.candidatas.filter(c => c.nueva);
   const suaves = rts.candidatas.filter(c => c.suave);
-  const qc = c => `<button class="${c.color}" data-try="${esc(c.id)}" title="${esc(c.desc)}">${esc(c.nombre)}</button>`;
-  const qg = c => `<button class="nueva" data-try="${esc(c.id)}" title="${esc(c.desc)}">${esc(c.nombre)}</button>`;
+  const qc = c => wrap(c, `<button class="${c.color}" data-try="${esc(c.id)}" title="${esc(c.desc)}">${esc(c.nombre)}</button>`);
+  const qg = c => wrap(c, `<button class="nueva" data-try="${esc(c.id)}" title="${esc(c.desc)}">${esc(c.nombre)}</button>`);
   const quick = `<div class="row"><span class="lbl">De pie</span>${favs.map(c => qb(c, c.nombre.replace('De pie ', ''))).join('')}${bajar ? qb(bajar, 'Bajar despacio') : ''}</div>
     ${suaves.length ? `<div class="row"><span class="lbl">De pie suave</span>${suaves.map(qc).join('')}</div>` : ''}
     ${nuevas.length ? `<div class="row"><span class="lbl">Nuevas</span>${nuevas.map(qg).join('')}</div>` : ''}
@@ -1385,6 +1393,7 @@ function renderRt() {
     const mk = pr[c.id] && pr[c.id].mark;
     return `${sep}<div class="card ${mk === 'bien' ? 'hl' : ''} ${c.nueva ? 'nueva' : ''} ${c.color || ''}"><div class="top"><span class="ch">${esc(c.nombre)}</span>${mk ? `<span class="tag ${mk === 'bien' ? 'ok' : 'bad'}">${mk === 'bien' ? '✓ funciona' : '✗ no'}</span>` : ''}</div>
       <div class="pz">${esc(c.desc)} · ${c.pasos} pasos</div>
+      ${c.etapa === 2 ? `<div class="row" style="align-items:center">${stars(c.id)}<span class="pz">${val[c.id] != null ? val[c.id] + '/6' : 'sin valorar'}</span></div>` : ''}
       <div class="row"><button class="${c.color || (c.nueva ? 'nueva' : 'pri')}" data-try="${esc(c.id)}">▶ Probar</button>${c.ayuda ? '' : `<button data-mark="${esc(c.id)}" data-mk="bien">✓ Funciona</button>
         <button data-mark="${esc(c.id)}" data-mk="mal">✗ No</button>${mk ? `<button data-mark="${esc(c.id)}" data-mk="">borrar marca</button>` : ''}`}
         <button data-viewtry="${esc(c.id)}" title="Abrirla en el editor de bloques">bloques</button></div>
@@ -1575,6 +1584,8 @@ document.addEventListener('click', async e => {
   else if (d.del) { if (confirm(`¿Borrar la rutina "${d.del}"?`)) rtPost('/api/routine_delete', {nombre: d.del}, 'borrando…'); }
   else if (d.edit) openInBlocks(d.edit);
   else if (d.convreset) { if (confirm('¿Olvidar la de pie elegida y volver a probar la 6 y sus variantes?')) rtPost('/api/convention_reset', {}, 'volviendo al paso 1…'); }
+  else if (d.rate) { const n = +d.n === ((rts.valoraciones || {})[d.rate] || 0) ? 0 : +d.n;
+    rtPost('/api/routine_rate', {id: d.rate, estrellas: n}, `valorando: ${n}/6 estrellas…`); }
   else if (d.gear) rtPost('/api/routine_speed', {marcha: +d.gear}, 'cambiando la velocidad…');
   else if (d.nudge) { await act('/api/calibrate', {ch: +d.nudge, action: 'nudge', delta: +d.d}, `canal ${d.nudge}: ajuste ${+d.d > 0 ? '+' : ''}${d.d}°`); renderRt(); }
   else if (b.id === 'blkRun') {

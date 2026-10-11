@@ -48,7 +48,7 @@ SPEEDS = {"lento": 0.05, "normal": 0.03, "rapido": 0.012,  # segundos por grado
           "suave": 0.1}  # para levantar el cuerpo: las 4 patas juntas, muy despacio
 # marcha de las rutinas (config.json "marcha"): multiplica las pausas por grado y las esperas; se cambia en marcha
 MARCHAS = {1: ("1ª muy lenta", 2.0), 2: ("2ª lenta", 1.4), 3: ("3ª normal", 1.0), 4: ("4ª rápida", 0.6),
-           5: ("5ª muy rápida", 0.35)}
+           5: ("5ª muy rápida", 0.35), 6: ("6ª turbo", 0.18)}  # 6ª: el usuario "más rápido aún"
 FAST = bool(os.environ.get("SPOTMICRO_FAST"))  # solo para pruebas con el simulador: sin esperas reales
 if FAST:
     SPEEDS = {k: 0.0 for k in SPEEDS}
@@ -884,6 +884,8 @@ def nuevas_routines(c):
         ("galope-rapido", "Galope rápido", "Más aire (apoyo 40%) y menos pasos por ciclo: más ritmo", g(duty=0.4, ticks=10, cycles=6)),
         ("galope-alto", "Galope alto", f"El galope con las patas más rectas ({ALTA}): menos fuerza en los codos",
          phase_gait(alta, fases=GALOPE, duty=0.45, step=14, v="rapido", cycles=5)),
+        ("galope-turbo", "Galope turbo", f"El galope alto (el favorito) lo más rápido posible: más aire y menos pasos por ciclo",
+         phase_gait(alta, fases=GALOPE, duty=0.4, step=14, ticks=8, v="rapido", cycles=7)),
         ("galope-otra-mano", "Galope a la otra mano", "Empieza por la trasera derecha: C, D, B, A",
          g(fases={"C": 0, "D": 0.1, "B": 0.5, "A": 0.6})),
         ("galope-izq", "Galope girando a la izquierda", "Zancada corta a la izquierda y larga a la derecha",
@@ -1102,7 +1104,8 @@ def routines_info():
             "candidatas": [{k: v for k, v in c.items() if k != "programa"} | {"pasos": count_steps(c["programa"])}
                            for c in candidate_routines(conv)],
             "convencion": conv, "pruebas": cfg.get("pruebas", {}), "ejecutando": dict(routine),
-            "marcha": gear(), "marchas": {str(k): v[0] for k, v in MARCHAS.items()}}
+            "marcha": gear(), "marchas": {str(k): v[0] for k, v in MARCHAS.items()},
+            "valoraciones": {k: v["estrellas"] for k, v in cfg.get("valoraciones", {}).items()}}
 
 
 # ---------- pestaña de estado: cómo me estoy conectando ----------
@@ -1637,10 +1640,20 @@ class Handler(BaseHTTPRequestHandler):
         elif p == "/api/routine_stop":
             routine["stop"] = True
             log("rutina: parar pedido")
+        elif p == "/api/routine_rate":  # valoración del usuario, 0-6 estrellas (config.json "valoraciones")
+            rid, n = str(b.get("id", "")), int(b.get("estrellas", 0))
+            if not 0 <= n <= 6:
+                raise ValueError("de 0 a 6 estrellas")
+            if not any(c["id"] == rid for c in candidate_routines(load_config().get("convencion"))):
+                raise ValueError("rutina desconocida")
+            cfg = load_config()
+            cfg.setdefault("valoraciones", {})[rid] = {"estrellas": n, "hora": datetime.now().isoformat(timespec="seconds")}
+            write_json(CONFIG_FILE, cfg)
+            log(f"valoración: '{rid}' {n}/6 estrellas")
         elif p == "/api/routine_speed":  # marcha 1-5; vale también con una rutina en marcha (se nota en el paso siguiente)
             n = int(b.get("marcha", 3))
             if n not in MARCHAS:
-                raise ValueError("la marcha va de 1 a 5")
+                raise ValueError("la marcha va de 1 a 6")
             cfg = load_config()
             cfg["marcha"] = n
             write_json(CONFIG_FILE, cfg)

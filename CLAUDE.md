@@ -256,3 +256,8 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   D 6° por delante), De pie en dos tiempos (traseras y luego delanteras) — amarillas — y **De pie de Iván** (rosa, idea
   del usuario: delanteras un poco, traseras un poco, alternando, nunca las 4 a la vez). Todas acaban con un toquecito
   a D (la estira 8° de golpe y vuelve). Fila "De pie suave" en la barra de arriba.
+- 2026-10-12 (9): **valoraciones** 0-6 estrellas (el usuario valora, Claude lee y propone otras estructuras):
+  `POST /api/routine_rate {id, estrellas}` → config.json `valoraciones` {id: {estrellas, hora}}; en la web, estrellas
+  bajo cada botón de la barra de arriba y en cada tarjeta (pulsar la misma estrella otra vez = 0). Para leerlas:
+  `python3 -c "import json; print(json.load(open('config.json'))['valoraciones'])"` en ~/spotmicro.
+  "Más rápido aún": marcha **6ª turbo** (×0,18) y **Galope turbo** (galope alto, apoyo 40 %, 8 ticks).
