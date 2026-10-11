@@ -208,6 +208,7 @@ check(len(stage2) >= 12, f"etapa 2: {len(stage2)} rutinas")
 walks = [c["id"] for c in stage2 if c.get("andar")]
 check(len(walks) >= 12 and stage2[0]["id"] == "andar" and {"andar-rapido", "andar-alto", "trote-rapido", "andar-lado"} <= set(walks),
       f"rutinas de andar (van primero): {len(walks)}")
+check(len([c for c in stage2 if c.get("creativa")]) == 10, "10 marchas creativas (caballo y compañía)")
 favs = sorted((c for c in rt["candidatas"] if c.get("favorita")), key=lambda c: c["favorita"])
 check([c["id"] for c in favs] == ["de-pie-6.7", "de-pie-6", "de-pie-6.1", "de-pie-6.2", "de-pie-6.5"], "las 5 de pie favoritas para la barra de arriba")
 rt = call("/api/routine_speed", {"marcha": 5})

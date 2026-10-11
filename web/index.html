@@ -1353,8 +1353,10 @@ function renderRt() {
   const qb = (c, label) => `<button data-try="${esc(c.id)}" title="${esc(c.desc)}" class="${chosen(c.id) ? 'pri' : ''}">${esc(label)}${chosen(c.id) ? ' ✓' : ''}</button>`;
   const favs = rts.candidatas.filter(c => c.favorita).sort((a, b) => a.favorita - b.favorita);
   const bajar = rts.candidatas.find(c => c.id === 'bajar'), walks = rts.candidatas.filter(c => c.andar);
+  const creat = rts.candidatas.filter(c => c.creativa);
   const quick = `<div class="row"><span class="lbl">De pie</span>${favs.map(c => qb(c, c.nombre.replace('De pie ', ''))).join('')}${bajar ? qb(bajar, 'Bajar despacio') : ''}</div>
     ${walks.length ? `<div class="row"><span class="lbl">Andar</span>${walks.map(c => qb(c, c.nombre.replace('Andar · ', ''))).join('')}</div>` : ''}
+    ${creat.length ? `<div class="row"><span class="lbl">Creativas</span>${creat.map(c => qb(c, c.nombre)).join('')}</div>` : ''}
     <div class="row"><span class="lbl">Velocidad</span>${Object.entries(rts.marchas || {}).map(([n, t]) => `<button data-gear="${n}" class="${+n === rts.marcha ? 'pri' : ''}">${esc(t)}</button>`).join('')}
       <button class="stop" data-qstop="1">Parar</button></div>`;
   if (quick !== lastQuick) { $('quick').innerHTML = quick; lastQuick = quick; }

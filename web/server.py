@@ -6,6 +6,7 @@ Guarda el mapa en ../servo_map.json, las posturas en ../poses.json, un log de ac
 acciones.log y un registro permanente de arranques y cortes de corriente en ../energia.log.
 """
 import json
+import math
 import os
 import shutil
 import signal
@@ -754,6 +755,52 @@ def trot_program(conv, step=12, cycles=4, lift=16, fast=False):
             {"op": "esperar", "s": 0.5}, {"op": "repetir", "n": cycles, "pasos": cycle}, S(base_stance(conv), juntos=True)]
 
 
+def phase_gait(conv, fases, duty=0.6, step=12, lift=16, ticks=12, cycles=3, v="normal"):
+    """Marcha por fases (como los SpotMicro de GitHub y los aires del caballo): cada pata tiene su fase en el ciclo
+    (0-1). Mientras apoya (fracción `duty`) el pie va de delante a atrás empujando el cuerpo; en el aire vuelve
+    adelante trazando un arco (seno) de altura `lift`. Cada tick = un paso `set` con las 12 a la vez."""
+    k0, h0, hom, cod = _gait(conv)
+    cycle = []
+    for t in range(ticks):
+        objs = []
+        for L in LEGS:
+            p = (t / ticks - fases[L]) % 1.0
+            if p < duty:                                   # apoyada: empuja de delante a atrás
+                x, z = step / 2 - step * p / duty, 0.0
+            else:                                          # en el aire: vuelve adelante en arco
+                s = (p - duty) / (1 - duty)
+                x, z = -step / 2 + step * s, lift * math.sin(math.pi * s)
+            objs += [hom(L, h0[L] + x + z / 2), cod(L, k0[L] + z)]
+        cycle.append(S(objs, juntos=True))
+    return [{"op": "velocidad", "v": v}, S(base_stance(conv), juntos=True), {"op": "esperar", "s": 0.5},
+            {"op": "repetir", "n": cycles, "pasos": cycle}, S(base_stance(conv), juntos=True)]
+
+
+# 10 marchas "creativas": aires del caballo y de otros animales (fase de cada pata A B C D, apoyo, paso, altura...)
+CREATIVAS = [
+    ("paso-caballo", "Paso de caballo", "4 tiempos, secuencia lateral D→A→C→B, siempre 3 apoyadas pero sin pausas",
+     dict(fases={"D": 0, "A": 0.25, "C": 0.5, "B": 0.75}, duty=0.75, ticks=16)),
+    ("tolt", "Tölt (caballo islandés)", "4 tiempos rápidos y suaves, pie bajo: corre sin dar botes",
+     dict(fases={"D": 0, "A": 0.25, "C": 0.5, "B": 0.75}, duty=0.7, step=10, lift=10, v="rapido", cycles=4)),
+    ("ambladura", "Ambladura (camello)", "Laterales a la vez: A+D y luego B+C (se balancea de lado)",
+     dict(fases={"A": 0, "D": 0, "B": 0.5, "C": 0.5}, duty=0.55)),
+    ("trote-eliptico", "Trote elíptico (SpotMicroAI)", "Diagonales con el pie en arco continuo, como los SpotMicro de GitHub",
+     dict(fases={"A": 0, "C": 0, "B": 0.5, "D": 0.5}, duty=0.55, lift=18, v="rapido", cycles=5)),
+    ("piaffe", "Piaffe (doma)", "Trote en el sitio levantando mucho las patas, despacio y solemne",
+     dict(fases={"A": 0, "C": 0, "B": 0.5, "D": 0.5}, duty=0.5, step=0, lift=22, v="lento", cycles=4)),
+    ("passage", "Passage (doma)", "Trote elevado que avanza poco a poco, como flotando",
+     dict(fases={"A": 0, "C": 0, "B": 0.5, "D": 0.5}, duty=0.5, step=8, lift=22, v="lento", cycles=4)),
+    ("medio-galope", "Medio galope", "3 tiempos: D, luego A+C, luego B (mano derecha delante)",
+     dict(fases={"D": 0, "A": 0.33, "C": 0.33, "B": 0.66}, duty=0.6, v="rapido", cycles=4)),
+    ("galope", "Galope", "4 tiempos rápidos: D, C, A, B, con un momento casi en el aire. Dinámico: puede tambalear",
+     dict(fases={"D": 0, "C": 0.1, "A": 0.5, "B": 0.6}, duty=0.45, step=14, v="rapido", cycles=5)),
+    ("brinco", "Brinco (conejo)", "Delanteras juntas y traseras juntas, como un conejo o un perro corriendo",
+     dict(fases={"A": 0, "B": 0, "C": 0.5, "D": 0.5}, duty=0.5, step=10, v="rapido", cycles=4)),
+    ("bote-gacela", "Bote de gacela (pronk)", "Las 4 a la vez: se agacha y se estira con ritmo, avanzando un poco. Gasta mucha corriente",
+     dict(fases={L: 0 for L in LEGS}, duty=0.5, step=6, lift=10, v="rapido", cycles=4)),
+]
+
+
 def crab_program(conv, step=8, cycles=3, lift=16):
     """De lado (cangrejo): paso a paso, pero cada pie se mueve de lado con el pectoral y luego el cuerpo se desplaza
     con los 4 pectorales. Hacia la izquierda si pectoral + abre la pata (sin confirmar; si no, va a la derecha)."""
@@ -865,6 +912,9 @@ def candidate_routines(conv_saved):
     for rid, name, desc, prog in two:
         cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "programa": juntos_multi(prog),
                       "andar": rid.startswith(("andar", "trote", "paseo", "girar"))})
+    for rid, name, desc, kw in CREATIVAS:
+        cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "creativa": True,
+                      "programa": phase_gait(c, **kw)})
     return cands
 
 
