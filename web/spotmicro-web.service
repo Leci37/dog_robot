@@ -2,6 +2,8 @@
 Description=SpotMicro - web de control (puertos 80 y 8080)
 After=network-online.target
 Wants=network-online.target
+# no rendirse nunca: si se cae, se vuelve a levantar (el vigilante también lo vigila)
+StartLimitIntervalSec=0
 
 [Service]
 User=luislecinana
@@ -9,7 +11,7 @@ WorkingDirectory=/home/luislecinana/spotmicro/web
 ExecStart=/home/luislecinana/robot/bin/python /home/luislecinana/spotmicro/web/server.py
 # permite escuchar en el puerto 80 sin ser root
 AmbientCapabilities=CAP_NET_BIND_SERVICE
-Restart=on-failure
+Restart=always
 RestartSec=3
 TimeoutStopSec=5
 

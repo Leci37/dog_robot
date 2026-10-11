@@ -1,0 +1,6 @@
+[Unit]
+Description=LUIS LECI control - vigilante: comprueba y arregla red, web, pantalla y LED
+
+[Service]
+Type=oneshot
+ExecStart=/home/luislecinana/spotmicro/sistema/vigilante.sh

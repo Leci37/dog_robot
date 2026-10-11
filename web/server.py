@@ -676,6 +676,9 @@ def report():
     add("Sistema", "Watchdog (reinicia la Pi si se cuelga)",
         run(["systemctl", "show", "-p", "RuntimeWatchdogUSec", "--value"]) not in ("", "0", "infinity"))
     add("Sistema", "Journal persistente (logs tras un corte)", Path("/var/log/journal").is_dir())
+    vig = read_text(ROOT / "vigilante.log").splitlines()
+    add("Sistema", "Vigilante (arregla solo red, web, pantalla y LED cada minuto)", active("spotmicro-vigilante.timer"),
+        f"último arreglo: {vig[-1]}" if vig else "sin arreglos necesarios")
     du = shutil.disk_usage("/")
     add("Sistema", "Espacio libre en la SD", du.free > 1e9, f"{du.free / 1e9:.1f} GB", warn=True)
     fs = run(["sudo", "-n", "/usr/sbin/tune2fs", "-l", "/dev/mmcblk0p2"])

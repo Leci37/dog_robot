@@ -1,0 +1,28 @@
+{
+  "_nota": "Canal PCA9685 -> pata y articulación. Vista desde arriba, cabeza delante: A delantera izq, B delantera der, C trasera der, D trasera izq. Articulaciones: hombro (abre/cierra al lado), muslo (adelante/atrás), rodilla.",
+  "canales": {
+    "0": {
+      "libre": true
+    },
+    "1": {
+      "pata": "B",
+      "articulacion": "muslo"
+    },
+    "2": {
+      "pata": "A",
+      "articulacion": "muslo"
+    },
+    "3": {
+      "pata": "B",
+      "articulacion": "hombro"
+    },
+    "14": {
+      "pata": "C",
+      "articulacion": "rodilla"
+    },
+    "15": {
+      "pata": "D",
+      "articulacion": "muslo"
+    }
+  }
+}

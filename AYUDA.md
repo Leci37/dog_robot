@@ -64,6 +64,9 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
 - Registro permanente de arranques y cortes: ~/spotmicro/energia.log (también en la web).
   "terminó DE GOLPE" = se cortó la corriente, se colgó o se desenchufó sin apagar.
 - Si la Pi se cuelga, el watchdog la reinicia sola en un minuto.
+- Vigilante (cada minuto, solo): si falta la dirección 169.254.42.1 la vuelve a poner (o rehace el perfil
+  de red), si la web no responde la reinicia, si el panel HDMI falla pone la consola normal para que la tele
+  nunca quede en negro, y si el LED de vida se para lo arranca. Lo que arregla queda en ~/spotmicro/vigilante.log.
 - LED verde de la Pi:
     corto, corto, largo (· · —) en bucle  = todo bien, el programa del robot está vivo
     parpadeo rápido continuo              = el programa no responde (arrancando o caído)

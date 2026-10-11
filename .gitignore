@@ -1,6 +1,7 @@
 # registros y estado en marcha (no son código)
 acciones.log
 energia.log
+vigilante.log
 web/acciones.log
 pantalla/modo
 pantalla/estado
