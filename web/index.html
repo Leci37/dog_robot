@@ -64,7 +64,7 @@ td.dup{background:var(--bad-bg);color:var(--bad)}
   </div>
   <div class="legend">
     Vista desde arriba, cabeza delante: <b>A</b> delantera izq · <b>B</b> delantera der · <b>C</b> trasera der · <b>D</b> trasera izq.
-    &nbsp;Articulación: <b>1</b> hombro (abre/cierra al lado) · <b>2</b> muslo (adelante/atrás) · <b>3</b> rodilla.
+    &nbsp;Articulación, del cuerpo al suelo: <b>1</b> hombro (abre/cierra al lado) · <b>2</b> rodilla (pata adelante/atrás) · <b>3</b> tobillo (dobla la parte de abajo).
     Robot siempre en el aire. Límites 30–150°.
   </div>
   <div class="grid" id="grid"></div>
@@ -82,7 +82,7 @@ td.dup{background:var(--bad-bg);color:var(--bad)}
 
 <script>
 const LEGS = {A:'delantera izq.', B:'delantera der.', C:'trasera der.', D:'trasera izq.'};
-const JOINTS = ['hombro','muslo','rodilla'];
+const JOINTS = ['hombro','rodilla','tobillo'];
 let st = {angles:{}, map:{}}, busy = false, askCh = null, askLeg = null;
 const $ = id => document.getElementById(id);
 

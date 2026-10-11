@@ -23,7 +23,7 @@ SAFE_MIN, SAFE_MAX = 30, 150
 MAX_DELTA = 20
 CENTER = 90
 LEGS = ["A", "B", "C", "D"]
-JOINTS = ["hombro", "muslo", "rodilla"]
+JOINTS = ["hombro", "rodilla", "tobillo"]  # nombres del usuario, del cuerpo hacia el suelo
 
 kit = ServoKit(channels=16)
 for _ch in range(16):
@@ -48,7 +48,8 @@ def load_map():
         data = {
             "_nota": "Canal PCA9685 -> pata y articulación. Vista desde arriba, cabeza delante: "
                      "A delantera izq, B delantera der, C trasera der, D trasera izq. "
-                     "Articulaciones: hombro (abre/cierra al lado), muslo (adelante/atrás), rodilla.",
+                     "Articulaciones (del cuerpo al suelo): 1 hombro (abre/cierra al lado), "
+                     "2 rodilla (pata adelante/atrás), 3 tobillo (dobla la parte de abajo).",
             "canales": {},
         }
     return data

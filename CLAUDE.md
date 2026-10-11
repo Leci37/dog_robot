@@ -36,8 +36,8 @@ proyecto. **Lee esto entero antes de mover nada** y añade al final del registro
 - `servo_map.json`: mapa canal → pata y articulación, en `"canales": {"<canal>": {"pata": "B", "articulacion":
   "rodilla"} | {"libre": true}}`. Lo escribe la web.
   **Nombres** (vista desde arriba, cabeza delante): **A** delantera izq, **B** delantera der, **C** trasera der,
-  **D** trasera izq. Articulación **1** hombro (abre/cierra al lado), **2** muslo (adelante/atrás), **3** rodilla.
-  Ej.: B3 = rodilla delantera derecha.
+  **D** trasera izq. Articulación (nombres del usuario, del cuerpo al suelo): **1** hombro (abre/cierra al lado),
+  **2** rodilla (pata adelante/atrás), **3** tobillo (dobla la parte de abajo). Ej.: B3 = tobillo delantera derecha.
 - `web/`: **web de mapeo** en `http://192.168.8.104:8080`, servicio systemd `spotmicro-web` (arranca solo).
   `server.py` (stdlib + servokit, límites 30–150°, ±20° máx.) e `index.html`. Por canal: Probar (90° → ±delta
   → 90°, sujeto o suelto), Soltar, ajuste ±1/±5°. Tras probar, pregunta pata A-D / "no se ha movido" y
@@ -59,3 +59,6 @@ proyecto. **Lee esto entero antes de mover nada** y añade al final del registro
 - 2026-10-11: fuente de servos conectada, robot fuera de la caja. Barrido de los 16 canales: se movieron servos.
   Creada la web de mapeo (`web/`, servicio `spotmicro-web`). Siguiente: mapear los 12 servos con la web,
   luego igualar las 4 patas con ajustes por servo (offsets) como postura de referencia.
+- 2026-10-11: el usuario usa hombro/rodilla/tobillo; renombrado por número (antes hombro/muslo/rodilla).
+  Canal 4: al probarlo con el canal 3 (B1) sujeto, el usuario vio moverse los hombros de A y B → probablemente
+  A1 + respingo del servo sujeto; pendiente repetir con todo suelto.
