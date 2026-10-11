@@ -34,7 +34,9 @@ button.stop{background:var(--bad);color:#fff;border-color:var(--bad);font-weight
 .tag.l{background:var(--warn-bg)}
 .tag.dup{background:var(--bad-bg);color:var(--bad)}
 .row{display:flex;gap:6px;flex-wrap:wrap}
-.row button{padding:5px 9px;font-size:13px}
+.row button{padding:5px 8px;font-size:13px}
+.card input[type=range]{width:100%;accent-color:var(--acc)}
+.bar input[type=number]{font:inherit;padding:3px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
 #ask{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--card);border-top:2px solid var(--acc);padding:14px 16px 18px;display:none}
 #ask.show{display:block}
 #ask .in{max-width:1100px;margin:0 auto}
@@ -57,10 +59,15 @@ td.dup{background:var(--bad-bg);color:var(--bad)}
 </header>
 <main>
   <div class="bar">
-    <label>Amplitud de prueba
-      <select id="delta"><option>5</option><option selected>10</option><option>15</option><option>20</option></select> grados
+    <label>Amplitud
+      <select id="delta"><option>5</option><option selected>10</option><option>15</option><option>20</option><option>30</option><option>45</option></select>°
     </label>
-    <label><input type="checkbox" id="hold" checked> Dejar sujeto en 90° tras probar</label>
+    <label>Centro <input type="number" id="center" value="90" min="30" max="150" step="5" style="width:64px">°</label>
+    <label>Velocidad
+      <select id="speed"><option value="lento">lenta</option><option value="normal" selected>normal</option><option value="rapido">rápida</option></select>
+    </label>
+    <label><input type="checkbox" id="hold"> Dejar sujeto tras probar</label>
+    <button id="pose90" title="Lleva uno a uno todos los canales mapeados a 90°">Todos los mapeados a 90°</button>
   </div>
   <div class="legend">
     Vista desde arriba, cabeza delante: <b>A</b> delantera izq · <b>B</b> delantera der · <b>C</b> trasera der · <b>D</b> trasera izq.
@@ -83,7 +90,9 @@ td.dup{background:var(--bad-bg);color:var(--bad)}
 <script>
 const LEGS = {A:'delantera izq.', B:'delantera der.', C:'trasera der.', D:'trasera izq.'};
 const JOINTS = ['hombro','rodilla','tobillo'];
-let st = {angles:{}, map:{}}, busy = false, askCh = null, askLeg = null;
+let st = {angles:{}, map:{}}, busy = false, askCh = null, askLeg = null, dragging = false;
+const LIM = {min: 30, max: 150};
+const speed = () => $('speed').value;
 const $ = id => document.getElementById(id);
 
 async function api(path, body) {
@@ -128,7 +137,8 @@ function render() {
       <div class="top"><span class="ch">Canal ${ch}</span><span class="ang">${a == null ? 'suelto' : a + '° sujeto'}</span></div>
       <div><span class="${cls}">${l || 'sin mapear'}</span></div>
       <div class="row"><button class="pri" data-t="${ch}">Probar</button><button data-r="${ch}">Soltar</button></div>
-      <div class="row"><button data-n="${ch}" data-d="-5">−5</button><button data-n="${ch}" data-d="-1">−1</button><button data-n="${ch}" data-d="1">+1</button><button data-n="${ch}" data-d="5">+5</button></div>
+      <div class="row">${[-15, -5, -1, 1, 5, 15].map(d => `<button data-n="${ch}" data-d="${d}">${d > 0 ? '+' + d : '−' + -d}</button>`).join('')}</div>
+      <input type="range" min="${LIM.min}" max="${LIM.max}" step="1" value="${a ?? 90}" data-s="${ch}" title="Arrastra y suelta para ir a ese ángulo">
     </div>`;
   }
   $('grid').innerHTML = html;
@@ -171,7 +181,12 @@ async function save(body) {
   } else closeAsk();
 }
 async function test(ch) {
-  await act('/api/test', {ch, delta: +$('delta').value, hold: $('hold').checked}, `probando canal ${ch}… mira el robot`);
+  const delta = +$('delta').value, center = +$('center').value;
+  if (center - delta < LIM.min || center + delta > LIM.max) {
+    $('msg').textContent = `Centro ${center} ± ${delta} se sale de ${LIM.min}–${LIM.max}°. Baja la amplitud o mueve el centro.`;
+    return;
+  }
+  await act('/api/test', {ch, delta, center, speed: speed(), hold: $('hold').checked}, `probando canal ${ch}… mira el robot`);
   ask(ch);
 }
 
@@ -179,9 +194,13 @@ document.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   const d = b.dataset;
   if (b.id === 'off') act('/api/off', {}, 'soltando todo…');
+  else if (b.id === 'pose90') {
+    const n = Object.values(st.map).filter(m => !m.libre).length;
+    if (confirm(`Llevar ${n} servos mapeados a 90°, uno a uno. ¿Robot en el aire?`)) act('/api/pose90', {speed: speed()}, 'postura 90°…');
+  }
   else if (d.t !== undefined) test(+d.t);
   else if (d.r !== undefined) act('/api/release', {ch: +d.r});
-  else if (d.n !== undefined) { const ch = +d.n, cur = st.angles[ch] ?? 90; act('/api/angle', {ch, angle: cur + +d.d}); }
+  else if (d.n !== undefined) { const ch = +d.n, cur = st.angles[ch] ?? 90; act('/api/angle', {ch, angle: Math.max(LIM.min, Math.min(LIM.max, cur + +d.d)), speed: speed()}); }
   else if (d.leg) askJoint(d.leg);
   else if (d.back) ask(askCh);
   else if (d.joint) save({pata: askLeg, articulacion: d.joint});
@@ -190,8 +209,18 @@ document.addEventListener('click', e => {
   else if (b.id === 'again') test(askCh);
   else if (b.id === 'cancel') closeAsk();
 });
+document.addEventListener('input', e => {
+  const s = e.target.dataset.s; if (s === undefined) return;
+  dragging = true;
+  e.target.closest('.card').querySelector('.ang').textContent = 'ir a ' + e.target.value + '°';
+});
+document.addEventListener('change', e => {
+  const s = e.target.dataset.s; if (s === undefined) return;
+  dragging = false;
+  act('/api/angle', {ch: +s, angle: +e.target.value, speed: speed()}, `canal ${s} → ${e.target.value}°`);
+});
 async function poll() {
-  try { if (!busy) { st = await api('/api/state'); render(); } $('dot').classList.add('on'); }
+  try { if (!busy && !dragging) { st = await api('/api/state'); render(); } $('dot').classList.add('on'); }
   catch { $('dot').classList.remove('on'); }
 }
 poll(); setInterval(poll, 4000);

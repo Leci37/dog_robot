@@ -20,8 +20,9 @@ PORT = 8080
 
 MIN_US, MAX_US = 500, 2500   # MG996R aprox. 0-180 grados
 SAFE_MIN, SAFE_MAX = 30, 150
-MAX_DELTA = 20
+MAX_DELTA = 45
 CENTER = 90
+SPEEDS = {"lento": 0.05, "normal": 0.03, "rapido": 0.012}  # segundos por grado
 LEGS = ["A", "B", "C", "D"]
 JOINTS = ["hombro", "rodilla", "tobillo"]  # nombres del usuario, del cuerpo hacia el suelo
 
@@ -84,6 +85,10 @@ def release(ch):
     angles[ch] = None
 
 
+def pause_of(b):
+    return SPEEDS.get(b.get("speed"), SPEEDS["normal"])
+
+
 def check_ch(ch):
     ch = int(ch)
     if not 0 <= ch <= 15:
@@ -133,20 +138,30 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/test":
             ch = check_ch(b["ch"])
             d = min(abs(int(b.get("delta", 10))), MAX_DELTA)
-            move_to(ch, CENTER)
+            c = int(b.get("center", CENTER))
+            if c - d < SAFE_MIN or c + d > SAFE_MAX:
+                raise ValueError(f"centro {c} ± {d} se sale de {SAFE_MIN}-{SAFE_MAX}")
+            pz = pause_of(b)
+            move_to(ch, c, pz)
             time.sleep(0.5)
-            move_to(ch, CENTER + d)
+            move_to(ch, c + d, pz)
             time.sleep(0.3)
-            move_to(ch, CENTER - d)
+            move_to(ch, c - d, pz)
             time.sleep(0.3)
-            move_to(ch, CENTER)
+            move_to(ch, c, pz)
             if not b.get("hold", True):
                 release(ch)
-            log(f"probar canal {ch} +/-{d} hold={b.get('hold', True)}")
+            log(f"probar canal {ch} centro {c} +/-{d} {b.get('speed', 'normal')} hold={b.get('hold', True)}")
         elif p == "/api/angle":
             ch = check_ch(b["ch"])
-            move_to(ch, b["angle"])
+            move_to(ch, b["angle"], pause_of(b))
             log(f"canal {ch} -> {angles[ch]}")
+        elif p == "/api/pose90":
+            chs = sorted(int(k) for k, m in load_map()["canales"].items() if not m.get("libre"))
+            for ch in chs:
+                move_to(ch, CENTER, pause_of(b))
+                time.sleep(0.3)
+            log(f"postura 90 en canales {chs}")
         elif p == "/api/release":
             ch = check_ch(b["ch"])
             release(ch)

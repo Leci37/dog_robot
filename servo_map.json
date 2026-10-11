@@ -14,7 +14,7 @@
     },
     "3": {
       "pata": "B",
-      "articulacion": "hombro"
+      "articulacion": "rodilla"
     },
     "14": {
       "pata": "C",
@@ -22,7 +22,31 @@
     },
     "15": {
       "pata": "D",
+      "articulacion": "tobillo"
+    },
+    "4": {
+      "pata": "A",
+      "articulacion": "hombro"
+    },
+    "10": {
+      "pata": "C",
+      "articulacion": "hombro"
+    },
+    "11": {
+      "pata": "D",
+      "articulacion": "hombro"
+    },
+    "12": {
+      "pata": "C",
       "articulacion": "rodilla"
+    },
+    "13": {
+      "pata": "D",
+      "articulacion": "rodilla"
+    },
+    "5": {
+      "pata": "B",
+      "articulacion": "hombro"
     }
   }
 }
