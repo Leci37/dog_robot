@@ -236,7 +236,9 @@ button.nueva{background:#1e9e4a;border-color:#1e9e4a;color:#fff}button.nueva:hov
   <div class="card pwbar" id="pwbar">
     <label class="pwchk"><input type="checkbox" id="plim"> <span>Limitar el consumo de los servos a la fuente</span></label>
     <div class="pwrow"><span>Fuente de los servos:</span>
-      <input type="range" id="pamp" min="2" max="30" step="1" value="5"><b id="pampv">5 A</b></div>
+      <input type="range" id="pamp" min="2" max="30" step="1" value="5"><b id="pampv">5 A</b>
+      <button data-psrc="5" title="La fuente de antes: los servos se mueven por tandas">Fuente vieja 5 A</button>
+      <button data-psrc="20" title="La fuente nueva (12-10-2026): los 12 pueden moverse a la vez">Fuente nueva 20 A</button></div>
     <div class="pz" id="pinfo"></div>
     <div class="pmsg bad" id="plow" hidden></div>
     <label class="pz"><input type="checkbox" id="pallow"> Permitir mover aunque falte corriente en la Pi (puede apagarse)</label>
@@ -665,6 +667,7 @@ function renderPower() {
   const p = st.potencia; if (!p) return;
   renderLed();
   if (document.activeElement !== $('pamp')) { $('pamp').value = p.amperios; $('pampv').textContent = p.amperios + ' A'; }
+  document.querySelectorAll('[data-psrc]').forEach(b => b.classList.toggle('pri', +b.dataset.psrc === p.amperios));
   $('plim').checked = p.limitar;
   $('pallow').checked = !!p.permitir_sin_corriente;
   $('pwbar').classList.toggle('off', !p.limitar);
@@ -675,7 +678,8 @@ function renderPower() {
   const k = p.a_la_vez_12;
   $('pinfo').innerHTML = p.limitar
     ? `Con <b>${p.amperios} A</b>: hasta <b>${k}</b> servo${k > 1 ? 's' : ''} moviéndose a la vez (el resto espera su turno). Estimación: ~${p.estimacion.moviendo_A} A por servo moviéndose y ~${p.estimacion.sujetando_A} A sujetando.` +
-      (p.amperios < 10 ? ' <b>Con menos de 10 A, ponerse de pie o andar puede cortar la fuente: pruébalo en el aire.</b>' : '')
+      (p.amperios < 10 ? ' <b>Con menos de 10 A, ponerse de pie o andar puede cortar la fuente: pruébalo en el aire.</b>'
+        : k >= 12 ? ' Con esta fuente los 12 pueden moverse a la vez: el límite solo vigila y avisa si te pasas.' : '')
     : '<b>Límite DESACTIVADO:</b> todos los servos se mueven a la vez. Solo con una fuente grande (15-20 A).';
 }
 function renderMapLive() {
@@ -1666,14 +1670,18 @@ document.addEventListener('click', e => {
     if (confirm(`¿Borrar la postura "${b.dataset.posedel}"?`)) act('/api/pose_delete', {nombre: b.dataset.posedel}, 'borrando…');
   }
 });
-async function setPower() {
+async function setPower(ask) {  // ask: solo al desmarcar la casilla del límite, no al cambiar de fuente
   const body = {limitar: $('plim').checked, amperios: +$('pamp').value, permitir_sin_corriente: $('pallow').checked};
-  if (!body.limitar && !confirm('¿Quitar el límite de consumo? Solo con una fuente de 15-20 A: si no, la fuente puede cortarse.')) { $('plim').checked = true; return; }
+  if (ask && !body.limitar && !confirm('¿Quitar el límite de consumo? Solo con una fuente de 15-20 A: si no, la fuente puede cortarse.')) { $('plim').checked = true; return; }
   try { st = await api('/api/power', body); render(); $('msg').textContent = `límite: ${body.limitar ? body.amperios + ' A' : 'desactivado'}`; }
   catch (e) { $('msg').textContent = 'Error: ' + e.message; }
 }
 document.addEventListener('input', e => { if (e.target.id === 'pamp') $('pampv').textContent = e.target.value + ' A'; });
-document.addEventListener('change', e => { if (e.target.id === 'plim' || e.target.id === 'pamp' || e.target.id === 'pallow') setPower(); });
+document.addEventListener('change', e => { if (e.target.id === 'plim' || e.target.id === 'pamp' || e.target.id === 'pallow') setPower(e.target.id === 'plim'); });
+document.addEventListener('click', e => {  // fuente vieja / nueva de un toque
+  const b = e.target.closest('button[data-psrc]'); if (!b) return;
+  $('pamp').value = b.dataset.psrc; $('pampv').textContent = b.dataset.psrc + ' A'; setPower(false);
+});
 document.addEventListener('toggle', e => {
   if (e.target.id === 'blkd' && e.target.open) ensureBlockly().then(() => Blockly.svgResize(ws)).catch(() => {});
 }, true);

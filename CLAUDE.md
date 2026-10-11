@@ -299,3 +299,7 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   B 16 y 47-49). **RETIRADAS** (filtro en `_candidate_routines`, el código sigue): las de 1-2 estrellas (galope turbo,
   otra mano, izquierda, caballo de tiro, ayudando a la D), las dar la pata de pie (estables y saludar con B) y andar
   alto y rápido, pasitos, paso largo, trote alto y bote de gacela. Fusionado a mano con b2596e6 (tele) con git merge-file.
+- 2026-10-12 (14): **fuente de servos nueva de 20 A** (la vieja era de 5 A). Botones "Fuente vieja 5 A" / "Fuente nueva 20 A"
+  junto al deslizador de la barra de consumo (`data-psrc`; cambiar de fuente ya no pregunta lo de quitar el límite,
+  solo desmarcar la casilla). Puesto 20 A con el límite activado: con 20 A `max_movers` deja mover los 12 a la vez, así
+  que no frena; solo avisa. El medidor de arriba escala con `limite_A`.
