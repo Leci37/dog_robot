@@ -40,6 +40,14 @@ tr.mov td{background:#5a4a00;color:#fff}
 td.btn button{padding:5px 9px;font-size:15px;margin-left:2px}
 #off{display:none;position:sticky;top:0;z-index:5;background:var(--bad);color:#fff;padding:8px;text-align:center;font-weight:bold}
 .mut{color:var(--mut);font-size:14px}
+button.home{background:#1e9e4a;border-color:#1e9e4a;color:#fff;font-weight:bold;font-size:24px;padding:14px 26px}
+#code{font:inherit;font-size:26px;width:4.2em;text-align:center;padding:6px;border-radius:8px;border:2px solid var(--acc);background:#000;color:#fff}
+#rsel,#gear{font:inherit;font-size:18px;padding:8px;border-radius:8px;border:1px solid #555;background:#2a2a2a;color:var(--ink);max-width:100%}
+#pop button{font-size:18px;padding:10px 14px}
+#pop button b{color:#ffd23f;margin-right:6px}
+button.plata{background:linear-gradient(180deg,#f3f4f6,#b9c0c8);border-color:#8d949c;color:#1d2228}
+.keys{font-size:14px;color:var(--mut)}
+.keys b{color:var(--ink);background:#333;border-radius:4px;padding:0 5px}
 </style>
 </head>
 <body>
@@ -58,13 +66,25 @@ td.btn button{padding:5px 9px;font-size:15px;margin-left:2px}
     <div class="row"><button id="permitir">Permitir mover aunque falte corriente</button></div>
   </div>
   <div class="row big">
+    <button class="home" id="home" title="Tecla P: para lo que esté en marcha y se pone de pie (la elegida)">▲ DE PIE (P)</button>
     <button class="stop" data-a="off">Soltar todo</button>
     <button class="pri" data-a="sujetar">Bloquear todo (donde estaba)</button>
     <button class="pri" data-a="mitad">Todo a mitad</button>
     <button class="pri" data-a="recogida">Recoger</button>
     <button class="pri" data-a="estirada">Estirar</button>
-    <button class="pri" data-a="de pie">De pie</button>
     <button data-a="parar">Parar rutina</button>
+  </div>
+  <div class="box">
+    <div class="row" style="margin:2px 0">
+      <b>Rutinas por código:</b>
+      <input id="code" inputmode="numeric" maxlength="3" placeholder="nº" aria-label="Código de rutina">
+      <select id="rsel" aria-label="Elegir rutina"><option value="">elige una rutina…</option></select>
+      <button class="pri" id="go">▶ Ejecutar</button>
+      <select id="gear" aria-label="Velocidad"></select>
+      <button data-a="parar">■ Parar</button>
+    </div>
+    <div class="row" id="pop" style="margin:4px 0"></div>
+    <div class="keys">Teclado: <b>P</b> de pie · escribe el <b>número</b> y <b>Intro</b> · <b>X</b> parar · <b>S</b> soltar todo · <b>Esc</b> borrar</div>
   </div>
   <div class="box">
     <div class="row" style="margin:2px 0">
@@ -178,9 +198,39 @@ async function pollSys() {
     $('net').textContent = {router: 'router', directo: 'cable directo', 'sin-cable': 'sin cable'}[s.net.mode] || s.net.mode;
   } catch {}
 }
+let rts = null;
+const GRUPOS = [['plata', 'Plata (las ganadoras)'], ['depie', 'De pie'], ['suave', 'De pie suaves'], ['nueva', 'Nuevas (galopes…)'],
+  ['andar', 'Andar'], ['creativa', 'Creativas (caballo)'], ['curiosa', 'Cosas curiosas'], ['otra', 'Otras']];
+const grupo = c => c.plata ? 'plata' : c.etapa === 1 ? 'depie' : c.suave ? 'suave' : c.nueva ? 'nueva' : c.andar ? 'andar'
+  : c.creativa ? 'creativa' : c.curiosa ? 'curiosa' : 'otra';
+const starsTxt = n => n == null ? '' : ' ' + '★'.repeat(n) + '☆'.repeat(6 - n);
+function drawRoutines() {
+  if (!rts) return;
+  const val = rts.valoraciones || {}, cs = (rts.candidatas || []).filter(c => c.codigo).sort((a, b) => a.codigo - b.codigo);
+  const sel = $('rsel'), keep = sel.value;
+  sel.innerHTML = '<option value="">elige una rutina…</option>' + `<option value="P">P · De pie (la elegida)</option>` +
+    GRUPOS.map(([g, t]) => { const gs = cs.filter(c => grupo(c) === g); return gs.length ? `<optgroup label="${t}">` +
+      gs.map(c => `<option value="${c.codigo}">${c.codigo} · ${c.nombre.replace(/</g, '&lt;')}${starsTxt(val[c.id])}</option>`).join('') + '</optgroup>' : ''; }).join('');
+  sel.value = keep;
+  const byId = Object.fromEntries(cs.map(c => [c.id, c]));
+  $('pop').innerHTML = '<span class="mut">Populares:</span>' + (rts.populares || []).map(id => byId[id]).filter(Boolean).map(c =>
+    `<button class="${c.plata ? 'plata' : 'pri'}" data-code="${c.codigo}"><b>${c.codigo}</b>${c.nombre.replace(/</g, '&lt;')}</button>`).join('');
+  const g = $('gear');
+  if (document.activeElement !== g) g.innerHTML = Object.entries(rts.marchas || {}).map(([n, t]) => `<option value="${n}" ${+n === rts.marcha ? 'selected' : ''}>${t}</option>`).join('');
+}
+function runCode(code) {
+  code = String(code || '').trim();
+  if (!code) { $('msg').textContent = 'escribe un código o elige una rutina'; return; }
+  busy = false;
+  if (code.toUpperCase() === 'P') { act('/api/home', {}, 'poniéndose de pie…'); return; }
+  const c = rts && (rts.candidatas || []).find(x => String(x.codigo) === code);
+  act('/api/routine_run', {codigo: code}, c ? `rutina ${code} · ${c.nombre}…` : `rutina ${code}…`);
+  $('code').value = '';
+}
 async function pollRt() {
   try {
     const r = await api('/api/routines'), names = Object.keys(r.guardadas || {});
+    rts = r; drawRoutines();
     const box = $('rts'); box.textContent = '';
     if (names.length) {
       const s = document.createElement('span'); s.className = 'mut'; s.textContent = 'Rutinas:'; box.appendChild(s);
@@ -204,6 +254,9 @@ async function lockAll() {
 document.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   const d = b.dataset;
+  if (b.id === 'home') { busy = false; act('/api/home', {}, 'poniéndose de pie…'); return; }
+  if (b.id === 'go') { runCode($('code').value || $('rsel').value); return; }
+  if (d.code) { runCode(d.code); return; }
   if (b.id === 'permitir') {
     if (!confirm('¿Permitir mover servos aunque a la Pi le falte corriente? Puede apagarse de golpe.')) return;
     const p = (st && st.potencia) || {};
@@ -220,6 +273,22 @@ document.addEventListener('click', e => {
   else if (d.a) act('/api/pose_go', {pata: 'todas', nombre: d.a, speed: 'normal'}, `postura "${d.a}"…`);
   else if (d.run) act('/api/routine_run', {nombre: d.run}, `rutina "${d.run}"…`);
 });
+$('gear').addEventListener('change', e => api('/api/routine_speed', {marcha: +e.target.value}).then(r => { rts = r; drawRoutines(); })
+  .catch(er => { $('msg').textContent = 'Error: ' + er.message; }));
+$('rsel').addEventListener('change', e => { if (e.target.value) $('code').value = e.target.value === 'P' ? '' : e.target.value; });
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.altKey || e.metaKey) return;
+  const inCode = e.target === $('code'), k = e.key;
+  if (k === 'Enter') { if (e.target.tagName !== 'BUTTON') { e.preventDefault(); runCode($('code').value || $('rsel').value); } return; }
+  if (k === 'Escape') { $('code').value = ''; $('rsel').value = ''; return; }
+  if (e.target.tagName === 'SELECT') return;
+  if (/^[0-9]$/.test(k) && !inCode) { e.preventDefault(); $('code').focus(); $('code').value = ($('code').value + k).slice(-3); return; }
+  if (inCode && /^[0-9]$/.test(k)) return;
+  const l = k.toLowerCase();
+  if (l === 'p') { e.preventDefault(); busy = false; act('/api/home', {}, 'poniéndose de pie…'); }
+  else if (l === 'x') { e.preventDefault(); busy = false; act('/api/routine_stop', {}, 'parando la rutina…'); }
+  else if (l === 's') { e.preventDefault(); busy = false; act('/api/off', {}, 'soltando todo…'); }
+});
 setInterval(() => {
   const off = Date.now() - lastOk > 10000;
   $('off').style.display = off ? 'block' : 'none';
@@ -227,7 +296,7 @@ setInterval(() => {
   v.textContent = off ? '● sin conexión' : (Math.floor(Date.now() / 500) % 2 ? '● VIVO' : '○ VIVO');
 }, 500);
 pollState(); pollCons(); pollSys(); pollRt();
-setInterval(pollState, 2000); setInterval(pollCons, 1000); setInterval(pollSys, 6000); setInterval(pollRt, 15000);
+setInterval(pollState, 2000); setInterval(pollCons, 1000); setInterval(pollSys, 6000); setInterval(pollRt, 8000);
 setInterval(draw, 700);
 </script>
 </body>

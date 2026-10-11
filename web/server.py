@@ -1032,7 +1032,71 @@ def march_program(conv, n=4, lift=16):
         up(["B", "D"]), S(base_stance(conv, ["B", "D"]), juntos=True)]}]
 
 
+# Códigos de rutina (12-10, para la tele y el teclado del HDMI): fijos y por familias, para poder aprendérselos.
+# 10 (o P) = la de pie elegida. Las que no estén aquí cogen un código libre a partir del 100.
+CODIGOS = {
+    "plata-galope": 11, "plata-galope-der": 12, "plata-galope-suave": 13, "plata-canguro": 14, "plata-camello": 15,
+    "plata-pata-sentado": 16, "bajar": 17,
+    "de-pie-6.7": 18, "de-pie-6": 19, "de-pie-6.1": 20, "de-pie-6.2": 21, "de-pie-6.5": 22, "de-pie-6.3": 23,
+    "de-pie-6.4": 24, "de-pie-6.6": 25, "pie-suave": 26, "pie-ayuda-d": 27, "pie-dos-tiempos": 28, "pie-ivan": 29,
+    "galope-alto": 30, "galope-der": 31, "galope-largo": 32, "galope-rapido": 33, "galope-izq": 34, "galope-otra-mano": 35,
+    "galope-turbo": 36, "galope": 37, "medio-galope": 38,
+    "camello-adelante": 40, "camello-rapido": 41, "canguro": 42, "caballo-tiro": 43, "caballo-tiro-atras": 44,
+    "lado-derecha": 45, "lado-izquierda": 46,
+    "andar": 50, "andar-balanceo": 51, "andar-rapido": 52, "andar-alto": 53, "andar-alto-rapido": 54, "andar-pasitos": 55,
+    "andar-largo": 56, "andar-atras": 57, "paseo": 58, "andar-lado": 59,
+    "trote": 60, "trote-rapido": 61, "trote-alto": 62, "paso-caballo": 63, "tolt": 64, "ambladura": 65,
+    "trote-eliptico": 66, "piaffe": 67, "passage": 68, "brinco": 69, "bote-gacela": 70, "girar-izq": 71, "girar-der": 72,
+    "marcar-paso": 73,
+    "balanceo-potente": 80, "baile": 81, "menear": 82, "pis": 83, "desperezarse": 84, "pata-b": 85, "pata-a": 86,
+    "saludar-b": 87, "balanceo": 88, "reverencia": 89,
+    "de-pie-alto": 90, "de-pie-bajo": 91, "tumbarse": 92, "levantarse": 93, "sentarse": 94, "flexiones": 95,
+}
+CODIGO_DE_PIE = 10
+
+
 def candidate_routines(conv_saved):
+    """Todas las rutinas generadas, cada una con su `codigo` (fijo, ver CODIGOS)."""
+    cands = _candidate_routines(conv_saved)
+    free = 100
+    for c in cands:
+        if c["id"] in CODIGOS:
+            c["codigo"] = CODIGOS[c["id"]]
+        else:
+            c["codigo"] = free
+            free += 1
+    return cands
+
+
+def home_id(cands, cfg=None):
+    """La de pie elegida (la marcada ✓); si no hay, la 6.7."""
+    pr = (cfg or load_config()).get("pruebas", {})
+    return next((c["id"] for c in cands if c.get("etapa") == 1 and c.get("conv") and pr.get(c["id"], {}).get("mark") == "bien"),
+                "de-pie-6.7")
+
+
+def popular_ids(cands, cfg):
+    """Populares: las de plata y luego las de 3 estrellas o más, de mejor a peor (para la tele)."""
+    known = {c["id"] for c in cands}
+    ids = [c["id"] for c in cands if c.get("plata")]
+    val = {k: v.get("estrellas", 0) for k, v in cfg.get("valoraciones", {}).items()}
+    ids += [k for k, n in sorted(val.items(), key=lambda kv: -kv[1]) if n >= 3 and k in known and k not in ids]
+    return ids[:16]
+
+
+def by_code(code, cands):
+    """'10', 'P' o '0' = la de pie elegida; si no, la rutina con ese código."""
+    code = str(code).strip().upper()
+    if code in ("P", "0", str(CODIGO_DE_PIE)):
+        hid = home_id(cands)
+        return next(c for c in cands if c["id"] == hid)
+    cand = next((c for c in cands if str(c.get("codigo")) == code), None)
+    if not cand:
+        raise ValueError(f"no hay ninguna rutina con el código {code}")
+    return cand
+
+
+def _candidate_routines(conv_saved):
     """Etapa 1: la 6 de 'de pie' y sus variantes (+ bajar despacio). Etapa 2 (con convención): rutinas útiles."""
     cands = []
     for vid, name, desc, front, rear, pec in VARIANTES_6:
@@ -1139,13 +1203,15 @@ def routines_info():
     cfg = load_config()
     conv = cfg.get("convencion")
     saved = load_json(ROUTINES_FILE, {})
+    cands = candidate_routines(conv)
     return {"guardadas": {k: {"origen": v.get("origen", ""), "pasos": count_steps(v["programa"]),
                               "bloques": bool(v.get("bloques"))} for k, v in saved.items()},
             "candidatas": [{k: v for k, v in c.items() if k != "programa"} | {"pasos": count_steps(c["programa"])}
-                           for c in candidate_routines(conv)],
+                           for c in cands],
             "convencion": conv, "pruebas": cfg.get("pruebas", {}), "ejecutando": dict(routine),
             "marcha": gear(), "marchas": {str(k): v[0] for k, v in MARCHAS.items()},
-            "valoraciones": {k: v["estrellas"] for k, v in cfg.get("valoraciones", {}).items()}}
+            "valoraciones": {k: v["estrellas"] for k, v in cfg.get("valoraciones", {}).items()},
+            "home": home_id(cands, cfg), "populares": popular_ids(cands, cfg), "codigo_de_pie": CODIGO_DE_PIE}
 
 
 # ---------- pestaña de estado: cómo me estoy conectando ----------
@@ -1629,7 +1695,7 @@ class Handler(BaseHTTPRequestHandler):
             if path in ("/api/screen", "/api/screen_boot", "/api/system_action"):
                 self.route_system(body)  # no tocan servos: sin esperar al cerrojo de movimiento
                 return
-            if path.startswith("/api/routine") or path in ("/api/try_mark", "/api/convention_reset", "/api/lock_all"):
+            if path.startswith("/api/routine") or path in ("/api/try_mark", "/api/convention_reset", "/api/lock_all", "/api/home"):
                 self.route_routines(path, body)
                 return
             if path == "/api/off":
@@ -1661,7 +1727,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def route_routines(self, p, b):
         if p == "/api/routine_run":
-            if b.get("candidata"):
+            if b.get("codigo") not in (None, ""):  # desde la tele / el teclado del HDMI: por código (10 o P = de pie)
+                cand = by_code(b["codigo"], candidate_routines(load_config().get("convencion")))
+                start_routine(cand["programa"], cand["nombre"])
+                log(f"rutina por código {b['codigo']}: '{cand['nombre']}'")
+            elif b.get("candidata"):
                 cand = next((c for c in candidate_routines(load_config().get("convencion")) if c["id"] == b["candidata"]), None)
                 if not cand:
                     raise ValueError("rutina de prueba desconocida")
@@ -1677,6 +1747,16 @@ class Handler(BaseHTTPRequestHandler):
             power_guard()
             prog, name, lista = plan_lock_all(b)
             start_routine(prog, name, lista)
+        elif p == "/api/home":  # botón/tecla "De pie": para lo que esté en marcha y se pone en la de pie elegida
+            if routine["running"]:
+                routine["stop"] = True
+                end = time.time() + 15
+                while routine["running"] and time.time() < end:
+                    time.sleep(0.1)
+            cands = candidate_routines(load_config().get("convencion"))
+            cand = next(c for c in cands if c["id"] == home_id(cands))
+            start_routine(cand["programa"], cand["nombre"])
+            log(f"de pie (botón P): '{cand['nombre']}'")
         elif p == "/api/routine_stop":
             routine["stop"] = True
             log("rutina: parar pedido")

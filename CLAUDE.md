@@ -118,6 +118,15 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
 - Menú 15 s al arrancar: [1] panel · [2] página web (kiosco, `?pantalla=1`) · [3] consola. Panel: URLs, alimentación,
   servos, rutina en marcha, rutinas 1-9, teclas S/M/R/E, X parar, W web, C consola en tty1, **T consola aparte
   (tty2, Alt+F1 vuelve)**, H ayuda, A/B apagar/reiniciar. Ctrl+Alt+F2 = login aparte en cualquier momento.
+- **P = de pie** (`/api/home`: para la rutina en marcha y lanza la de pie ✓) y **0 / Intro = rutinas por código**
+  (`Panel.selector`: número + Intro o flechas; populares primero). "Probar salida" pasó de la P a la **U**.
+  Vista del panel sin tele: `pruebas/ver_panel.py` y `pruebas/ver_selector.py` (abre el selector; nunca pulsa Intro).
+- **Códigos** fijos `CODIGOS` en server.py (10/P de pie, 11-16 plata, 17 bajar, 18-25 de pie, 26-29 suaves, 30-38
+  galopes, 40-46, 50-59 andar, 60-73, 80-89 curiosas, 90-95); las que no estén cogen 100+. `/api/routine_run
+  {codigo}`; `/api/routines` da `codigo` en cada candidata, `home` y `populares` (plata + ≥3 estrellas).
+  /lite: botón DE PIE (P), caja "Rutinas por código" (input + desplegable por familias + populares) y teclado.
+- **Saltos de línea**: `.gitattributes` con `eol=lf`. Desde Windows (core.autocrlf=true) no copiar la copia de trabajo
+  a la Pi tal cual: en 2026-10-12 se colaron CRLF en server.py, index.html, prueba_servidor.py, CLAUDE.md y AYUDA.md.
 
 ## Ficheros
 - `web/` (server.py, index.html, static/blockly, unidad), `pantalla/` (panel.py, navegador.sh, unidad, PAM),
@@ -277,3 +286,9 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   canguro plata (derechas más largas), camello plata y dar la pata sentado. `phase_gait(press=…)`: el pie apoyado
   empuja hacia el suelo (penetration depth de spot_mini_mini, OpenQuadruped; allí un RL/ARS ajusta altura del pie y
   penetración). **Curiosas** (azules, sin estrellas, `CURIOSAS`): balanceo potente, baile, menear, pis, desperezarse.
+- 2026-10-12 (12, sesión paralela "fork"): **la tele**. "Rutinas populares accesibles desde el HDMI, P = de pie, las
+  demás por código con un desplegable". Panel: P, 0/Intro selector, populares en el recuadro del robot, U probar salida.
+  /lite: DE PIE, caja de código, desplegable, populares, marcha y teclado. Web del PC: código delante de cada rutina.
+  Todo a LF + `.gitattributes`. OJO: dos sesiones de Claude editaron a la vez la carpeta compartida del PC
+  (Gith/spotmicro) y una pisó a la otra en server.py; esta trabajó en un clon aparte (Gith/spotmicro-tele) y la otra
+  integra con `git fetch` de la Pi antes de desplegar.

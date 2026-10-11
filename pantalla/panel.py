@@ -6,6 +6,7 @@ Panel de control en modo texto (ligero: nada de navegador): las 16 salidas de la
 consumo estimado de los servos, rutina en marcha y actividad reciente. Un indicador late para que
 se vea que está vivo. Teclado: flechas para elegir y mover una salida, y las teclas de siempre.
 Al arrancar ofrece un menú: [1] este panel, [2] la página web (lenta en la Pi 2), [3] consola.
+P = ponerse de pie (la de pie elegida). 0 o Intro = rutinas por código (las populares primero).
 Todas las órdenes al robot pasan por la API de la web (http://127.0.0.1:8080).
 """
 import curses
@@ -392,15 +393,17 @@ class Panel:
         else:
             fin = f"última: {rt.get('nombre')} ({rt.get('fin')})" if rt.get("fin") else "sin rutina en marcha"
             self.put(y + 3, x + 2, fin)
-        names = list(((d.rts or {}).get("guardadas") or {}).keys())[:9]
-        self.put(y + 5, x + 2, "rutinas (teclas 1-9):", B)
-        for i, n in enumerate(names[:6]):
-            self.put(y + 6 + i // 2, x + 4 + (i % 2) * ((wid - 6) // 2), f"{i + 1} {n}"[:(wid - 8) // 2])
-        if not names:
-            self.put(y + 6, x + 4, "ninguna guardada todavía (se crean desde la web)")
-        conv = ((d.rts or {}).get("convencion"))
-        self.put(y + 10, x + 2, "sentido de las patas: " + ("encontrado" if conv else "pendiente (Rutinas para probar)"),
-                 G if conv else Y)
+        rts = d.rts or {}
+        self.put(y + 5, x + 2, "P = DE PIE    0 / Intro = rutinas por código", G | B)
+        cands = {c["id"]: c for c in rts.get("candidatas", [])}
+        pop = [cands[i] for i in rts.get("populares", []) if i in cands][:6]
+        self.put(y + 6, x + 2, "populares:" if pop else "populares: (valóralas con estrellas en la web)", B)
+        col = (wid - 6) // 2
+        for i, c in enumerate(pop):
+            self.put(y + 7 + i // 2, x + 4 + (i % 2) * col, f"{c['codigo']:>2} {c['nombre']}"[:col - 1])
+        names = list((rts.get("guardadas") or {}).keys())[:9]
+        if names:
+            self.put(y + 10, x + 2, "mis rutinas (1-9): " + "  ".join(f"{i + 1} {n}" for i, n in enumerate(names))[:wid - 22], Y)
 
     def draw_activity(self, y, x, wid, B, DIM, Y):
         self.box(y, x, 8, wid, "ACTIVIDAD RECIENTE")
@@ -410,8 +413,8 @@ class Panel:
 
     def draw_footer(self, h, w):
         C, Y, B = curses.color_pair(4), curses.color_pair(2), curses.A_BOLD
-        self.put(h - 4, 1, "S soltar todo  M todo a mitad  R recoger  E estirar  1-9 rutina  X parar  H ayuda", C)
-        self.put(h - 3, 1, "W web en la tele (lenta)  C consola  T consola aparte (Alt+F1 vuelve)  A apagar  B reiniciar", C)
+        self.put(h - 4, 1, "P DE PIE  0/Intro rutinas por código  S soltar todo  X parar  M mitad  R recoger  E estirar  1-9 mis rutinas", C | B)
+        self.put(h - 3, 1, "U probar salida  L soltar salida  H ayuda  W web en la tele  C consola  T consola aparte  A apagar  B reiniciar", C)
         if self.confirm and time.time() < self.confirm[1]:
             what = "APAGAR" if self.confirm[0] == "a" else "REINICIAR"
             self.put(h - 2, 1, f"¿Seguro que quieres {what} la Pi? Pulsa {self.confirm[0].upper()} otra vez.", Y | B)
@@ -451,6 +454,9 @@ class Panel:
         if k == curses.KEY_DOWN:
             self.sel = (self.sel + 1) % 16
             return None
+        if k in (10, 13, curses.KEY_ENTER):
+            self.selector()
+            return None
         steps = {curses.KEY_LEFT: -5, curses.KEY_RIGHT: 5, curses.KEY_NPAGE: -15, curses.KEY_PPAGE: 15,
                  curses.KEY_HOME: 30, curses.KEY_END: -30}
         if k in steps:
@@ -471,7 +477,12 @@ class Panel:
                 self.confirm = (c, time.time() + 5)
             return None
         self.confirm = None
-        if c == "p":
+        if c == "p":  # de pie: para lo que haya en marcha y se pone en la de pie elegida
+            self.busy = False
+            self.action("Poniéndose de pie", "/api/home", {}, timeout=30)
+        elif c in ("0", "#"):
+            self.selector()
+        elif c == "u":
             self.action(f"Probando la salida {self.sel}", "/api/test",
                         {"ch": self.sel, "delta": 10, "center": 90, "speed": "lento", "hold": False}, timeout=30)
         elif c == "l":
@@ -504,6 +515,86 @@ class Panel:
         elif c == "h":
             self.help()
         return None
+
+    def selector(self):
+        """Rutinas por código: escribe el número y Intro, o elige con las flechas e Intro. Primero las populares
+        (las de plata y las de 3 estrellas o más). P = de pie, X = parar, S = soltar todo, Esc o Q = volver."""
+        code, sel, top = "", 0, 0
+        if not self.d.rts:
+            try:
+                self.d.rts = api("/api/routines", timeout=8)
+            except Exception:  # noqa: BLE001
+                pass
+        while True:
+            rts = self.d.rts or {}
+            allc = sorted((c for c in rts.get("candidatas", []) if c.get("codigo")), key=lambda c: c["codigo"])
+            pop = [c for i in rts.get("populares", []) for c in allc if c["id"] == i]
+            items = [c for c in allc if str(c["codigo"]).startswith(code)] if code else pop + [c for c in allc if c not in pop]
+            val = rts.get("valoraciones", {})
+            sel = max(0, min(sel, len(items) - 1))
+            h, w = self.scr.getmaxyx()
+            rows = max(3, h - 7)
+            top = sel if sel < top else (sel - rows + 1 if sel >= top + rows else top)
+            G, Y, R, H = curses.color_pair(1), curses.color_pair(2), curses.color_pair(3), curses.color_pair(5)
+            B, REV = curses.A_BOLD, curses.A_REVERSE
+            self.scr.erase()
+            self.put(0, 0, " " * (w - 1), H)
+            self.put(0, 1, "RUTINAS POR CÓDIGO  ·  número + Intro  ·  flechas + Intro  ·  P de pie  ·  X parar  ·  Esc volver", H | B)
+            rt = (self.d.state or {}).get("rutina") or {}
+            self.put(2, 2, f"Código: {code}_", Y | B)
+            self.put(2, 22, f"▶ {rt['nombre']}  {rt['paso']}/{rt['total']}" if rt.get("running") else "sin rutina en marcha",
+                     Y if rt.get("running") else 0)
+            self.put(3, 2, f"{len(items)} con código que empieza por {code}" if code
+                     else "populares primero (plata y 3 estrellas o más), luego todas por código", curses.A_DIM)
+            for i, c in enumerate(items[top:top + rows]):
+                n = val.get(c["id"])
+                if n is not None:
+                    stars = "*" * n + "." * (6 - n) + f" {n}/6"
+                else:
+                    stars = "curiosa" if c.get("curiosa") else "sin estrellas"
+                grp = ("plata" if c.get("plata") else "de pie suave" if c.get("suave") else "curiosa" if c.get("curiosa")
+                       else "de pie" if c.get("etapa") == 1 else "creativa" if c.get("creativa") else "nueva" if c.get("nueva")
+                       else "andar" if c.get("andar") else "")
+                line = f" {c['codigo']:>3}  {c['nombre'][:44]:<44}  {stars:<13}  {grp}"
+                attr = (REV | B) if top + i == sel else ((G | B) if c in pop and not code else 0)
+                self.put(5 + i, 1, line[:w - 3], attr)
+            if not items:
+                self.put(5, 4, f"no hay ninguna rutina con el código {code}", R | B)
+            if time.time() < self.msg_until:
+                self.put(h - 1, 1, self.msg, Y | B)
+            self.scr.refresh()
+            k = self.scr.getch()
+            if rd(MODE, "panel") != "panel":
+                return
+            if k in (27, ord("q"), ord("Q")):
+                return
+            if k in (curses.KEY_BACKSPACE, 127, 8):
+                code, sel, top = code[:-1], 0, 0
+            elif ord("0") <= k <= ord("9") and len(code) < 3:
+                code, sel, top = code + chr(k), 0, 0
+            elif k in (curses.KEY_UP, ord("k")):
+                sel -= 1
+            elif k in (curses.KEY_DOWN, ord("j")):
+                sel += 1
+            elif k == curses.KEY_PPAGE:
+                sel -= rows
+            elif k == curses.KEY_NPAGE:
+                sel += rows
+            elif k in (ord("p"), ord("P")):
+                self.busy = False
+                self.action("Poniéndose de pie", "/api/home", {}, timeout=30)
+                return
+            elif k in (ord("x"), ord("X")):
+                self.busy = False
+                self.action("Parando la rutina", "/api/routine_stop", {}, timeout=10)
+            elif k in (ord("s"), ord("S")):
+                self.busy = False
+                self.action("Soltando todos los servos", "/api/off", {})
+            elif k in (10, 13, curses.KEY_ENTER) and items:
+                c = next((c for c in items if str(c["codigo"]) == code), None) or items[sel]
+                self.busy = False
+                self.action(f"Rutina {c['codigo']} '{c['nombre']}'", "/api/routine_run", {"codigo": c["codigo"]}, timeout=30)
+                return
 
     def help(self):
         text = rd(HELP, "No hay ayuda (falta AYUDA.md).")

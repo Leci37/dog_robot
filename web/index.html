@@ -1380,14 +1380,14 @@ function renderRt() {
   const stars = id => `<span class="stars" title="Valórala de 0 a 6 (pulsa otra vez la misma para quitar)">${[1, 2, 3, 4, 5, 6].map(n =>
     `<button data-rate="${esc(id)}" data-estrellas="${n}" class="${(val[id] || 0) >= n ? 'on' : ''}" aria-label="${n} estrellas">★</button>`).join('')}</span>`;
   const wrap = (c, btn) => (c.etapa === 2 && !c.curiosa) || c.ayuda ? `<span class="qitem">${btn}${c.ayuda ? '' : stars(c.id)}</span>` : btn;
-  const qb = (c, label) => wrap(c, `<button data-try="${esc(c.id)}" title="${esc(c.desc)}" class="${chosen(c.id) ? 'pri' : ''}">${esc(label)}${chosen(c.id) ? ' ✓' : ''}</button>`);
+  const qb = (c, label) => wrap(c, `<button data-try="${esc(c.id)}" title="${c.codigo ? 'código ' + c.codigo + ' · ' : ''}${esc(c.desc)}" class="${chosen(c.id) ? 'pri' : ''}">${esc(label)}${chosen(c.id) ? ' ✓' : ''}</button>`);
   const favs = rts.candidatas.filter(c => c.favorita).sort((a, b) => a.favorita - b.favorita);
   const bajar = rts.candidatas.find(c => c.id === 'bajar'), walks = rts.candidatas.filter(c => c.andar);
   const creat = rts.candidatas.filter(c => c.creativa), nuevas = rts.candidatas.filter(c => c.nueva);
   const suaves = rts.candidatas.filter(c => c.suave), curiosas = rts.candidatas.filter(c => c.curiosa);
   const platas = rts.candidatas.filter(c => c.plata);
-  const qc = c => wrap(c, `<button class="${c.color}" data-try="${esc(c.id)}" title="${esc(c.desc)}">${esc(c.nombre)}</button>`);
-  const qg = c => wrap(c, `<button class="nueva" data-try="${esc(c.id)}" title="${esc(c.desc)}">${esc(c.nombre)}</button>`);
+  const qc = c => wrap(c, `<button class="${c.color}" data-try="${esc(c.id)}" title="${c.codigo ? 'código ' + c.codigo + ' · ' : ''}${esc(c.desc)}">${esc(c.nombre)}</button>`);
+  const qg = c => wrap(c, `<button class="nueva" data-try="${esc(c.id)}" title="${c.codigo ? 'código ' + c.codigo + ' · ' : ''}${esc(c.desc)}">${esc(c.nombre)}</button>`);
   const quick = `<div class="row"><span class="lbl">De pie</span>${favs.map(c => qb(c, c.nombre.replace('De pie ', ''))).join('')}${bajar ? qb(bajar, 'Bajar despacio') : ''}</div>
     ${suaves.length ? `<div class="row"><span class="lbl">De pie suave</span>${suaves.map(qc).join('')}</div>` : ''}
     ${nuevas.length ? `<div class="row"><span class="lbl">Nuevas</span>${nuevas.map(qg).join('')}</div>` : ''}
@@ -1405,7 +1405,7 @@ function renderRt() {
   const silver = platas.length ? `<h3>Las 6 ganadoras</h3>
     <div class="pz">Sacadas de tus estrellas (galope a la derecha 5★, galope alto 4★, canguro y camello 3★…) cruzando las mejores,
       con la pisada firme de spot_mini_mini. Valóralas igual.</div>
-    <div class="row">${platas.map(qc).join('')}</div>
+    <div class="row">${platas.map(c => wrap(c, `<button class="plata" data-try="${esc(c.id)}" title="${c.codigo ? 'código ' + c.codigo + ' · ' : ''}${esc(c.desc)}">${c.codigo ? c.codigo + ' · ' : ''}${esc(c.nombre)}</button>`)).join('')}</div>
     <details ${rankOpen ? 'open' : ''} id="rankBox"><summary>Tus estrellas: ${ranked.length} rutinas valoradas, de mejor a peor</summary>
       <div class="rank">${ranked.map(([id, n]) => `<span><b>${'★'.repeat(n)}${'☆'.repeat(6 - n)}</b> ${esc(rtName[id])}</span>`).join('') || '<span class="pz">todavía ninguna</span>'}</div></details>` : '';
   if (silver !== lastSilver) { $('silver').innerHTML = silver; lastSilver = silver; }
@@ -1417,7 +1417,7 @@ function renderRt() {
   $('tries').innerHTML = list.map(c => {
     const sep = stage === 2 && c === firstStand ? '<div class="pz" style="grid-column:1/-1;margin-top:6px"><b>De pie</b>: la marcada con ✓ es la que usan las rutinas de arriba; marca otra para cambiarla.</div>' : '';
     const mk = pr[c.id] && pr[c.id].mark;
-    return `${sep}<div class="card ${mk === 'bien' ? 'hl' : ''} ${c.nueva ? 'nueva' : ''} ${c.color || ''}"><div class="top"><span class="ch">${esc(c.nombre)}</span>${mk ? `<span class="tag ${mk === 'bien' ? 'ok' : 'bad'}">${mk === 'bien' ? '✓ funciona' : '✗ no'}</span>` : ''}</div>
+    return `${sep}<div class="card ${mk === 'bien' ? 'hl' : ''} ${c.nueva ? 'nueva' : ''} ${c.color || ''}"><div class="top"><span class="ch">${c.codigo ? `<span class="pz" title="código para la tele y el teclado del HDMI">${c.codigo} ·</span> ` : ''}${esc(c.nombre)}</span>${mk ? `<span class="tag ${mk === 'bien' ? 'ok' : 'bad'}">${mk === 'bien' ? '✓ funciona' : '✗ no'}</span>` : ''}</div>
       <div class="pz">${esc(c.desc)} · ${c.pasos} pasos</div>
       ${c.etapa === 2 && !c.curiosa ? `<div class="row" style="align-items:center">${stars(c.id)}<span class="pz">${val[c.id] != null ? val[c.id] + '/6' : 'sin valorar'}</span></div>` : ''}
       <div class="row"><button class="${c.color || (c.nueva ? 'nueva' : 'pri')}" data-try="${esc(c.id)}">▶ Probar</button>${c.ayuda ? '' : `<button data-mark="${esc(c.id)}" data-mk="bien">✓ Funciona</button>

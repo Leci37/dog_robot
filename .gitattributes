@@ -1,0 +1,7 @@
+# Todo en LF aunque se edite desde Windows (la Pi es Linux)
+* text=auto eol=lf
+*.png binary
+*.gif binary
+*.mp3 binary
+*.cur binary
+*.bin binary

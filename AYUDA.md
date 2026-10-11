@@ -37,10 +37,23 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
 - Puedes enchufar la tele antes o después de encender: el HDMI está forzado a 1280x720.
 - Al arrancar sale un menú:  [1] panel del robot   [2] página web en la pantalla   [3] consola normal.
   Sin teclado, a los 15 s entra solo en la opción por defecto (se cambia en la web: Sistema > Pantalla HDMI).
-- El panel muestra cómo conectarse, la alimentación, las rutinas guardadas y estas teclas (teclado USB):
-    S soltar todo   M bloquear a mitad (90°)   R recoger   E estirar   1-9 ejecutar rutina   X parar rutina
+- El panel muestra cómo conectarse, la alimentación, las rutinas populares y estas teclas (teclado USB):
+    P DE PIE (para lo que esté en marcha y se pone en la de pie elegida, la ✓; ahora la 6.7)
+    0 o Intro  RUTINAS POR CÓDIGO: escribe el número y Intro, o elige con las flechas e Intro
+               (primero las populares: las de plata y las de 3 estrellas o más). Esc vuelve.
+    S soltar todo   X parar rutina   M bloquear a mitad (90°)   R recoger   E estirar   1-9 mis rutinas
+    U probar la salida elegida (antes era la P)   L soltar la salida elegida
     W web en la pantalla   C consola normal (en vez del panel)   T consola aparte (Alt+F1 vuelve al panel)
     H ayuda   A apagar   B reiniciar  (A y B piden confirmación)
+- Códigos de rutina (los mismos en la tele, en el panel y en la web, delante del nombre de cada rutina):
+    10 o P de pie elegida · 11-16 las 6 de plata · 17 bajar despacio · 18-25 de pie (18 = la 6.7)
+    26-29 de pie suaves (29 la de Iván) · 30-38 galopes (30 galope alto, 31 a la derecha)
+    40-46 camello, canguro, caballo de tiro, de lado · 50-59 andar · 60-73 trotes, caballo y girar
+    80-89 cosas curiosas (80 balanceo potente, 81 baile, 82 menear, 83 pis) · 90-95 de pie alto/bajo, tumbarse…
+    Las rutinas nuevas que no tengan código fijo cogen uno a partir del 100 (sale delante de su nombre).
+- La web de la tele (/lite, la que abre la opción [2]) tiene el botón grande DE PIE, la caja "Rutinas por
+  código" (número + Ejecutar, o el desplegable por familias) y las populares en botones; con teclado:
+  P de pie, el número + Intro, X parar, S soltar todo.
 - Consola en cualquier momento: Ctrl+Alt+F2 (login aparte) y Ctrl+Alt+F1 para volver al panel.
 - La página web en la tele necesita ratón, va lenta en una Pi 2 y gasta más corriente.
   Para volver al panel: Alt+F4, o el botón "Panel" en la web del PC.
