@@ -110,6 +110,9 @@ pre#ayuda{white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-
 .vleg.ask .why{display:flex}
 .vt{fill:var(--ink);font:12px system-ui,sans-serif}.vtm{fill:var(--mut);font:11px system-ui,sans-serif}
 .vh{fill:var(--ink);font:600 13px system-ui,sans-serif}
+.apgbar{margin-bottom:10px;border-width:2px}
+.apgbar.bad{border-color:var(--bad);background:var(--bad-bg)}
+.apgbar.ok{border-color:var(--ok);background:var(--ok-bg)}
 #stw{position:relative}
 #stBtn{cursor:pointer;border:1px solid transparent;font:inherit;font-size:13px}
 .stpanel{position:absolute;right:0;top:calc(100% + 8px);width:min(460px,92vw);max-height:78vh;overflow:auto;background:var(--card);
@@ -174,6 +177,14 @@ html{scroll-behavior:smooth}
     </div>
     <div class="pz">Ratón: clic en los botones y rueda para bajar a todo lo demás (rutinas, bloques, patas, canales). Teclado: Alt+F4 vuelve al panel de texto.</div>
   </section>
+  <div class="card apgbar" id="apgbar">
+    <div class="row" style="align-items:center;margin:0">
+      <b id="apgTitle" style="font-size:16px">Apagados de golpe: …</b>
+      <span class="pz" id="apgLast"></span>
+      <button id="apgBtn">ver registro</button>
+    </div>
+    <div id="apgList" class="ev" hidden></div>
+  </div>
   <div class="card pwbar" id="pwbar">
     <label class="pwchk"><input type="checkbox" id="plim"> <span>Limitar el consumo de los servos a la fuente</span></label>
     <div class="pwrow"><span>Fuente de los servos:</span>
@@ -464,7 +475,7 @@ function renderGroups() {
     html += `<div class="card"><div class="top"><span class="ch">${GROUP_NAMES[j]}</span><span class="ang" data-gv="${j}">${ref == null ? 'suelto' : ref + '°'}</span></div>
       <div class="pz">${members}</div>
       <input type="range" min="${LIM.min}" max="${LIM.max}" step="1" value="${ref ?? 90}" data-g="${j}">
-      <div class="row">${[-10, -5, 5, 10].map(d => `<button data-gj="${j}" data-gd="${d}">${d > 0 ? '+' + d : '−' + -d}</button>`).join('')}</div>
+      <div class="row">${[-30, -15, -5, 5, 15, 30].map(d => `<button data-gj="${j}" data-gd="${d}">${d > 0 ? '+' + d : '−' + -d}</button>`).join('')}</div>
       <label class="pz"><input type="checkbox" data-gm="${j}" ${mirror[j] ? 'checked' : ''}> espejo en las derechas (B, C reciben 180 − ángulo)</label></div>`;
   });
   $('groups').innerHTML = html;
@@ -517,7 +528,7 @@ function renderPower() {
   $('plow').hidden = !p.falta_corriente_ahora;
   $('plow').innerHTML = p.permitir_sin_corriente
     ? '<b>La Pi tiene falta de corriente AHORA</b> y has permitido mover igualmente: si se apaga, cambia el cargador o el cable de la Pi y revisa el GND de la clema.'
-    : '<b>La Pi tiene falta de corriente AHORA: los movimientos están frenados</b> para que no se apague (ya pasó 4 veces). Arréglalo: cargador de 5,1 V y 2,5 A con cable corto, y GND de la fuente de servos bien apretado en la clema. Si aun así quieres mover, marca la casilla de abajo.';
+    : '<b>La Pi tiene falta de corriente AHORA: los movimientos están frenados</b> para que no se apague (ya ha pasado varias veces). Arréglalo: cargador de 5,1 V y 2,5 A con cable corto, y GND de la fuente de servos bien apretado en la clema. Si aun así quieres mover, marca la casilla de abajo.';
   const k = p.a_la_vez_12;
   $('pinfo').innerHTML = p.limitar
     ? `Con <b>${p.amperios} A</b>: hasta <b>${k}</b> servo${k > 1 ? 's' : ''} moviéndose a la vez (el resto espera su turno). Estimación: ~${p.estimacion.moviendo_A} A por servo moviéndose y ~${p.estimacion.sujetando_A} A sujetando.` +
@@ -805,7 +816,7 @@ function render() {
       <div class="top"><span class="ch">Canal ${ch}</span><span class="ang">${a == null ? 'suelto' : a + '° sujeto'}</span></div>
       <div><span class="${cls}">${l || 'sin mapear'}</span></div>
       <div class="row"><button class="pri" data-t="${ch}">Probar</button><button data-r="${ch}">Soltar</button></div>
-      <div class="row">${[-15, -5, -1, 1, 5, 15].map(d => `<button data-n="${ch}" data-d="${d}">${d > 0 ? '+' + d : '−' + -d}</button>`).join('')}</div>
+      <div class="row">${[-30, -15, -5, 5, 15, 30].map(d => `<button data-n="${ch}" data-d="${d}">${d > 0 ? '+' + d : '−' + -d}</button>`).join('')}</div>
       <input type="range" min="${LIM.min}" max="${LIM.max}" step="1" value="${a ?? 90}" data-s="${ch}" title="Arrastra y suelta para ir a ese ángulo">
       ${m && !m.libre ? `<details ${openCal.has(ch) ? 'open' : ''} data-cal="${ch}"><summary class="pz">Calibrar${m.offset || m.invertir ? ` · ajuste ${m.offset > 0 ? '+' : ''}${m.offset || 0}°${m.invertir ? ' · invertido' : ''}` : ''}</summary>
         <div class="row" style="margin-top:6px"><button data-cz="${ch}" title="La posición actual pasa a ser su 90°">Fijar aquí = 90°</button>
@@ -1128,6 +1139,21 @@ document.addEventListener('click', e => {
   if (!e.target.closest('#stPanel')) $('stPanel').hidden = true;
 });
 pollConn(); setInterval(pollConn, TV ? 15000 : 8000);
+
+// ---------- registro de apagados de golpe (arriba del todo) ----------
+function renderApg() {
+  if (typeof sys === 'undefined' || !sys || !sys.apagones) return;
+  const ap = sys.apagones, last = ap.lista[ap.lista.length - 1];
+  $('apgbar').className = 'card apgbar ' + (ap.total ? 'bad' : 'ok');
+  $('apgTitle').textContent = ap.total ? `Apagados de golpe: ${ap.total} (${ap.por_corriente} por falta de corriente)` : 'Apagados de golpe: ninguno';
+  $('apgLast').textContent = last ? `último: ${last.hora} · ${last.causa}${last.caidas ? ' · ' + last.caidas + ' caídas de tensión antes' : ''}` : '';
+  $('apgList').textContent = ap.lista.slice().reverse().map(x =>
+    `${x.hora}  ${x.causa}${x.caidas ? '  (' + x.caidas + ' caídas de tensión antes)' : ''}`).join('\n') || '(vacío)';
+}
+setInterval(renderApg, 2000);
+document.addEventListener('click', e => {
+  if (e.target.id === 'apgBtn') { $('apgList').hidden = !$('apgList').hidden; e.target.textContent = $('apgList').hidden ? 'ver registro' : 'ocultar'; }
+});
 
 // ---------- informe para la mudanza ----------
 async function runReport() {
