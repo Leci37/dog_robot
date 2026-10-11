@@ -329,3 +329,4 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   (panel: tecla R en el selector, se guarda en pantalla/repetir; /lite: casilla y tecla R, localStorage "liteRepetir"),
   **velocidad** con +/- (panel y /lite), "vuelta N" en la rutina en marcha, y las **de oro** (grupo propio y color).
   Probar el panel sin tele: copia en /tmp con la API apuntando a un servidor de prueba y pruebas/ver_selector.py.
+- 2026-10-12 (17): HDMI del modo Toreto (de la otra sesión): panel con aviso TORETO/NITRO y segundos en la cabecera, teclas F (Toreto) y N (Nitro, dos veces), recordatorio 74-79; /lite con botones TORETO y NITRO (confirmación), fila roja 74-79 y borde rojo, teclas F y N. .gitignore pasado a LF.

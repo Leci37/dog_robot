@@ -138,6 +138,7 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
   fuerza, pero los MG996R son analógicos y se calientan: pueden quemarse); se apaga solo a los 2 minutos.
   Lo que más fuerza da de verdad es subir la fuente de servos a 6-6,8 V si tiene tornillo de ajuste (V.ADJ).
 - En la tele (panel y /lite): R = repetir sin parar sí/no (en el selector de rutinas), + y - = velocidad.
+  F = modo Toreto sí/no; N = Nitro (200 Hz, 2 min; en el panel, N dos veces). Con Toreto, fila roja 74-79 en /lite.
 - Velocidad de las rutinas: marchas 1ª muy lenta, 2ª lenta, 3ª normal, 4ª rápida, 5ª muy rápida. Botones en
   "Rutinas para probar" y, con una rutina en marcha, al lado de "Parar rutina": se nota en el paso siguiente.
 - Web > "Programar con bloques": como Scratch. Bloques de mover (pata/articulación/grados, relativo,

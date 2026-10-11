@@ -245,6 +245,10 @@ class Panel:
         beat = int(now * 2) % 2 == 0
         self.put(0, 34, "● VIVO" if alive else "● SIN WEB", (G if alive else R) | B | (0 if beat else DIM))
         self.put(0, 44, "LED · · —", H)
+        stt = d.state or {}
+        if stt.get("toreto"):  # modo Toreto (máxima potencia) y Nitro (200 Hz, se apaga solo)
+            tor = "TORETO" + (f" · NITRO {stt.get('toreto_hz', 200)} Hz {stt.get('nitro_quedan_s', 0)} s" if stt.get("nitro") else "")
+            self.put(0, 56, f" {tor} ", R | B | REV | (0 if beat or not stt.get("nitro") else DIM))
         up = (d.sys or {}).get("uptime_s", 0) // 60
         self.put(0, max(56, w - 36), f"encendida {up // 60} h {up % 60:02d} min   {datetime.now():%H:%M:%S}", H | B)
         lw = 66
@@ -396,6 +400,8 @@ class Panel:
         else:
             fin = f"última: {rt.get('nombre')} ({rt.get('fin')})" if rt.get("fin") else "sin rutina en marcha"
             self.put(y + 3, x + 2, fin)
+            if st.get("toreto"):
+                self.put(y + 4, x + 2, "TORETO: 74-79 galope fuerte · F quitar · N nitro"[:wid - 4], R | B)
         rts = d.rts or {}
         gear = (rts.get("marchas") or {}).get(str(rts.get("marcha")), "")
         self.put(y + 5, x + 2, f"P = DE PIE   0 = por código   vel. {gear} (+/-)"[:wid - 4], G | B)
@@ -418,10 +424,13 @@ class Panel:
     def draw_footer(self, h, w):
         C, Y, B = curses.color_pair(4), curses.color_pair(2), curses.A_BOLD
         self.put(h - 4, 1, "P DE PIE  0/Intro rutinas por código  +/- velocidad  S soltar todo  X parar  M mitad  R recoger  E estirar  1-9 mis rutinas", C | B)
-        self.put(h - 3, 1, "U probar salida  L soltar salida  H ayuda  W web en la tele  C consola  T consola aparte  A apagar  B reiniciar", C)
+        self.put(h - 3, 1, "F TORETO  N nitro  U probar salida  L soltar salida  H ayuda  W web en la tele  C consola  T consola aparte  A apagar  B reiniciar", C)
         if self.confirm and time.time() < self.confirm[1]:
-            what = "APAGAR" if self.confirm[0] == "a" else "REINICIAR"
-            self.put(h - 2, 1, f"¿Seguro que quieres {what} la Pi? Pulsa {self.confirm[0].upper()} otra vez.", Y | B)
+            if self.confirm[0] == "n":
+                self.put(h - 2, 1, "¿NITRO? 200 Hz durante 2 minutos: más fuerza, pero los MG996R se calientan y pueden quemarse. Pulsa N otra vez.", Y | B)
+            else:
+                what = "APAGAR" if self.confirm[0] == "a" else "REINICIAR"
+                self.put(h - 2, 1, f"¿Seguro que quieres {what} la Pi? Pulsa {self.confirm[0].upper()} otra vez.", Y | B)
         elif time.time() < self.msg_until:
             self.put(h - 2, 1, self.msg, Y | B)
 
@@ -480,7 +489,22 @@ class Panel:
             else:
                 self.confirm = (c, time.time() + 5)
             return None
+        if c == "n":  # Nitro: hay que pulsar N dos veces para encenderlo; una para apagarlo
+            if st.get("nitro"):
+                self.confirm = None
+                self.action("Nitro apagado (50 Hz)", "/api/toreto", {"nitro": False}, timeout=10)
+            elif not st.get("toreto"):
+                self.say("El Nitro va con el modo Toreto: pulsa F primero.")
+            elif self.confirm and self.confirm[0] == "n" and time.time() < self.confirm[1]:
+                self.confirm = None
+                self.action("NITRO: 200 Hz durante 2 minutos", "/api/toreto", {"nitro": True}, timeout=10)
+            else:
+                self.confirm = ("n", time.time() + 5)
+            return None
         self.confirm = None
+        if c == "f":
+            self.toggle_toreto()
+            return None
         if c in ("+", "-"):
             self.gear(1 if c == "+" else -1)
             return None
@@ -523,6 +547,10 @@ class Panel:
             self.help()
         return None
 
+    def toggle_toreto(self):
+        on = not (self.d.state or {}).get("toreto")
+        self.action("MODO TORETO activado" if on else "Modo Toreto desactivado", "/api/toreto", {"activo": on}, timeout=10)
+
     def gear(self, delta):
         """Sube o baja la marcha de las rutinas (1ª-6ª); vale con una rutina en marcha."""
         rts = self.d.rts or {}
@@ -564,6 +592,9 @@ class Panel:
                      Y if rt.get("running") else 0)
             gear = (rts.get("marchas") or {}).get(str(rts.get("marcha")), "")
             self.put(1, 2, f"repetir sin parar: {'SÍ' if self.loop else 'no'} (R)    velocidad: {gear} (+/-)", (Y | B) if self.loop else 0)
+            stt = self.d.state or {}
+            self.put(1, 66, ("TORETO (F quitar)" + (" · NITRO" if stt.get("nitro") else "")) if stt.get("toreto") else "F = modo Toreto",
+                     (R | B) if stt.get("toreto") else curses.A_DIM)
             self.put(3, 2, f"{len(items)} con código que empieza por {code}" if code
                      else "populares primero (plata y 3 estrellas o más), luego todas por código", curses.A_DIM)
             for i, c in enumerate(items[top:top + rows]):
@@ -613,6 +644,8 @@ class Panel:
                 self.say("Repetir sin parar: SÍ (X para parar)" if self.loop else "Repetir sin parar: no")
             elif k in (ord("+"), ord("-")):
                 self.gear(1 if k == ord("+") else -1)
+            elif k in (ord("f"), ord("F")):
+                self.toggle_toreto()
             elif k in (ord("s"), ord("S")):
                 self.busy = False
                 self.action("Soltando todos los servos", "/api/off", {})
