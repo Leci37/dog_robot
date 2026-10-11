@@ -92,6 +92,22 @@ pre#ayuda{white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-
 .stpanel code{font-family:ui-monospace,Consolas,monospace;font-size:12px;word-break:break-all}
 body.tv{font-size:19px}
 body.tv .row button{font-size:17px;padding:8px 12px}
+html{scroll-behavior:smooth}
+.tvdash{margin-bottom:16px}
+.tvtiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.tile{border-radius:16px;padding:14px 16px;background:var(--card);border:2px solid var(--line);min-height:110px}
+.tile .tt{font-size:15px;color:var(--mut);font-weight:600;letter-spacing:.03em}
+.tile .tv{font-size:26px;font-weight:700;margin:4px 0}
+.tile .ts{font-size:15px;color:var(--mut)}
+.tile.ok{border-color:var(--ok);background:var(--ok-bg)}
+.tile.warn{border-color:#BA7517;background:var(--warn-bg)}
+.tile.bad{border-color:var(--bad);background:var(--bad-bg)}
+.tvbtns{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px}
+.tvbtns button{font-size:22px;padding:16px 26px;border-radius:14px;font-weight:600}
+.tvbtns.small button{font-size:17px;padding:10px 18px;font-weight:500}
+.tvrt{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+.tvrt button{font-size:19px;padding:12px 20px;border-radius:12px}
+@media (max-width:900px){.tvtiles{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -108,6 +124,27 @@ body.tv .row button{font-size:17px;padding:8px 12px}
   <div id="now" class="now" hidden></div>
 </header>
 <main>
+  <section id="tvdash" class="tvdash" hidden>
+    <div class="tvtiles">
+      <div class="tile" id="tvNet"></div><div class="tile" id="tvPw"></div>
+      <div class="tile" id="tvBot"></div><div class="tile" id="tvLim"></div>
+    </div>
+    <div class="tvbtns">
+      <button class="stop" data-tvact="off">Soltar todo</button>
+      <button class="pri" data-tvact="mitad">Todo a mitad</button>
+      <button class="pri" data-tvact="recogida">Recoger</button>
+      <button class="pri" data-tvact="estirada">Estirar</button>
+      <button class="pri" data-tvact="de pie">De pie</button>
+      <button data-tvact="parar">Parar rutina</button>
+    </div>
+    <div class="tvrt" id="tvRt"></div>
+    <div class="tvbtns small">
+      <button data-scr="panel">Volver al panel de texto</button>
+      <button data-scr="consola">Consola</button>
+      <button data-tvact="arriba">Arriba</button>
+    </div>
+    <div class="pz">Ratón: clic en los botones y rueda para bajar a todo lo demás (rutinas, bloques, patas, canales). Teclado: Alt+F4 vuelve al panel de texto.</div>
+  </section>
   <div class="card pwbar" id="pwbar">
     <label class="pwchk"><input type="checkbox" id="plim"> <span>Limitar el consumo de los servos a la fuente</span></label>
     <div class="pwrow"><span>Fuente de los servos:</span>
@@ -485,17 +522,17 @@ function vLegSvg(L, s) {
 function vMapSvg() {
   const parts = Object.keys(V_TITLE).map(L => {
     const chs = legChannels(L), v = (st.verificacion || {})[L];
-    const x = V_RIGHT.has(L) ? 452 : 20, y = V_FRONT.has(L) ? 40 : 222;
+    const x = V_RIGHT.has(L) ? 448 : 10, y = V_FRONT.has(L) ? 36 : 218;
     const color = v ? (v.ok ? 'var(--ok)' : 'var(--bad)') : 'var(--mut)';
     const rows = JOINTS.map((j, i) => {
       const ch = chs[j], m = ch !== undefined ? st.map[ch] : null;
-      return `<text x="${x + 10}" y="${y + 44 + i * 18}" class="vt">${i + 1} ${j}${j === 'codo' ? ' (rodilla)' : ''} · canal ${ch ?? '—'}${m && m.nota ? ' ⚠ ' + esc(m.nota) : ''}</text>`;
+      return `<text x="${x + 10}" y="${y + 60 + i * 17}" class="vt">${i + 1} ${j}${j === 'codo' ? ' (rodilla)' : ''} · canal ${ch ?? '—'}${m && m.nota ? ' ⚠' : ''}</text>`;
     }).join('');
     const cx = V_RIGHT.has(L) ? 400 : 240, cy = V_FRONT.has(L) ? 92 : 268;
-    return `<rect x="${x}" y="${y}" width="208" height="102" rx="8" fill="var(--card)" stroke="${color}" stroke-width="2"/>
-      <text x="${x + 10}" y="${y + 22}" class="vh">${V_TITLE[L]}</text>
-      <text x="${x + 198}" y="${y + 22}" class="vtm" text-anchor="end">${v ? (v.ok ? '✓ comprobada' : '✗ no coincide') : 'sin comprobar'}</text>${rows}
-      <line x1="${V_RIGHT.has(L) ? x : x + 208}" y1="${y + 51}" x2="${cx}" y2="${cy}" stroke="var(--line)" stroke-width="1.5"/>
+    return `<rect x="${x}" y="${y}" width="222" height="116" rx="8" fill="var(--card)" stroke="${color}" stroke-width="2"/>
+      <text x="${x + 10}" y="${y + 20}" class="vh">${V_TITLE[L]}</text>
+      <text x="${x + 10}" y="${y + 37}" class="vtm">${v ? (v.ok ? '✓ comprobada: coincide' : '✗ no coincide con el robot') : 'sin comprobar'}</text>${rows}
+      <line x1="${V_RIGHT.has(L) ? x : x + 222}" y1="${y + 58}" x2="${cx}" y2="${cy}" stroke="var(--line)" stroke-width="1.5"/>
       <circle cx="${cx}" cy="${cy}" r="14" fill="${color}" opacity=".9"/><text x="${cx}" y="${cy + 5}" class="vh" text-anchor="middle" style="fill:var(--card)">${L}</text>`;
   }).join('');
   return `<svg viewBox="0 0 680 352" role="img" aria-label="El robot visto desde arriba: patas, componentes y canales">
@@ -503,7 +540,8 @@ function vMapSvg() {
     <rect x="240" y="62" width="160" height="236" rx="16" fill="var(--bg)" stroke="var(--ink)" stroke-width="1.5"/>
     <rect x="262" y="66" width="116" height="20" rx="4" fill="var(--card)" stroke="var(--line)"/>
     ${[278, 300, 340, 362].map(cx => `<circle cx="${cx}" cy="76" r="7" fill="var(--ink)"/>`).join('')}
-    <text x="320" y="104" class="vtm" text-anchor="middle">2 sensores ultrasonidos (HC-SR04)</text>
+    <text x="320" y="101" class="vtm" text-anchor="middle">2 sensores de</text>
+    <text x="320" y="114" class="vtm" text-anchor="middle">ultrasonidos HC-SR04</text>
     <rect x="270" y="122" width="100" height="44" rx="5" fill="var(--card)" stroke="var(--acc)"/>
     <text x="320" y="141" class="vt" text-anchor="middle">Raspberry Pi 2</text><text x="320" y="157" class="vtm" text-anchor="middle">dentro del cuerpo</text>
     <rect x="270" y="176" width="100" height="44" rx="5" fill="var(--card)" stroke="var(--acc)"/>
@@ -779,6 +817,47 @@ document.addEventListener('toggle', e => {
 
 // ---------- sistema: conexión, alimentación, pantalla HDMI ----------
 const TV = new URLSearchParams(location.search).has('pantalla');
+// ---------- tablero grande para la tele (?pantalla=1): estado en colores y botones para el ratón ----------
+function tile(id, cls, title, value, sub) {
+  $(id).className = 'tile ' + cls;
+  $(id).innerHTML = `<div class="tt">${title}</div><div class="tv">${value}</div><div class="ts">${sub}</div>`;
+}
+function renderTV() {
+  if (!TV) return;
+  if (typeof sys !== 'undefined' && sys) {
+    const n = sys.net, th = sys.throttled || 0, uv = sys.caidas_tension_arranque || 0;
+    const ip = (n.ipv4.find(a => a.if === 'eth0' && a.ip !== sys.ip_directa) || {}).ip;
+    tile('tvNet', n.mode === 'sin-cable' ? 'bad' : 'ok', 'CONEXIÓN',
+      {router: 'Router', directo: 'Cable directo', 'sin-cable': 'Sin cable'}[n.mode] || n.mode,
+      `PC: http://${esc(ip || sys.ip_directa)}` + (ip ? ` · directo: ${sys.ip_directa}` : ''));
+    tile('tvPw', th & 1 ? 'bad' : (th & 0x10000 || uv) ? 'warn' : 'ok', 'ALIMENTACIÓN PI',
+      th & 1 ? 'Falta corriente' : (th & 0x10000 || uv) ? `Hubo caídas (${uv})` : 'OK',
+      `${esc(sys.temp_c)} °C · encendida ${Math.floor(sys.uptime_s / 60)} min`);
+  }
+  if (st && st.angles) {
+    const held = Object.values(st.angles).filter(a => a !== null).length, r = st.rutina || {};
+    tile('tvBot', r.running ? 'warn' : 'ok', 'ROBOT', r.running ? 'Rutina en marcha' : (held ? `${held} servos sujetos` : 'Servos sueltos'),
+      r.running ? `${esc(r.nombre)} · paso ${r.paso}/${r.total}` : (r.fin ? `última: ${esc(r.nombre)} (${esc(r.fin)})` : 'listo'));
+    const p = st.potencia || {};
+    tile('tvLim', p.limitar ? 'ok' : 'warn', 'CONSUMO SERVOS', p.limitar ? `${p.amperios} A` : 'Sin límite',
+      p.limitar ? `${p.a_la_vez_12} servo(s) a la vez` : 'solo con fuente grande');
+  }
+  if (typeof rts !== 'undefined' && rts) {
+    const names = Object.keys(rts.guardadas || {});
+    $('tvRt').innerHTML = names.length ? '<span class="pz" style="align-self:center">Mis rutinas:</span>' +
+      names.slice(0, 12).map(n => `<button class="pri" data-run="${esc(n)}">${esc(n)}</button>`).join('') : '';
+  }
+}
+if (TV) { document.getElementById('tvdash').hidden = false; setInterval(renderTV, 1500); }
+document.addEventListener('click', e => {
+  const b = e.target.closest('button[data-tvact]'); if (!b || b.disabled) return;
+  const a = b.dataset.tvact;
+  if (a === 'off') { if (typeof seqStop !== 'undefined') seqStop = true; act('/api/off', {}, 'soltando todo…'); }
+  else if (a === 'mitad') act('/api/pose90', {speed: speed()}, 'todo a mitad…');
+  else if (a === 'parar') api('/api/routine_stop', {}).catch(() => {});
+  else if (a === 'arriba') window.scrollTo(0, 0);
+  else act('/api/pose_go', {pata: 'todas', nombre: a, speed: speed()}, `postura "${a}"…`);
+});
 if (TV) document.body.classList.add('tv');
 let sys = null;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
