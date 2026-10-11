@@ -1,0 +1,7 @@
+{
+  "_nota": "Canal de la PCA9685 (0-15) por articulación. null = sin averiguar. Patas: A=delantera izquierda, B=delantera derecha, C=trasera derecha, D=trasera izquierda (D sin confirmar). Articulaciones: hombro (abre/cierra la pata hacia fuera), muslo (adelante/atrás), rodilla.",
+  "A": {"hombro": null, "muslo": null, "rodilla": null},
+  "B": {"hombro": null, "muslo": null, "rodilla": null},
+  "C": {"hombro": null, "muslo": null, "rodilla": null},
+  "D": {"hombro": null, "muslo": null, "rodilla": null}
+}
