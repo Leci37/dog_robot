@@ -414,7 +414,7 @@ class Panel:
         self.put(y + 6, x + 2, "populares:" if pop else "populares: (valóralas con estrellas en la web)", B)
         col = (wid - 6) // 2
         for i, c in enumerate(pop):
-            self.put(y + 7 + i // 2, x + 4 + (i % 2) * col, f"{c['codigo']:>2} {c['nombre']}"[:col - 1])
+            self.put(y + 7 + i // 2, x + 4 + (i % 2) * col, f"{c['codigo']:>3} {c['nombre']}"[:col - 1], self.family(c)[1])
         names = list((rts.get("guardadas") or {}).keys())[:9]
         if names:
             self.put(y + 10, x + 2, "mis rutinas (1-9): " + "  ".join(f"{i + 1} {n}" for i, n in enumerate(names))[:wid - 22], Y)
@@ -564,6 +564,27 @@ class Panel:
         on = not (self.d.state or {}).get("toreto")
         self.action("MODO TORETO activado" if on else "Modo Toreto desactivado", "/api/toreto", {"activo": on}, timeout=10)
 
+    @staticmethod
+    def family(c):
+        """(familia, color) de una rutina: los mismos colores que en la web."""
+        G, Y, R, C = (curses.color_pair(i) for i in (1, 2, 3, 4))
+        M, F, B = curses.color_pair(7), curses.color_pair(6), curses.A_BOLD
+        if c.get("oro"):
+            return "oro", Y | B
+        if c.get("autobus"):
+            return "autobús", M | B
+        if c.get("grupo") == "fuerte":
+            return "galope fuerte", R | B
+        if c.get("grupo") == "pata":
+            return "dar la pata", B
+        if c.get("plata"):
+            return "plata", B
+        for key, name, attr in (("suave", "de pie suave", Y), ("curiosa", "curiosa", C), ("creativa", "creativa", F),
+                                ("nueva", "nueva", G), ("andar", "andar", 0)):
+            if c.get(key):
+                return name, attr
+        return ("de pie", G) if c.get("etapa") == 1 else ("", 0)
+
     def gear(self, delta):
         """Sube o baja la marcha de las rutinas (1ª-6ª); vale con una rutina en marcha."""
         rts = self.d.rts or {}
@@ -612,16 +633,16 @@ class Panel:
                      else "populares primero (plata y 3 estrellas o más), luego todas por código", curses.A_DIM)
             for i, c in enumerate(items[top:top + rows]):
                 n = val.get(c["id"])
-                if n is not None:
-                    stars = "*" * n + "." * (6 - n) + f" {n}/6"
-                else:
-                    stars = "curiosa" if c.get("curiosa") else "sin estrellas"
-                grp = ("oro" if c.get("oro") else "plata" if c.get("plata") else "de pie suave" if c.get("suave") else "curiosa" if c.get("curiosa")
-                       else "de pie" if c.get("etapa") == 1 else "creativa" if c.get("creativa") else "nueva" if c.get("nueva")
-                       else "andar" if c.get("andar") else "")
-                line = f" {c['codigo']:>3}  {c['nombre'][:44]:<44}  {stars:<13}  {grp}"
-                attr = (REV | B) if top + i == sel else ((G | B) if c in pop and not code else 0)
-                self.put(5 + i, 1, line[:w - 3], attr)
+                stars = "★" * n + "☆" * (6 - n) if n is not None else ("—" if c.get("curiosa") else "sin valorar")
+                grp, fa = self.family(c)
+                mark = "●" if c in pop and not code else " "
+                if top + i == sel:
+                    self.put(5 + i, 1, f"{mark}{c['codigo']:>3}  {c['nombre'][:44]:<44}  {stars:<11}  {grp}"[:w - 3], REV | B)
+                else:  # código, nombre del color de su familia (como en la web), estrellas en amarillo
+                    self.put(5 + i, 1, f"{mark}{c['codigo']:>3}  ", (G | B) if mark != " " else B)
+                    self.put(5 + i, 7, f"{c['nombre'][:44]:<44}", fa)
+                    self.put(5 + i, 53, f"{stars:<11}", Y if n is not None else curses.A_DIM)
+                    self.put(5 + i, 66, grp[:max(0, w - 69)], fa | curses.A_DIM)
             if not items:
                 self.put(5, 4, f"no hay ninguna rutina con el código {code}", R | B)
             if time.time() < self.msg_until:
@@ -791,6 +812,7 @@ def main(scr):
         curses.init_pair(i, col, -1)
     curses.init_pair(5, curses.COLOR_WHITE, curses.COLOR_BLUE)
     curses.init_pair(6, curses.COLOR_BLUE, -1)
+    curses.init_pair(7, curses.COLOR_MAGENTA, -1)  # fucsia: pedir el autobús
     scr.timeout(250)
     p = Panel(scr)
     if rd(MENU_SEEN) != boot_id():  # primera vez en este arranque de la Pi: menú

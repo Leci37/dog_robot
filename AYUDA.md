@@ -137,6 +137,7 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
   Toreto sí/no, Nitro y "Repetir sin parar" (Parar para acabar). NITRO: los servos a 200 Hz en vez de 50 (más
   fuerza, pero los MG996R son analógicos y se calientan: pueden quemarse); se apaga solo a los 2 minutos.
   Lo que más fuerza da de verdad es subir la fuente de servos a 6-6,8 V si tiene tornillo de ajuste (V.ADJ).
+- Pedir el autobús (fucsia, 120 con la B y 121 con la A): sentado, pata arriba del todo, ti-ti-ti y saludo.
 - En la tele (panel y /lite): R = repetir sin parar sí/no (en el selector de rutinas), + y - = velocidad.
   F = modo Toreto sí/no; N = Nitro (200 Hz, 2 min; en el panel, N dos veces). Con Toreto, fila roja 74-79 en /lite.
 - Barra de Hz arriba (50-200): más Hz = más fuerza y más calor. La Pi estima el calor de los servos y, si llega al

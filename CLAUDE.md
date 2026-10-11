@@ -6,6 +6,11 @@ nada** y añade al final del registro lo que hagas. Guía corta para el usuario:
 en el HDMI con la tecla H y en `/ayuda`). Credenciales y datos personales: `NOTAS-LOCALES.md` (solo en la Pi,
 en `.gitignore`, **nunca** subirlo).
 
+
+> **Para empezar rápido** (cualquier IA o persona): `AGENTS.md` (resumen autosuficiente y reglas de oro) y
+> `docs/ESTADO.md` (dónde estamos y a dónde vamos). Detalle: `docs/RUTINAS.md`, `docs/API.md`,
+> `docs/USAR-CON-GPT.md`. Este fichero es el contexto largo y el registro con fechas.
+
 ## Nombres (los del usuario)
 - Patas, vistas desde arriba con la cabeza delante: **A** delantera izq · **B** delantera der · **C** trasera der ·
   **D** trasera izq.
@@ -343,3 +348,10 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   cuanto más arriba más equilibrado, y el culo para abajo". `autobus_routines`: autobus-b (120) y autobus-a (121), color
   fucsia (`autobus`): culo 58, cuerpo atrás 8 y al lado 9, pata a hombro 60 y codo 2, ti-ti-ti (codo 2↔14 rápido ×6) y
   saludo con el pectoral. Fila "Autobús" en la barra de arriba de la web. (Para la tele: pasarlo a la otra sesión.)
+- 2026-10-12 (19): **documentación para otras IA** (Iván va a seguir con GPT): `AGENTS.md` (antes enlace a CLAUDE.md; ahora
+  resumen autosuficiente con reglas de oro, cómo llegar, arquitectura, flujo de trabajo y pruebas), `docs/ESTADO.md` (qué
+  funciona, qué falla, lo aprendido con las estrellas, siguientes pasos), `docs/RUTINAS.md` (motor, familias, códigos,
+  cómo añadir una), `docs/API.md`, `docs/USAR-CON-GPT.md` (guía para Iván). README y la cabecera de este fichero apuntan
+  ahí. **Mantenerlos al día** al cambiar algo importante. HDMI: selector del panel con colores por familia (como la web:
+  oro, plata, fucsia autobús, rojo galope fuerte, verde, cian curiosas), estrellas ★☆ y ● en las populares; populares
+  de la pantalla principal con su color; /lite con la fila fucsia "Pedir el autobús" (120, 121) y su grupo en el desplegable.

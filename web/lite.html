@@ -53,6 +53,7 @@ body.toreto-on{box-shadow:inset 0 0 0 6px #e53935}
 #torrow{display:none;background:#2a0707;border-radius:10px;padding:6px 8px}body.toreto-on #torrow{display:flex}
 .hzlite{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:10px;border:2px solid #555}
 .hzlite.fuerte{border-color:#e0a000}.hzlite.nitro{border-color:#e53935;background:#2a0707;color:#fff}
+button.fucsia{background:#e91e8c;border-color:#b0126a;color:#fff;font-weight:700}
 button.oro{background:linear-gradient(180deg,#fff3c4,#e0b13a);border-color:#b8891c;color:#3a2a00}
 .loop{display:inline-flex;align-items:center;gap:4px;cursor:pointer}
 .keys{font-size:14px;color:var(--mut)}
@@ -98,6 +99,7 @@ button.oro{background:linear-gradient(180deg,#fff3c4,#e0b13a);border-color:#b889
       <button data-a="parar">■ Parar</button>
     </div>
     <div class="row" id="pop" style="margin:4px 0"></div>
+    <div class="row" id="busrow" style="margin:4px 0"></div>
     <div class="row" id="torrow" style="margin:4px 0"></div>
     <div class="keys">Teclado: <b>P</b> de pie · escribe el <b>número</b> y <b>Intro</b> · <b>R</b> repetir sin parar sí/no · <b>F</b> Toreto · <b>N</b> Nitro · <b>, .</b> Hz · <b>+ −</b> velocidad · <b>X</b> parar · <b>S</b> soltar todo · <b>Esc</b> borrar</div>
   </div>
@@ -215,9 +217,9 @@ async function pollSys() {
 }
 let rts = null;
 function saveLoop() { try { localStorage.setItem('liteRepetir', $('loop').checked ? '1' : ''); } catch {} }
-const GRUPOS = [['oro', 'Oro (mejoras de la mejor)'], ['plata', 'Plata (las ganadoras)'], ['depie', 'De pie'], ['suave', 'De pie suaves'], ['nueva', 'Nuevas (galopes…)'],
+const GRUPOS = [['autobus', 'Pedir el autobús'], ['oro', 'Oro (mejoras de la mejor)'], ['plata', 'Plata (las ganadoras)'], ['depie', 'De pie'], ['suave', 'De pie suaves'], ['nueva', 'Nuevas (galopes…)'],
   ['andar', 'Andar'], ['creativa', 'Creativas (caballo)'], ['curiosa', 'Cosas curiosas'], ['otra', 'Otras']];
-const grupo = c => c.oro ? 'oro' : c.plata ? 'plata' : c.etapa === 1 ? 'depie' : c.suave ? 'suave' : c.nueva ? 'nueva' : c.andar ? 'andar'
+const grupo = c => c.autobus ? 'autobus' : c.oro ? 'oro' : c.plata ? 'plata' : c.etapa === 1 ? 'depie' : c.suave ? 'suave' : c.nueva ? 'nueva' : c.andar ? 'andar'
   : c.creativa ? 'creativa' : c.curiosa ? 'curiosa' : 'otra';
 const starsTxt = n => n == null ? '' : ' ' + '★'.repeat(n) + '☆'.repeat(6 - n);
 function drawRoutines() {
@@ -230,7 +232,9 @@ function drawRoutines() {
   sel.value = keep;
   const byId = Object.fromEntries(cs.map(c => [c.id, c]));
   $('pop').innerHTML = '<span class="mut">Populares:</span>' + (rts.populares || []).map(id => byId[id]).filter(Boolean).map(c =>
-    `<button class="${c.oro ? 'oro' : c.plata ? 'plata' : 'pri'}" data-code="${c.codigo}"><b>${c.codigo}</b>${c.nombre.replace(/</g, '&lt;')}</button>`).join('');
+    `<button class="${c.autobus ? 'fucsia' : c.oro ? 'oro' : c.plata ? 'plata' : 'pri'}" data-code="${c.codigo}"><b>${c.codigo}</b>${c.nombre.replace(/</g, '&lt;')}</button>`).join('');
+  $('busrow').innerHTML = cs.some(c => c.autobus) ? '<span class="mut">Pedir el autobús:</span>' + cs.filter(c => c.autobus).map(c =>
+    `<button class="fucsia" data-code="${c.codigo}"><b>${c.codigo}</b>${c.nombre.replace('Pedir el autobús · ', 'pata ').replace(/</g, '&lt;')}</button>`).join('') : '';
   $('torrow').innerHTML = '<b style="color:#ffcdd2">TORETO:</b>' + cs.filter(c => c.grupo === 'fuerte').map(c =>
     `<button class="rojo" data-code="${c.codigo}"><b>${c.codigo}</b>${c.nombre.replace('Galope fuerte · ', 'galope ').replace(/</g, '&lt;')}</button>`).join('');
   const g = $('gear');
