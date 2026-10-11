@@ -363,11 +363,11 @@ class Panel:
             xx += len(name) + 3
         ap = s.get("apagones") or {"total": 0, "por_corriente": 0, "lista": []}
         self.put(y + 6, x + 2, f"placa PCA9685: {'responde' if e.get('pca') else 'NO RESPONDE'}", G if e.get("pca") else R | B)
-        self.put(y + 6, x + 30, f"apagados de golpe: {ap['total']} ({ap['por_corriente']} por corriente)",
+        self.put(y + 6, x + 28, f"apagados: {ap['total']} ({ap['por_corriente']} por corriente)",
                  (R | B) if ap["total"] else G)
         if ap["lista"]:
             lt = ap["lista"][-1]
-            txt = f"último apagado: {lt['hora'][5:]} · {lt['causa']}" + (f" ({lt['caidas']} caídas)" if lt["caidas"] else "")
+            txt = f"último: {lt['hora'][5:]} · {lt['causa']}" + (f" ({lt['caidas']} caídas)" if lt["caidas"] else "")
         else:
             txt = "sin apagados de golpe registrados"
         self.put(y + 7, x + 2, txt[:wid - 4], R if ap["lista"] else DIM)
