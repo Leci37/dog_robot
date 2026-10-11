@@ -32,6 +32,7 @@ MENU_SEEN = SCREEN_DIR / "menu_visto"  # boot_id del último arranque en que ya 
 BROWSER = SCREEN_DIR / "navegador.sh"
 BROWSER_LOG = Path("/tmp/spotmicro-kiosko.log")
 HELP = ROOT / "AYUDA.md"
+LOOP_FILE = SCREEN_DIR / "repetir"   # "1" = las rutinas lanzadas desde el panel se repiten sin parar
 ACTIONS_LOG = ROOT / "web" / "acciones.log"
 API = "http://127.0.0.1:8080"
 # 10x20 da 128x36 caracteres en 1280x720; los Uni2 tienen █ ░ ─ │ ● ▲ ▼ (comprobado el 11-10-2026)
@@ -206,6 +207,7 @@ class Panel:
         self.sel = 4         # salida elegida con las flechas
         self.busy = False
         self.last_full = 0
+        self.loop = rd(LOOP_FILE, "") == "1"  # "repetir sin parar" para las rutinas lanzadas desde aquí (tecla R del selector)
 
     # ---------- dibujo ----------
     def put(self, y, x, s, attr=0):
@@ -389,12 +391,14 @@ class Panel:
         rt = st.get("rutina") or {}
         if rt.get("running"):
             self.put(y + 3, x + 2, f"▶ {rt['nombre']}", Y | B)
-            self.put(y + 4, x + 4, bar(rt["paso"] / max(1, rt["total"]), 30) + f" {rt['paso']}/{rt['total']}  (X parar)", Y)
+            vuelta = f"  vuelta {rt.get('vuelta', 1)} (sin parar)" if rt.get("bucle") else ""
+            self.put(y + 4, x + 4, bar(rt["paso"] / max(1, rt["total"]), 30) + f" {rt['paso']}/{rt['total']}{vuelta}  (X parar)", Y)
         else:
             fin = f"última: {rt.get('nombre')} ({rt.get('fin')})" if rt.get("fin") else "sin rutina en marcha"
             self.put(y + 3, x + 2, fin)
         rts = d.rts or {}
-        self.put(y + 5, x + 2, "P = DE PIE    0 / Intro = rutinas por código", G | B)
+        gear = (rts.get("marchas") or {}).get(str(rts.get("marcha")), "")
+        self.put(y + 5, x + 2, f"P = DE PIE   0 = por código   vel. {gear} (+/-)"[:wid - 4], G | B)
         cands = {c["id"]: c for c in rts.get("candidatas", [])}
         pop = [cands[i] for i in rts.get("populares", []) if i in cands][:6]
         self.put(y + 6, x + 2, "populares:" if pop else "populares: (valóralas con estrellas en la web)", B)
@@ -413,7 +417,7 @@ class Panel:
 
     def draw_footer(self, h, w):
         C, Y, B = curses.color_pair(4), curses.color_pair(2), curses.A_BOLD
-        self.put(h - 4, 1, "P DE PIE  0/Intro rutinas por código  S soltar todo  X parar  M mitad  R recoger  E estirar  1-9 mis rutinas", C | B)
+        self.put(h - 4, 1, "P DE PIE  0/Intro rutinas por código  +/- velocidad  S soltar todo  X parar  M mitad  R recoger  E estirar  1-9 mis rutinas", C | B)
         self.put(h - 3, 1, "U probar salida  L soltar salida  H ayuda  W web en la tele  C consola  T consola aparte  A apagar  B reiniciar", C)
         if self.confirm and time.time() < self.confirm[1]:
             what = "APAGAR" if self.confirm[0] == "a" else "REINICIAR"
@@ -477,6 +481,9 @@ class Panel:
                 self.confirm = (c, time.time() + 5)
             return None
         self.confirm = None
+        if c in ("+", "-"):
+            self.gear(1 if c == "+" else -1)
+            return None
         if c == "p":  # de pie: para lo que haya en marcha y se pone en la de pie elegida
             self.busy = False
             self.action("Poniéndose de pie", "/api/home", {}, timeout=30)
@@ -516,6 +523,16 @@ class Panel:
             self.help()
         return None
 
+    def gear(self, delta):
+        """Sube o baja la marcha de las rutinas (1ª-6ª); vale con una rutina en marcha."""
+        rts = self.d.rts or {}
+        n = max(1, min(len(rts.get("marchas") or {}) or 6, (rts.get("marcha") or 3) + delta))
+        try:
+            self.d.rts = api("/api/routine_speed", {"marcha": n}, timeout=6)
+            self.say(f"Velocidad: {(self.d.rts.get('marchas') or {}).get(str(n), n)}")
+        except Exception as e:  # noqa: BLE001
+            self.say(f"No se pudo cambiar la velocidad ({e})")
+
     def selector(self):
         """Rutinas por código: escribe el número y Intro, o elige con las flechas e Intro. Primero las populares
         (las de plata y las de 3 estrellas o más). P = de pie, X = parar, S = soltar todo, Esc o Q = volver."""
@@ -539,11 +556,14 @@ class Panel:
             B, REV = curses.A_BOLD, curses.A_REVERSE
             self.scr.erase()
             self.put(0, 0, " " * (w - 1), H)
-            self.put(0, 1, "RUTINAS POR CÓDIGO  ·  número + Intro  ·  flechas + Intro  ·  P de pie  ·  X parar  ·  Esc volver", H | B)
+            self.put(0, 1, "RUTINAS POR CÓDIGO  ·  número + Intro  ·  flechas + Intro  ·  R repetir  ·  +/- velocidad  ·  P de pie  ·  X parar  ·  Esc volver", H | B)
             rt = (self.d.state or {}).get("rutina") or {}
             self.put(2, 2, f"Código: {code}_", Y | B)
-            self.put(2, 22, f"▶ {rt['nombre']}  {rt['paso']}/{rt['total']}" if rt.get("running") else "sin rutina en marcha",
+            self.put(2, 22, f"▶ {rt['nombre']}  {rt['paso']}/{rt['total']}" + (f"  vuelta {rt.get('vuelta', 1)}" if rt.get("bucle") else "")
+                     if rt.get("running") else "sin rutina en marcha",
                      Y if rt.get("running") else 0)
+            gear = (rts.get("marchas") or {}).get(str(rts.get("marcha")), "")
+            self.put(1, 2, f"repetir sin parar: {'SÍ' if self.loop else 'no'} (R)    velocidad: {gear} (+/-)", (Y | B) if self.loop else 0)
             self.put(3, 2, f"{len(items)} con código que empieza por {code}" if code
                      else "populares primero (plata y 3 estrellas o más), luego todas por código", curses.A_DIM)
             for i, c in enumerate(items[top:top + rows]):
@@ -552,7 +572,7 @@ class Panel:
                     stars = "*" * n + "." * (6 - n) + f" {n}/6"
                 else:
                     stars = "curiosa" if c.get("curiosa") else "sin estrellas"
-                grp = ("plata" if c.get("plata") else "de pie suave" if c.get("suave") else "curiosa" if c.get("curiosa")
+                grp = ("oro" if c.get("oro") else "plata" if c.get("plata") else "de pie suave" if c.get("suave") else "curiosa" if c.get("curiosa")
                        else "de pie" if c.get("etapa") == 1 else "creativa" if c.get("creativa") else "nueva" if c.get("nueva")
                        else "andar" if c.get("andar") else "")
                 line = f" {c['codigo']:>3}  {c['nombre'][:44]:<44}  {stars:<13}  {grp}"
@@ -587,13 +607,20 @@ class Panel:
             elif k in (ord("x"), ord("X")):
                 self.busy = False
                 self.action("Parando la rutina", "/api/routine_stop", {}, timeout=10)
+            elif k in (ord("r"), ord("R")):
+                self.loop = not self.loop
+                wr(LOOP_FILE, "1" if self.loop else "")
+                self.say("Repetir sin parar: SÍ (X para parar)" if self.loop else "Repetir sin parar: no")
+            elif k in (ord("+"), ord("-")):
+                self.gear(1 if k == ord("+") else -1)
             elif k in (ord("s"), ord("S")):
                 self.busy = False
                 self.action("Soltando todos los servos", "/api/off", {})
             elif k in (10, 13, curses.KEY_ENTER) and items:
                 c = next((c for c in items if str(c["codigo"]) == code), None) or items[sel]
                 self.busy = False
-                self.action(f"Rutina {c['codigo']} '{c['nombre']}'", "/api/routine_run", {"codigo": c["codigo"]}, timeout=30)
+                self.action(f"Rutina {c['codigo']} '{c['nombre']}'" + (" sin parar" if self.loop else ""), "/api/routine_run",
+                            {"codigo": c["codigo"], "repetir": self.loop}, timeout=30)
                 return
 
     def help(self):

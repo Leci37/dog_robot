@@ -324,3 +324,8 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   {activo, nitro}`; `toreto`, `nitro`, `toreto_hz`, `nitro_quedan_s` en /api/state y /api/routines. Web: casilla
   TORETO en la cabecera (cabecera con raya roja si está activo) y caja roja `#toreto` (Toreto, Nitro con confirmación,
   "Repetir sin parar" con el `repetir` de la otra sesión, y los Galope fuerte en rojo con estrellas).
+- 2026-10-12 (16): reparto de trabajo: la otra sesión hace los modos nuevos (Toreto…) en server.py/index.html y esta
+  sesión lo lleva al **HDMI** (pantalla/panel.py y web/lite.html son de esta sesión). Llevado ya: **repetir sin parar**
+  (panel: tecla R en el selector, se guarda en pantalla/repetir; /lite: casilla y tecla R, localStorage "liteRepetir"),
+  **velocidad** con +/- (panel y /lite), "vuelta N" en la rutina en marcha, y las **de oro** (grupo propio y color).
+  Probar el panel sin tele: copia en /tmp con la API apuntando a un servidor de prueba y pruebas/ver_selector.py.

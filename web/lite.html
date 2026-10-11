@@ -46,6 +46,8 @@ button.home{background:#1e9e4a;border-color:#1e9e4a;color:#fff;font-weight:bold;
 #pop button{font-size:18px;padding:10px 14px}
 #pop button b{color:#ffd23f;margin-right:6px}
 button.plata{background:linear-gradient(180deg,#f3f4f6,#b9c0c8);border-color:#8d949c;color:#1d2228}
+button.oro{background:linear-gradient(180deg,#fff3c4,#e0b13a);border-color:#b8891c;color:#3a2a00}
+.loop{display:inline-flex;align-items:center;gap:4px;cursor:pointer}
 .keys{font-size:14px;color:var(--mut)}
 .keys b{color:var(--ink);background:#333;border-radius:4px;padding:0 5px}
 </style>
@@ -80,11 +82,12 @@ button.plata{background:linear-gradient(180deg,#f3f4f6,#b9c0c8);border-color:#8d
       <input id="code" inputmode="numeric" maxlength="3" placeholder="nº" aria-label="Código de rutina">
       <select id="rsel" aria-label="Elegir rutina"><option value="">elige una rutina…</option></select>
       <button class="pri" id="go">▶ Ejecutar</button>
+      <label class="loop" title="Tecla R"><input type="checkbox" id="loop"> Repetir sin parar (R)</label>
       <select id="gear" aria-label="Velocidad"></select>
       <button data-a="parar">■ Parar</button>
     </div>
     <div class="row" id="pop" style="margin:4px 0"></div>
-    <div class="keys">Teclado: <b>P</b> de pie · escribe el <b>número</b> y <b>Intro</b> · <b>X</b> parar · <b>S</b> soltar todo · <b>Esc</b> borrar</div>
+    <div class="keys">Teclado: <b>P</b> de pie · escribe el <b>número</b> y <b>Intro</b> · <b>R</b> repetir sin parar sí/no · <b>+ −</b> velocidad · <b>X</b> parar · <b>S</b> soltar todo · <b>Esc</b> borrar</div>
   </div>
   <div class="box">
     <div class="row" style="margin:2px 0">
@@ -179,7 +182,7 @@ function draw() {
     $('progbar').style.width = Math.min(100, done / tot * 100) + '%';
   } else $('progrow').style.display = 'none';
   const r = st.rutina || {};
-  $('rt').textContent = r.running ? `▶ ${r.nombre} · paso ${r.paso}/${r.total}` : (r.fin ? `última rutina: ${r.nombre} (${r.fin})` : 'sin rutina en marcha');
+  $('rt').textContent = r.running ? `▶ ${r.nombre} · paso ${r.paso}/${r.total}${r.bucle ? ` · 🔁 vuelta ${r.vuelta}` : ''}` : (r.fin ? `última rutina: ${r.nombre} (${r.fin})` : 'sin rutina en marcha');
   const brake = cons ? (cons.falta_corriente && !cons.permitir_sin_corriente) : (p.falta_corriente_ahora && !p.permitir_sin_corriente);
   $('freno').style.display = brake ? 'block' : 'none';
 }
@@ -199,9 +202,10 @@ async function pollSys() {
   } catch {}
 }
 let rts = null;
-const GRUPOS = [['plata', 'Plata (las ganadoras)'], ['depie', 'De pie'], ['suave', 'De pie suaves'], ['nueva', 'Nuevas (galopes…)'],
+function saveLoop() { try { localStorage.setItem('liteRepetir', $('loop').checked ? '1' : ''); } catch {} }
+const GRUPOS = [['oro', 'Oro (mejoras de la mejor)'], ['plata', 'Plata (las ganadoras)'], ['depie', 'De pie'], ['suave', 'De pie suaves'], ['nueva', 'Nuevas (galopes…)'],
   ['andar', 'Andar'], ['creativa', 'Creativas (caballo)'], ['curiosa', 'Cosas curiosas'], ['otra', 'Otras']];
-const grupo = c => c.plata ? 'plata' : c.etapa === 1 ? 'depie' : c.suave ? 'suave' : c.nueva ? 'nueva' : c.andar ? 'andar'
+const grupo = c => c.oro ? 'oro' : c.plata ? 'plata' : c.etapa === 1 ? 'depie' : c.suave ? 'suave' : c.nueva ? 'nueva' : c.andar ? 'andar'
   : c.creativa ? 'creativa' : c.curiosa ? 'curiosa' : 'otra';
 const starsTxt = n => n == null ? '' : ' ' + '★'.repeat(n) + '☆'.repeat(6 - n);
 function drawRoutines() {
@@ -214,7 +218,7 @@ function drawRoutines() {
   sel.value = keep;
   const byId = Object.fromEntries(cs.map(c => [c.id, c]));
   $('pop').innerHTML = '<span class="mut">Populares:</span>' + (rts.populares || []).map(id => byId[id]).filter(Boolean).map(c =>
-    `<button class="${c.plata ? 'plata' : 'pri'}" data-code="${c.codigo}"><b>${c.codigo}</b>${c.nombre.replace(/</g, '&lt;')}</button>`).join('');
+    `<button class="${c.oro ? 'oro' : c.plata ? 'plata' : 'pri'}" data-code="${c.codigo}"><b>${c.codigo}</b>${c.nombre.replace(/</g, '&lt;')}</button>`).join('');
   const g = $('gear');
   if (document.activeElement !== g) g.innerHTML = Object.entries(rts.marchas || {}).map(([n, t]) => `<option value="${n}" ${+n === rts.marcha ? 'selected' : ''}>${t}</option>`).join('');
 }
@@ -224,7 +228,8 @@ function runCode(code) {
   busy = false;
   if (code.toUpperCase() === 'P') { act('/api/home', {}, 'poniéndose de pie…'); return; }
   const c = rts && (rts.candidatas || []).find(x => String(x.codigo) === code);
-  act('/api/routine_run', {codigo: code}, c ? `rutina ${code} · ${c.nombre}…` : `rutina ${code}…`);
+  const loop = $('loop').checked;
+  act('/api/routine_run', {codigo: code, repetir: loop}, (c ? `rutina ${code} · ${c.nombre}` : `rutina ${code}`) + (loop ? ' · repitiendo sin parar (X para parar)…' : '…'));
   $('code').value = '';
 }
 async function pollRt() {
@@ -286,6 +291,11 @@ document.addEventListener('keydown', e => {
   if (inCode && /^[0-9]$/.test(k)) return;
   const l = k.toLowerCase();
   if (l === 'p') { e.preventDefault(); busy = false; act('/api/home', {}, 'poniéndose de pie…'); }
+  else if (l === 'r') { e.preventDefault(); $('loop').checked = !$('loop').checked; saveLoop();
+    $('msg').textContent = $('loop').checked ? 'repetir sin parar: SÍ' : 'repetir sin parar: no'; }
+  else if ((e.key === '+' || e.key === '-') && rts) { e.preventDefault();
+    const n = Math.max(1, Math.min(Object.keys(rts.marchas || {}).length || 6, (rts.marcha || 3) + (e.key === '+' ? 1 : -1)));
+    api('/api/routine_speed', {marcha: n}).then(r => { rts = r; drawRoutines(); $('msg').textContent = 'velocidad: ' + (r.marchas || {})[n]; }).catch(() => {}); }
   else if (l === 'x') { e.preventDefault(); busy = false; act('/api/routine_stop', {}, 'parando la rutina…'); }
   else if (l === 's') { e.preventDefault(); busy = false; act('/api/off', {}, 'soltando todo…'); }
 });
@@ -298,6 +308,8 @@ setInterval(() => {
 pollState(); pollCons(); pollSys(); pollRt();
 setInterval(pollState, 2000); setInterval(pollCons, 1000); setInterval(pollSys, 6000); setInterval(pollRt, 8000);
 setInterval(draw, 700);
+try { $('loop').checked = localStorage.getItem('liteRepetir') === '1'; } catch {}
+$('loop').addEventListener('change', saveLoop);
 </script>
 </body>
 </html>
