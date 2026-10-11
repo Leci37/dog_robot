@@ -765,11 +765,12 @@ def phase_gait(conv, fases, duty=0.6, step=12, lift=16, ticks=12, cycles=3, v="n
         objs = []
         for L in LEGS:
             p = (t / ticks - fases[L]) % 1.0
+            sl = step[L] if isinstance(step, dict) else step  # paso distinto por pata = girar
             if p < duty:                                   # apoyada: empuja de delante a atrás
-                x, z = step / 2 - step * p / duty, 0.0
+                x, z = sl / 2 - sl * p / duty, 0.0
             else:                                          # en el aire: vuelve adelante en arco
                 s = (p - duty) / (1 - duty)
-                x, z = -step / 2 + step * s, lift * math.sin(math.pi * s)
+                x, z = -sl / 2 + sl * s, lift * math.sin(math.pi * s)
             objs += [hom(L, h0[L] + x + z / 2), cod(L, k0[L] + z)]
         cycle.append(S(objs, juntos=True))
     return [{"op": "velocidad", "v": v}, S(base_stance(conv), juntos=True), {"op": "esperar", "s": 0.5},
@@ -799,6 +800,118 @@ CREATIVAS = [
     ("bote-gacela", "Bote de gacela (pronk)", "Las 4 a la vez: se agacha y se estira con ritmo, avanzando un poco. Gasta mucha corriente",
      dict(fases={L: 0 for L in LEGS}, duty=0.5, step=6, lift=10, v="rapido", cycles=4)),
 ]
+
+
+GALOPE = {"D": 0, "C": 0.1, "A": 0.5, "B": 0.6}      # la que más avanzó (3 cm, 12-10)
+CAMELLO = {"A": 0, "D": 0, "B": 0.5, "C": 0.5}       # fue 1 cm hacia atrás
+
+
+def nuevas_routines(c):
+    """15 rutinas verdes (12-10, tras probar): variantes del galope y del camello, y cosas curiosas. Las de 3 patas
+    apartan antes el cuerpo de la pata que levantan (dar la pata se caía hacia la esquina B)."""
+    k0, h0, hom, cod = _gait(c)
+    p0 = c.get("pectoral", 0)
+    pec = lambda L, s: {"pata": L, "art": "pectoral", "angulo": dev_angle(L, "pectoral", p0 + (s if L in ("A", "D") else -s), c)}  # noqa: E731
+    base = S(base_stance(c), juntos=True)
+    alta = c | {"delanteras": ALTA, "traseras": ALTA}
+
+    def shift(back, left, extra=None):
+        """Aparta el cuerpo: `back` > 0 lo lleva atrás (pies adelante), `left` > 0 a la izquierda (supone pectoral +
+        abre). `extra` {pata: (hombro, codo)} añade a cada pata (p. ej. estirar una atrás del todo)."""
+        out = []
+        for L in LEGS:
+            dh, dk = (extra or {}).get(L, (0, 0))
+            out += [hom(L, h0[L] + back + dh), cod(L, k0[L] + dk), pec(L, -left)]
+        return S(out, juntos=True)
+
+    def give_paw(leg, front_mate, diag):
+        back, left = 8, (8 if leg in RIGHT else -8)
+        sup = shift(back, left, {front_mate: (10, 0), diag: (-18, -12)})  # la otra delantera adelante, la diagonal estirada atrás
+        return [{"op": "velocidad", "v": "lento"}, base, sup, {"op": "esperar", "s": 0.6},
+                S([hom(leg, 50), cod(leg, 15)], juntos=True),
+                {"op": "repetir", "n": 3, "pasos": [S([pec(leg, 12 if leg in ("A", "D") else -12)]),
+                                                    S([pec(leg, -12 if leg in ("A", "D") else 12)])]},
+                S([hom(leg, h0[leg] + back), cod(leg, k0[leg])], juntos=True), {"op": "esperar", "s": 0.3}, base]
+
+    pis = [{"op": "velocidad", "v": "lento"}, base, shift(-6, 8, {"C": (0, 6)}), {"op": "esperar", "s": 0.6},
+           S([pec("D", 30), cod("D", k0["D"] + 22), hom("D", h0["D"] - 6)], juntos=True), {"op": "esperar", "s": 2},
+           S([pec("D", -8), cod("D", k0["D"]), hom("D", h0["D"] - 6)], juntos=True), base]
+    estirarse = [{"op": "velocidad", "v": "lento"}, base,
+                 S(no_pec(stance(c, 50, ["A", "B"])) + no_pec(stance(c, 18, ["C", "D"])) + [hom(L, 25 + 15) for L in ("A", "B")], juntos=True),
+                 {"op": "esperar", "s": 2}, base,
+                 S(no_pec(stance(c, 18, ["A", "B"])) + [o for L in ("C", "D") for o in (hom(L, h0[L] - 18), cod(L, k0[L] - 8))], juntos=True),
+                 {"op": "esperar", "s": 2}, base]
+    menear = [{"op": "velocidad", "v": "rapido"}, base, {"op": "repetir", "n": 6, "pasos": [
+        S([pec(L, 12) for L in ("C", "D")], juntos=True), S([pec(L, -12) for L in ("C", "D")], juntos=True)]}, base]
+    baile = [{"op": "velocidad", "v": "normal"}, base, {"op": "repetir", "n": 4, "pasos": [
+        S([pec(L, 10) for L in LEGS] + no_pec(stance(c, k0["A"] + 10)), juntos=True),
+        S([pec(L, -10) for L in LEGS] + no_pec(stance(c, max(10, k0["A"] - 6))), juntos=True)]},
+        {"op": "velocidad", "v": "rapido"}, {"op": "repetir", "n": 3, "pasos": [
+            S([pec(L, 12) for L in ("C", "D")], juntos=True), S([pec(L, -12) for L in ("C", "D")], juntos=True)]}, base]
+    def tiro(step, cycles=4, lift=16):
+        """Caballo de tiro (idea del usuario): las que quedan de pie empujan y proyectan el resto. 1) las delanteras
+        se estiran adelante en el aire, 2) apoyan, 3) las 4 empujan a la vez (el cuerpo avanza: 'tiro'), 4) las traseras
+        vuelven adelante de una en una, siempre con 3 apoyadas. Con `step` negativo, hacia atrás."""
+        cyc = []
+        for L in ("A", "B"):  # delanteras de una en una: alcanzan
+            cyc += [S([hom(L, h0[L] + lift / 2), cod(L, k0[L] + lift)], juntos=True),
+                    S([hom(L, h0[L] + step + lift / 2)], juntos=True),
+                    S([hom(L, h0[L] + step), cod(L, k0[L])], juntos=True)]
+        cyc.append(S([hom(L, h0[L] + (0 if L in FRONT else -step)) for L in LEGS], juntos=True))  # tiro: todo empuja
+        for L in ("D", "C"):  # traseras recuperan
+            cyc += [S([hom(L, h0[L] - step + lift / 2), cod(L, k0[L] + lift)], juntos=True),
+                    S([hom(L, h0[L] + lift / 2)], juntos=True),
+                    S([hom(L, h0[L]), cod(L, k0[L])], juntos=True)]
+        return [{"op": "velocidad", "v": "normal"}, base, {"op": "repetir", "n": cycles, "pasos": cyc}, base]
+
+    def lateral(w, cycles=5, lift=14):
+        """De lado con balanceo (el usuario: 'balancearse a los lados lo mueve un poco a la derecha'): trote lateral.
+        Una diagonal sube y recoloca sus pies al otro lado mientras la otra empuja de lado con los pectorales.
+        w > 0: a la derecha si pectoral + abre (sin confirmar; si va al revés, es la otra)."""
+        cyc = []
+        for up, down in ((["A", "C"], ["B", "D"]), (["B", "D"], ["A", "C"])):
+            cyc += [S([o for L in up for o in (hom(L, h0[L] + lift / 2), cod(L, k0[L] + lift), pec(L, -w))]
+                      + [pec(L, w) for L in down], juntos=True),
+                    S([o for L in up for o in (hom(L, h0[L]), cod(L, k0[L]))], juntos=True)]
+        return [{"op": "velocidad", "v": "rapido"}, base, {"op": "repetir", "n": cycles, "pasos": cyc}, base]
+
+    potente = [{"op": "velocidad", "v": "rapido"}, base, {"op": "repetir", "n": 5, "pasos": [
+        S([pec(L, 20) for L in LEGS], juntos=True), S([pec(L, -20) for L in LEGS], juntos=True)]}, base]
+
+    g = lambda **kw: phase_gait(c, **({"fases": GALOPE, "duty": 0.45, "step": 14, "v": "rapido", "cycles": 5} | kw))  # noqa: E731
+    return [
+        ("galope-largo", "Galope largo", "El galope con zancada de 18 y pie más alto", g(step=18, lift=18)),
+        ("galope-rapido", "Galope rápido", "Más aire (apoyo 40%) y menos pasos por ciclo: más ritmo", g(duty=0.4, ticks=10, cycles=6)),
+        ("galope-alto", "Galope alto", f"El galope con las patas más rectas ({ALTA}): menos fuerza en los codos",
+         phase_gait(alta, fases=GALOPE, duty=0.45, step=14, v="rapido", cycles=5)),
+        ("galope-otra-mano", "Galope a la otra mano", "Empieza por la trasera derecha: C, D, B, A",
+         g(fases={"C": 0, "D": 0.1, "B": 0.5, "A": 0.6})),
+        ("galope-izq", "Galope girando a la izquierda", "Zancada corta a la izquierda y larga a la derecha",
+         g(step={"A": 6, "D": 6, "B": 18, "C": 18})),
+        ("galope-der", "Galope girando a la derecha", "Zancada larga a la izquierda y corta a la derecha",
+         g(step={"A": 18, "D": 18, "B": 6, "C": 6})),
+        ("camello-adelante", "Camello al revés", "El camello iba hacia atrás: aquí con el paso invertido, a ver si va adelante",
+         phase_gait(c, fases=CAMELLO, duty=0.55, step=-12, cycles=4)),
+        ("camello-rapido", "Camello rápido", "Laterales a la vez con más aire y más ritmo (paso invertido)",
+         phase_gait(c, fases=CAMELLO, duty=0.45, step=-14, v="rapido", cycles=5)),
+        ("canguro", "Saltos de canguro", "Traseras juntas empujan fuerte, luego delanteras: brinco con más aire",
+         phase_gait(c, fases={"C": 0, "D": 0, "A": 0.45, "B": 0.45}, duty=0.4, step=14, lift=14, v="rapido", cycles=5)),
+        ("caballo-tiro", "Caballo de tiro", "Las delanteras alcanzan adelante, las 4 empujan a la vez y las traseras recuperan: "
+         "las que están de pie proyectan el cuerpo", tiro(16)),
+        ("caballo-tiro-atras", "Caballo de tiro hacia atrás", "Lo mismo al revés (por si va mejor hacia atrás)", tiro(-16)),
+        ("balanceo-potente", "Balanceo potente", "El balanceo a los lados con el doble de recorrido (20) y rápido, 5 veces", potente),
+        ("lado-derecha", "De lado a la derecha", "Diagonales que se recolocan mientras las otras empujan de lado (si va a la izquierda, dímelo)",
+         lateral(10)),
+        ("lado-izquierda", "De lado a la izquierda", "Lo mismo hacia el otro lado", lateral(-10)),
+        ("pata-b", "Dar la pata B (estable)", "Aparta el cuerpo atrás-izquierda, A adelante y D estirada atrás; luego da la B",
+         give_paw("B", "A", "D")),
+        ("pata-a", "Dar la pata A (estable)", "Lo mismo en espejo: cuerpo atrás-derecha, B adelante, C estirada atrás",
+         give_paw("A", "B", "C")),
+        ("pis", "Hacer pis", "Aparta el cuerpo y levanta la trasera izquierda (D) hacia el lado, como un perro", pis),
+        ("desperezarse", "Desperezarse", "Delanteras estiradas y bajas con el culo en alto, y luego al revés", estirarse),
+        ("menear", "Menear el culete", "Las traseras de lado a lado, rápido", menear),
+        ("baile", "Baile", "De lado a lado subiendo y bajando, y un meneo final", baile),
+    ]
 
 
 def crab_program(conv, step=8, cycles=3, lift=16):
@@ -915,6 +1028,8 @@ def candidate_routines(conv_saved):
     for rid, name, desc, kw in CREATIVAS:
         cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "creativa": True,
                       "programa": phase_gait(c, **kw)})
+    for rid, name, desc, prog in nuevas_routines(c):  # las verdes
+        cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "nueva": True, "programa": prog})
     return cands
 
 

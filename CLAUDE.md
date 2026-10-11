@@ -234,3 +234,12 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
 - 2026-10-12 (5): el usuario afinó los servos en "Afinar patas" con el robot en la 6.7 y la dejó **por defecto**:
   ajustes A1 +10, A3 −15, B1 −15, B3 +50, C1 −5, C3 −10, D3 −22 (D3 al final al revés que el +18 que pidió de palabra).
   Físicos en la de pie: A 105/105/45, B 70/75/170, C 80/105/50, D 95/75/98 (pectoral/hombro/codo).
+- 2026-10-12 (6): resultados del usuario: solo avanzan el **galope** (3 cm adelante) y el **camello/ambladura** (1 cm
+  atrás); el resto no avanza. "Saludar con B" se caía hacia la esquina B. Marchas creativas por fases (`phase_gait`,
+  `CREATIVAS`: paso de caballo, tölt, ambladura, trote elíptico, piaffe, passage, medio galope, galope, brinco, bote).
+  20 rutinas **verdes** (`nuevas_routines`, candidatas con `nueva`, primeras en la lista y fila "Nuevas" en la barra):
+  variantes del galope (largo, rápido, alto, otra mano, girando izq/der), camello con paso invertido (normal y rápido),
+  canguro, caballo de tiro adelante/atrás (idea del usuario: las de pie proyectan el cuerpo), balanceo potente, de lado
+  derecha/izquierda (trote lateral con pectorales; el balanceo lo movía un poco a la derecha), dar la pata B/A estable
+  (`shift`: cuerpo atrás y al lado contrario, la otra delantera adelante y la diagonal estirada atrás), hacer pis,
+  desperezarse, menear el culete y baile.
