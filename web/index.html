@@ -154,6 +154,8 @@ html{scroll-behavior:smooth}
 .quick{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--card);margin-bottom:14px}
 .quick .row{align-items:center;margin-top:6px}.quick .row:first-child{margin-top:0}
 .quick .lbl{min-width:76px;font-weight:600}
+button.home{background:#1e9e4a;border-color:#1e9e4a;color:#fff;font-weight:700;font-size:18px;padding:10px 22px;border-radius:12px}
+button.home:hover{background:#178a3f}
 button.nueva{background:#1e9e4a;border-color:#1e9e4a;color:#fff}button.nueva:hover{background:#178a3f}
 .card.nueva{border-color:#1e9e4a;box-shadow:inset 4px 0 0 #1e9e4a}
 .tvrt button{font-size:19px;padding:12px 20px;border-radius:12px}
@@ -170,6 +172,7 @@ button.nueva{background:#1e9e4a;border-color:#1e9e4a;color:#fff}button.nueva:hov
   <span id="netb" class="tag" title="Conexión de red">red…</span>
   <div id="amp" class="amp" title="Consumo estimado de los servos (gris suelto · ámbar sujetando · rojo moviéndose)"></div>
   <span id="count" class="tag">0/12</span>
+  <button class="home" id="homeBtn" title="Vuelve a la de pie elegida (✓): recoge las 4 patas y se levanta con las 4 a la vez">▲ De pie</button>
   <button class="stop" id="off">Soltar todo</button>
   <div id="stw"><button id="stBtn" class="tag" title="Cómo estás conectado, credenciales y rutas">● estado ▾</button>
     <div id="stPanel" class="stpanel" hidden></div></div>
@@ -1363,6 +1366,8 @@ function renderRt() {
     ${creat.length ? `<div class="row"><span class="lbl">Creativas</span>${creat.map(c => qb(c, c.nombre)).join('')}</div>` : ''}
     <div class="row"><span class="lbl">Velocidad</span>${Object.entries(rts.marchas || {}).map(([n, t]) => `<button data-gear="${n}" class="${+n === rts.marcha ? 'pri' : ''}">${esc(t)}</button>`).join('')}
       <button class="stop" data-qstop="1">Parar</button></div>`;
+  const home = rts.candidatas.find(c => c.etapa === 1 && chosen(c.id)) || rts.candidatas.find(c => c.id === 'de-pie-6.7');
+  if (home) { $('homeBtn').dataset.try = home.id; $('homeBtn').textContent = '▲ ' + home.nombre.split(' · ')[0]; }
   if (quick !== lastQuick) { $('quick').innerHTML = quick; lastQuick = quick; }
   $('quick').hidden = TV;
   const list = stage === 1 ? rts.candidatas : [...rts.candidatas.filter(c => c.nueva), ...rts.candidatas.filter(c => c.etapa === 2 && !c.nueva),
@@ -1546,6 +1551,13 @@ document.addEventListener('click', async e => {
   else if (b.id === 'instBtn') sysPost('/api/system_action', {accion: 'instalar-navegador'}, 'lanzando la instalación del navegador (sigue sola en segundo plano)…');
   else if (d.viewtry) openInBlocks(null, d.viewtry);
   else if (b.id === 'rtStop' || b.id === 'blkStop' || d.qstop) rtPost('/api/routine_stop', {}, 'parando la rutina…');
+  else if (b.id === 'homeBtn' && d.try) {  // si hay una rutina en marcha, la para y luego se pone de pie
+    if (rts && rts.ejecutando && rts.ejecutando.running) {
+      await api('/api/routine_stop', {}).catch(() => {});
+      for (let i = 0; i < 40; i++) { await new Promise(r => setTimeout(r, 250)); rts = await api('/api/routines'); if (!rts.ejecutando.running) break; }
+    }
+    rtPost('/api/routine_run', {candidata: d.try}, 'poniéndose de pie…');
+  }
   else if (d.try) rtPost('/api/routine_run', {candidata: d.try}, 'probando… mira el robot');
   else if (d.mark !== undefined) rtPost('/api/try_mark', {id: d.mark, mark: d.mk}, 'marcando…');
   else if (d.savetry) {

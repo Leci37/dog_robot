@@ -243,3 +243,5 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   derecha/izquierda (trote lateral con pectorales; el balanceo lo movía un poco a la derecha), dar la pata B/A estable
   (`shift`: cuerpo atrás y al lado contrario, la otra delantera adelante y la diagonal estirada atrás), hacer pis,
   desperezarse, menear el culete y baile.
+- 2026-10-12 (7): botón grande "▲ De pie" en la cabecera (`#homeBtn`): lanza la de pie marcada ✓ (si no, la 6.7) y,
+  si hay una rutina en marcha, la para antes.

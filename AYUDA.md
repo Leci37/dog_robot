@@ -97,6 +97,8 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
   gira). Luego girar a izquierda/derecha, marcar el paso, de pie alto/bajo, tumbarse, levantarse, sentarse,
   reverencia, flexiones, balanceo y saludar. Las de pie siguen debajo: marcar ✓ otra cambia la que usan todas.
   Marca ✓/✗ cada una y guarda las buenas en "Mis rutinas".
+- Botón verde grande "▲ De pie" arriba, junto a "Soltar todo": vuelve a la de pie elegida (✓, ahora la 6.7
+  con los ajustes); si hay una rutina en marcha, la para antes.
 - Barra de botones arriba del todo: las 5 de pie mejores (6.7, 6, 6.1, 6.2, 6.5; la elegida en azul con ✓),
   Bajar despacio, todas las de andar, la velocidad y Parar.
 - Andar: paso a paso, con balanceo, rápido, alto, alto y rápido, pasitos rápidos, paso largo, trote lento,
