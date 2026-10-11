@@ -43,7 +43,8 @@ SAFE_MIN, SAFE_MAX = 30, 150   # límites del ángulo lógico (el que ve el usua
 PHYS_MIN, PHYS_MAX = 5, 175    # límites del ángulo físico enviado al servo, tras calibrar
 MAX_DELTA = 45
 CENTER = 90
-SPEEDS = {"lento": 0.05, "normal": 0.03, "rapido": 0.012}  # segundos por grado
+SPEEDS = {"lento": 0.05, "normal": 0.03, "rapido": 0.012,  # segundos por grado
+          "suave": 0.1}  # para levantar el cuerpo: las 4 patas juntas, muy despacio
 FAST = bool(os.environ.get("SPOTMICRO_FAST"))  # solo para pruebas con el simulador: sin esperas reales
 if FAST:
     SPEEDS = {k: 0.0 for k in SPEEDS}
@@ -555,7 +556,7 @@ def run_move(st, ctx):
     else:
         raise ValueError(f"paso desconocido: {op}")
     if targets:
-        move_many(targets, ctx["pause"])
+        move_many(targets, ctx["pause"], juntos=op == "set" and bool(st.get("juntos")))
 
 
 def start_routine(program, name, lista=None):
@@ -586,9 +587,22 @@ def start_routine(program, name, lista=None):
 
 # ---------- rutinas para probar (generadas) ----------
 # Patas de longitud parecida: para agacharse con la pezuña bajo la cadera, el codo se dobla beta y el
-# hombro beta/2. Como no sabemos hacia qué lado gira cada servo, la etapa 1 prueba las 8 combinaciones
-# (signo del hombro sh, del codo sk, delanteras igual o invertidas fi). Cuando el usuario marca una como
-# buena se guarda la convención y la etapa 2 genera rutinas (de pie, tumbarse, sentarse, andar…).
+# hombro beta/2. El 11-10-2026 el usuario probó las 8 combinaciones de sentido (signo del hombro sh, del codo
+# sk, delanteras igual o invertidas fi) y la buena fue la variante 6: hombro −, codo +, delanteras invertidas.
+# La etapa 1 son ahora la 6 y sus variantes (baja, alta, inclinada, pectorales); al marcar ✓ una se guarda la
+# convención con su altura y la etapa 2 genera rutinas (de pie, tumbarse, sentarse, andar…).
+
+CONV6 = {"sh": -1, "sk": 1, "fi": True}
+VARIANTES_6 = [  # (id, nombre, descripción, agachado delanteras, agachado traseras, pectorales)
+    ("6", "De pie 6", "la ganadora (agachado 40)", 40, 40, 0),
+    ("6.1", "De pie 6.1 · baja", "más agachado (50): más estable, los codos hacen más fuerza", 50, 50, 0),
+    ("6.2", "De pie 6.2 · alta", "patas más rectas (30): los codos hacen menos fuerza", 30, 30, 0),
+    ("6.3", "De pie 6.3 · inclinada adelante", "delanteras 48, traseras 32 (morro abajo)", 48, 32, 0),
+    ("6.4", "De pie 6.4 · inclinada atrás", "delanteras 32, traseras 48 (morro arriba)", 32, 48, 0),
+    ("6.5", "De pie 6.5 · pectorales +10", "apoyo más ancho o más estrecho (la 6.6 hace lo contrario)", 40, 40, 10),
+    ("6.6", "De pie 6.6 · pectorales −10", "lo contrario que la 6.5", 40, 40, -10),
+]
+TUCK = 52  # agachado de "recogido": codos lejos de los topes 30/150 (con los topes hubo apagones)
 
 def dev_angle(leg, art, dev, conv):
     s = conv.get("sh", 1) if art == "hombro" else conv.get("sk", 1) if art == "codo" else 1
@@ -607,8 +621,57 @@ def stance(conv, beta, legs=None, pectoral=0.0, hip_extra=None):
     return out
 
 
-def S(objs):
-    return {"op": "set", "objetivos": objs}
+def base_stance(conv, legs=None):
+    """La postura de pie de la variante elegida (agachado de delanteras y traseras, pectorales)."""
+    f, r, p = conv.get("delanteras", 40), conv.get("traseras", 40), conv.get("pectoral", 0)
+    return [o for leg in (legs or LEGS) for o in stance(conv, f if leg in FRONT else r, [leg], p)]
+
+
+def S(objs, juntos=False):
+    return {"op": "set", "objetivos": objs} | ({"juntos": True} if juntos else {})
+
+
+def no_pec(objs):
+    return [o for o in objs if o["art"] != "pectoral"]
+
+
+def stand_program(conv):
+    """Levantarse sin que una pata cargue sola con su esquina: 1) pectorales (casi sin carga), 2) recoger las
+    4 patas a la vez (pezuñas bajo los hombros, el cuerpo baja parejo), 3) estirarlas las 4 a la vez, 1° cada
+    vez y muy despacio, hasta la postura. Con el límite de 5 A, antes iba servo a servo y no podía."""
+    target = base_stance(conv)
+    tuck = min(55, max(conv.get("delanteras", 40), conv.get("traseras", 40)) + 12)
+    return [{"op": "velocidad", "v": "normal"}, S([o for o in target if o["art"] == "pectoral"]),
+            {"op": "velocidad", "v": "lento"}, S(no_pec(stance(conv, tuck)), juntos=True), {"op": "esperar", "s": 1},
+            {"op": "velocidad", "v": "suave"}, S(no_pec(target), juntos=True), {"op": "esperar", "s": 1.5}]
+
+
+def juntos_multi(prog):
+    """Los pasos que mueven varias patas cargan con el cuerpo: van juntos. Los de una pata (levantar un pie), en tandas."""
+    for s in prog:
+        if s.get("op") == "repetir":
+            juntos_multi(s["pasos"])
+        elif s.get("op") == "set" and len({o["pata"] for o in s["objetivos"]}) > 1:
+            s["juntos"] = True
+    return prog
+
+
+def tope_warnings(prog):
+    """Articulaciones a las que la calibración lleva más allá del recorrido del servo: se quedan en el tope."""
+    chans, out = {leg: leg_channels(leg) for leg in LEGS}, set()
+
+    def scan(steps):
+        for s in steps:
+            scan(s.get("pasos", []))
+            for o in s.get("objetivos", []) if s.get("op") == "set" else []:
+                ch = chans[o["pata"]].get(o["art"])
+                if ch is not None:
+                    off, inv = CAL.get(ch, (0, False))
+                    a = clamp(o["angulo"])
+                    if not PHYS_MIN <= (180 - a if inv else a) + off <= PHYS_MAX:
+                        out.add(f"{o['pata']}{JOINTS.index(o['art']) + 1}")
+    scan(prog)
+    return sorted(out)
 
 
 def walk_program(conv, step_l, step_r, cycles=2, beta=40, lift=18):
@@ -633,66 +696,66 @@ def walk_program(conv, step_l, step_r, cycles=2, beta=40, lift=18):
 
 
 def candidate_routines(conv_saved):
-    """Etapa 1 (sin convención): 8 variantes de 'de pie'. Etapa 2 (con convención): rutinas útiles."""
+    """Etapa 1: la 6 de 'de pie' y sus variantes (+ bajar despacio). Etapa 2 (con convención): rutinas útiles."""
     cands = []
-    for sh in (1, -1):
-        for sk in (1, -1):
-            for fi in (False, True):
-                conv = {"sh": sh, "sk": sk, "fi": fi}
-                n = len(cands) + 1
-                cands.append({
-                    "id": f"depie|{sh}|{sk}|{int(fi)}", "etapa": 1, "nombre": f"De pie · variante {n}",
-                    "desc": f"hombro {'+' if sh > 0 else '−'}, codo {'+' if sk > 0 else '−'}, delanteras "
-                            f"{'invertidas' if fi else 'igual que las traseras'}",
-                    "conv": conv,
-                    "programa": [{"op": "velocidad", "v": "normal"}, {"op": "mitad"}, {"op": "esperar", "s": 1},
-                                 S(stance(conv, 40)), {"op": "esperar", "s": 2}],
-                })
+    for vid, name, desc, front, rear, pec in VARIANTES_6:
+        conv = CONV6 | {"variante": vid, "delanteras": front, "traseras": rear, "pectoral": pec}
+        prog = stand_program(conv)
+        tope = tope_warnings([S(base_stance(conv))])  # solo la postura final: al recoger, B3 (+45) ya se queda en su tope
+        cands.append({"id": f"de-pie-{vid}", "etapa": 1, "nombre": name, "conv": conv, "programa": prog,
+                      "desc": f"{desc} · recoge las 4 patas y se levanta con las 4 a la vez"
+                              + (f" · ⚠ {', '.join(tope)} llega a su tope y no sigue (recolocar el horn)" if tope else "")})
+    cands.append({"id": "bajar", "etapa": 1, "ayuda": True, "nombre": "Bajar despacio",
+                  "desc": "recoge las 4 patas a la vez hasta tumbarse: para repetir una prueba sin dejarlo caer",
+                  "programa": [{"op": "velocidad", "v": "lento"},
+                               S(no_pec(stance(conv_saved or CONV6, TUCK)), juntos=True)]})
     if not conv_saved:
         return cands
     c = conv_saved
+    b0 = (c.get("delanteras", 40) + c.get("traseras", 40)) / 2
     st = lambda beta, **kw: S(stance(c, beta, **kw))  # noqa: E731
+    st0 = S(base_stance(c))  # la de pie elegida
+    lift = {L: c.get("delanteras" if L in FRONT else "traseras", 40) + 18 for L in LEGS}
     two = [
-        ("de-pie-alto", "De pie alto", "Patas casi rectas (agachado 30)", [st(30)]),
-        ("de-pie-bajo", "De pie bajo", "Más agachado (55)", [st(55)]),
-        ("tumbarse", "Tumbarse", "Despacio hasta lo más agachado (60)",
-         [{"op": "velocidad", "v": "lento"}, st(40), st(60)]),
-        ("levantarse", "Levantarse", "De tumbado a de pie, despacio",
-         [{"op": "velocidad", "v": "lento"}, st(60), {"op": "esperar", "s": 1}, st(40)]),
+        ("de-pie-alto", "De pie alto", f"Patas más rectas (agachado {b0 - 10:g})", [st(b0 - 10)]),
+        ("de-pie-bajo", "De pie bajo", f"Más agachado ({min(55, b0 + 12):g})", [st(min(55, b0 + 12))]),
+        ("tumbarse", "Tumbarse", f"Despacio hasta recogido ({TUCK})",
+         [{"op": "velocidad", "v": "lento"}, st0, st(TUCK)]),
+        ("levantarse", "Levantarse", "Recoge las 4 patas y se levanta con las 4 a la vez, despacio", stand_program(c)),
         ("sentarse", "Sentarse", "Traseras muy dobladas, delanteras casi rectas",
-         [{"op": "velocidad", "v": "lento"}, st(40),
-          S(stance(c, 60, legs=["C", "D"]) + stance(c, 20, legs=["A", "B"]))]),
+         [{"op": "velocidad", "v": "lento"}, st0,
+          S(stance(c, 55, legs=["C", "D"]) + stance(c, 20, legs=["A", "B"]))]),
         ("reverencia", "Estirarse (reverencia)", "Delanteras dobladas, traseras rectas, y vuelta",
-         [{"op": "velocidad", "v": "lento"}, st(40),
-          S(stance(c, 60, legs=["A", "B"]) + stance(c, 25, legs=["C", "D"])), {"op": "esperar", "s": 1.5}, st(40)]),
+         [{"op": "velocidad", "v": "lento"}, st0,
+          S(stance(c, 55, legs=["A", "B"]) + stance(c, 25, legs=["C", "D"])), {"op": "esperar", "s": 1.5}, st0]),
         ("flexiones", "Flexiones", "Sube y baja 3 veces",
-         [st(40), {"op": "repetir", "n": 3, "pasos": [st(55), st(30)]}, st(40)]),
+         [st0, {"op": "repetir", "n": 3, "pasos": [st(55), st(30)]}, st0]),
         ("balanceo", "Balancearse a los lados", "Pectorales a un lado y al otro, 3 veces",
-         [st(40), {"op": "repetir", "n": 3, "pasos": [
+         [st0, {"op": "repetir", "n": 3, "pasos": [
              S([{"pata": L, "art": "pectoral", "angulo": dev_angle(L, "pectoral", 12 if L in ("A", "D") else -12, c)} for L in LEGS]),
              S([{"pata": L, "art": "pectoral", "angulo": dev_angle(L, "pectoral", -12 if L in ("A", "D") else 12, c)} for L in LEGS])]},
-          st(40)]),
+          st0]),
         ("saludar-b", "Saludar con la pata B", "Levanta la delantera derecha y la mueve",
-         [st(40), S([{"pata": "B", "art": "hombro", "angulo": dev_angle("B", "hombro", 55, c)},
-                     {"pata": "B", "art": "codo", "angulo": dev_angle("B", "codo", 20, c)}]),
+         [st0, S([{"pata": "B", "art": "hombro", "angulo": dev_angle("B", "hombro", 55, c)},
+                  {"pata": "B", "art": "codo", "angulo": dev_angle("B", "codo", 20, c)}]),
           {"op": "repetir", "n": 3, "pasos": [
               S([{"pata": "B", "art": "pectoral", "angulo": dev_angle("B", "pectoral", 15, c)}]),
               S([{"pata": "B", "art": "pectoral", "angulo": dev_angle("B", "pectoral", -15, c)}])]},
-          st(40)]),
+          st0]),
         ("marcar-paso", "Marcar el paso (trote en el sitio)", "Levanta en diagonal A+C y luego B+D, 4 veces",
-         [st(40), {"op": "repetir", "n": 4, "pasos": [
-             S([{"pata": L, "art": "codo", "angulo": dev_angle(L, "codo", 58, c)} for L in ("A", "C")]),
-             S(stance(c, 40, legs=["A", "C"])),
-             S([{"pata": L, "art": "codo", "angulo": dev_angle(L, "codo", 58, c)} for L in ("B", "D")]),
-             S(stance(c, 40, legs=["B", "D"]))]}]),
-        ("andar-corto", "Andar hacia delante (paso corto)", "Una pata cada vez, 2 ciclos", walk_program(c, 12, 12)),
-        ("andar-largo", "Andar hacia delante (paso largo)", "Una pata cada vez, 2 ciclos", walk_program(c, 20, 20)),
-        ("andar-atras", "Andar hacia atrás", "Una pata cada vez, 2 ciclos", walk_program(c, -12, -12)),
-        ("girar-izq", "Girar a la izquierda", "Izquierdas hacia atrás, derechas hacia delante", walk_program(c, -12, 12)),
-        ("girar-der", "Girar a la derecha", "Izquierdas hacia delante, derechas hacia atrás", walk_program(c, 12, -12)),
+         [st0, {"op": "repetir", "n": 4, "pasos": [
+             S([{"pata": L, "art": "codo", "angulo": dev_angle(L, "codo", lift[L], c)} for L in ("A", "C")]),
+             S(base_stance(c, ["A", "C"])),
+             S([{"pata": L, "art": "codo", "angulo": dev_angle(L, "codo", lift[L], c)} for L in ("B", "D")]),
+             S(base_stance(c, ["B", "D"]))]}]),
+        ("andar-corto", "Andar hacia delante (paso corto)", "Una pata cada vez, 2 ciclos", walk_program(c, 12, 12, beta=b0)),
+        ("andar-largo", "Andar hacia delante (paso largo)", "Una pata cada vez, 2 ciclos", walk_program(c, 20, 20, beta=b0)),
+        ("andar-atras", "Andar hacia atrás", "Una pata cada vez, 2 ciclos", walk_program(c, -12, -12, beta=b0)),
+        ("girar-izq", "Girar a la izquierda", "Izquierdas hacia atrás, derechas hacia delante", walk_program(c, -12, 12, beta=b0)),
+        ("girar-der", "Girar a la derecha", "Izquierdas hacia delante, derechas hacia atrás", walk_program(c, 12, -12, beta=b0)),
     ]
     for rid, name, desc, prog in two:
-        cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "programa": prog})
+        cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "programa": juntos_multi(prog)})
     return cands
 
 
@@ -701,8 +764,8 @@ def save_convention(conv):
     cfg["convencion"] = conv
     write_json(CONFIG_FILE, cfg)
     poses = load_poses()  # posturas básicas para los botones Recoger/Estirar y la tecla R/E del panel
-    for name, beta in (("de pie", 40), ("estirada", 10), ("recogida", 60)):
-        for o in stance(conv, beta):
+    for name, objs in (("de pie", base_stance(conv)), ("estirada", stance(conv, 10)), ("recogida", stance(conv, TUCK))):
+        for o in objs:
             poses.setdefault(o["pata"], {}).setdefault(name, {})[o["art"]] = o["angulo"]
     write_json(POSES_FILE, poses)
 
@@ -946,13 +1009,14 @@ def max_movers(n_targets, n_held_others):
     return max(1, min(n_targets, int(k)))
 
 
-def move_many(targets, pause=0.03):
+def move_many(targets, pause=0.03, juntos=False):
     """Mueve varios canales a la vez, 1 grado por servo en cada paso (alternando entre ellos),
     para que todas las patas vayan juntas y suaves. Con el límite de consumo activado, los reparte
-    en tandas para no pasar de los amperios de la fuente."""
+    en tandas para no pasar de los amperios de la fuente, salvo con `juntos`: al levantar o bajar el
+    cuerpo, en tandas cada pata carga sola con su esquina y su servo no puede (se queda a medias)."""
     targets = {ch: clamp(a) for ch, a in targets.items()}
     held_others = sum(1 for ch, a in angles.items() if a is not None and ch not in targets)
-    k = max_movers(len(targets), held_others)
+    k = len(targets) if juntos else max_movers(len(targets), held_others)
     power_info["ultima_tanda"] = k
     if k < len(targets):
         items = list(targets.items())
@@ -1297,7 +1361,11 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 pruebas.pop(cid, None)
             write_json(CONFIG_FILE, cfg)
-            if mark == "bien" and cands[cid].get("etapa") == 1:
+            if mark == "bien" and cands[cid].get("conv"):
+                for other, c in cands.items():  # solo una "de pie" buena: la última marcada
+                    if other != cid and c.get("conv") and pruebas.get(other, {}).get("mark") == "bien":
+                        pruebas.pop(other)
+                write_json(CONFIG_FILE, cfg)
                 save_convention(cands[cid]["conv"])
                 log(f"convención guardada desde '{cands[cid]['nombre']}': {cands[cid]['conv']} (+ posturas de pie/estirada/recogida)")
             log(f"prueba '{cid}' marcada: {mark or 'sin marca'}")
@@ -1473,7 +1541,7 @@ class Handler(BaseHTTPRequestHandler):
             if not m or m.get("libre"):
                 raise ValueError("solo se calibran canales mapeados")
             off, inv = CAL.get(ch, (0, False))
-            if action != "reset" and angles[ch] is None:
+            if action in ("zero", "invert") and angles[ch] is None:
                 raise ValueError("el servo está suelto: muévelo primero con su deslizador")
             phys = physical(ch, angles[ch]) if angles[ch] is not None else None
             if action == "zero":      # la posición actual pasa a ser el 90 lógico (sin moverse)
@@ -1485,6 +1553,17 @@ class Handler(BaseHTTPRequestHandler):
                 off, inv = 0, False
                 if phys is not None:
                     angles[ch] = phys
+            elif action == "nudge":   # corre el ajuste ±N°: todas las posturas y rutinas se corren igual en ese servo
+                d = int(b.get("delta", 0))
+                if not -30 <= d <= 30:
+                    raise ValueError("el ajuste se corre como mucho 30° cada vez")
+                new = max(-60, min(60, off + d))
+                step = 1 if new > off else -1
+                for o in range(off + step, new + step, step) if angles[ch] is not None else ():
+                    CAL[ch] = (o, inv)  # si está sujeto, se ve moverse poco a poco
+                    write(ch, angles[ch])
+                    time.sleep(SPEEDS["lento"])
+                off = new
             else:
                 raise ValueError("acción no válida")
             CAL[ch] = (off, inv)

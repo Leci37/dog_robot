@@ -22,12 +22,12 @@ en `.gitignore`, **nunca** subirlo).
 
   | Pata | 1 pectoral | 2 hombro | 3 codo |
   |---|---|---|---|
-  | A delantera izq | 4 | 2 | 0 (**no responde**: la PCA saca pulso; 16:30 el usuario encontró un cable suelto y lo enchufó "en el pin 1": comprobar si es este codo y en qué canal quedó) |
-  | B delantera der | 5 | 3 | **6** (conector movido desde el 1; a 90° quedaba "súper estirado": horn girado) |
+  | A delantera izq | 4 | 2 | **1** (antes en el 0, que no respondía; ajuste −15 = 15° hacia delante) |
+  | B delantera der | 5 | 3 | **6** (conector movido desde el 1; horn girado: ajuste +45 → en la de pie ya está en 175°, su tope) |
   | C trasera der | 10 | 12 | 14 |
   | D trasera izq | 11 | 13 | 15 |
 
-  Canales libres: 1, 7, 8, 9. Las traseras a 90° quedan perfectas y coordinadas.
+  Canales libres: 0, 7, 8, 9. Las traseras a 90° quedan perfectas y coordinadas.
 - En bolsa: LCD 1602A (sin I2C), HC-SR04, HC-05, una PCA9685 de repuesto.
 
 ## Seguridad (no negociable)
@@ -77,11 +77,20 @@ en `.gitignore`, **nunca** subirlo).
 - **Versión ligera** `/lite` (`web/lite.html`, sin Blockly): la que abre el navegador de la tele (`pantalla/navegador.sh`).
 - Mapa: al poner una pata/articulación en otro canal, el canal viejo queda `{"libre", "nota": "antes B3 (pasado al
   canal N)"}`, la calibración viaja si el canal nuevo no tenía, y se recarga `CAL` (`load_cal()` tras `save_map`).
-- **Rutinas para probar** (`candidate_routines` en server.py): etapa 1 = 8 variantes de "De pie" (signo de hombro,
-  de codo y delanteras igual/invertidas). Al marcar ✓ una, se guarda la convención en `config.json` y las posturas
-  "de pie"/"estirada"/"recogida" en `poses.json`; etapa 2 = 15 rutinas (de pie alto/bajo, tumbarse, levantarse,
-  sentarse, reverencia, flexiones, balanceo, saludar con B, marcar el paso, andar corto/largo/atrás, girar izq/der).
-  Modelo: patas de longitud parecida → agachar `beta`: codo beta, hombro beta/2. Andar = "creep" (orden D A C B).
+- **Rutinas para probar** (`candidate_routines` en server.py): etapa 1 = la **variante 6** de "De pie" (`CONV6`: hombro −,
+  codo +, delanteras invertidas; la ganadora de las 8 combinaciones) y sus variantes `VARIANTES_6` (6.1 baja, 6.2 alta,
+  6.3/6.4 inclinadas, 6.5/6.6 pectorales ±10) + "Bajar despacio" (`ayuda`, sin marcas). Todas usan `stand_program`:
+  pectorales → recoger las 4 patas a la vez (`TUCK` 52) → estirarlas a la vez a velocidad `suave` (0,1 s/°).
+  Al marcar ✓ una, se guarda en `config.json` la convención con `variante`, `delanteras`, `traseras`, `pectoral`
+  (solo una ✓ a la vez) y las posturas "de pie" (`base_stance`)/"estirada"/"recogida" en `poses.json`; etapa 2 =
+  15 rutinas sobre esa de pie (de pie alto/bajo, tumbarse, levantarse, sentarse, reverencia, flexiones, balanceo,
+  saludar con B, marcar el paso, andar corto/largo/atrás, girar izq/der); `juntos_multi` mueve juntos los pasos de
+  varias patas. Modelo: patas de longitud parecida → agachar `beta`: codo beta, hombro beta/2. Andar = "creep" (D A C B).
+- **Paso `set` con `juntos`**: `move_many(..., juntos=True)` mueve todos los servos a la vez (1° cada uno por paso)
+  aunque el límite de consumo diga tandas: en tandas, cada pata levantaba sola su esquina y su servo no podía.
+- **Ajuste fino** `/api/calibrate` `{action: "nudge", delta: ±1-30}`: corre el `offset` del canal (máx. ±60) sin
+  cambiar el ángulo lógico; si está sujeto se ve moverse. En la web, botones ±5/±15 de A3 y B3 en "Rutinas para probar".
+  Las variantes avisan si su postura final lleva un servo más allá de 5-175° físicos (`tope_warnings`).
 - **Mis rutinas** (`rutinas.json`): ejecutar, ver/editar en bloques, borrar. Teclas 1-9 en el HDMI.
 - **Programar con bloques** (Blockly 13.3.0 servido desde `web/static/blockly`, funciona sin internet; renderer
   "zelos" tipo Scratch). Bloques: mover pata/articulación (ángulo de gesto = el de la pata D; el resto en espejo),
@@ -183,3 +192,14 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   Lo más fácil: un cable micro USB de DATOS al NodeMCU -> /dev/ttyUSB0 y esptool lo pone solo en modo grabación.
   Después: slattach -L -p slip -s 115200 <puerto>; sl0 192.168.240.2 pointopoint 192.168.240.1; consola del ESP por
   telnet 192.168.240.1 7777 (set ap_ssid / ap_password, save, reset); el portátil en la WiFi del ESP abre http://192.168.240.2/lite.
+- 2026-10-12 (sesión desde el portátil, cable directo 169.254.42.1): el usuario eligió la **variante 6** de "De pie" y
+  pidió B3 45° y A3 15° más hacia delante "en el inicio" → calibración de canal: B3 (6) offset +45 (en el registro
+  se ve que lo subió a mano de 130 a 150, el tope lógico), A3 (1) offset −15 (espejo de B3: **sentido pendiente de
+  confirmar** por el usuario). B3 queda en 175° físicos en la de pie: al recoger no se dobla más. Arreglo de verdad:
+  girar el horn de B3 3 dientes (MG996R, 25 dientes = 14,4° cada uno → 43°) y dejar el ajuste en ~+2; el de A3 es
+  1 diente. "Le cuesta levantarse": con la fuente de 5 A `move_many` iba servo a servo (tandas de 1) y la rutina
+  empezaba con "mitad" (todo a 90 = patas rectas, lo más alto) → cada pata subía sola su esquina. Ahora: `stand_program`
+  (recoger y estirar las 4 a la vez, despacio) y `juntos`. Borradas las 8 variantes viejas y las posturas de_pie_v1/v2
+  (eran iguales; quedan en git, commit 04abf55). Pruebas con simulador: TODO BIEN (se arreglaron dos que dependían del
+  canal 0 de A3 y del tiempo del LED). Pendiente: probar en el robot y que el usuario marque ✓; después, las marchas.
+  La fuente de servos de 5 A sigue siendo poca: 6 V y ≥10 A.

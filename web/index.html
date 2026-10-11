@@ -730,7 +730,7 @@ const V_RIGHT = new Set(['B', 'C']), V_FRONT = new Set(['A', 'B']);
 const V_TITLE = {A: 'A · delantera izquierda', B: 'B · delantera derecha', C: 'C · trasera derecha', D: 'D · trasera izquierda'};
 const V_L1 = 82, V_L2 = 97, V_HIP = {x: 150, y: 52};
 let vDrag = null, vPreview = {};
-const vConv = () => st.convencion || {sh: 1, sk: 1, fi: false};
+const vConv = () => st.convencion || {sh: -1, sk: 1, fi: true};  // la variante 6 (la buena) mientras no se marque ✓
 function vGesture(leg, art, v) {
   if (V_RIGHT.has(leg)) v = 180 - v;
   let dev = v - 90;
@@ -850,7 +850,7 @@ function renderVivo() {
       <div class="why"><span class="pz">¿Qué va al revés? (la Pi invierte ese servo sin moverlo)</span>
         ${JOINTS.map(j => `<button data-vinv="${L}|${j}">${j} al revés</button>`).join('')}</div></div>`;
   }).join('');
-  $('vivoMsg').textContent = st.convencion ? '' : 'Sentido de las articulaciones aún sin confirmar: el dibujo supone el más habitual. Corrígelo con "✗ No" o marcando ✓ una variante de "De pie".';
+  $('vivoMsg').textContent = st.convencion ? '' : 'Dibujo con el sentido de la variante 6 (la buena). Marca ✓ la de pie que prefieras en "Rutinas para probar" para dejarlo fijo.';
 }
 function vPoint(svg, ev) {
   const r = svg.getBoundingClientRect(), k = 300 / r.width;
@@ -1310,20 +1310,31 @@ function renderRt() {
   if (!rts) return;
   renderRunning(rts.ejecutando);
   const conv = rts.convencion, pr = rts.pruebas || {}, stage = conv ? 2 : 1;
-  $('tryInfo').innerHTML = conv
-    ? `<b>Sentido encontrado</b> (hombro ${conv.sh > 0 ? '+' : '−'}, codo ${conv.sk > 0 ? '+' : '−'}, delanteras ${conv.fi ? 'invertidas' : 'igual'}).
+  const nudge = leg => {  // ajuste del codo delantero (calibración de su canal): corre ese servo en todas las posturas
+    const ch = Object.keys(st.map || {}).find(k => st.map[k].pata === leg && st.map[k].articulacion === 'codo');
+    if (ch === undefined) return '';
+    const off = st.map[ch].offset || 0;
+    return `<span class="row" style="display:inline-flex;align-items:center;margin-right:12px">${leg}3 (canal ${ch}) ajuste <b>${off > 0 ? '+' : ''}${off}°</b>
+      ${[-15, -5, 5, 15].map(d => `<button data-nudge="${ch}" data-d="${d}">${d > 0 ? '+' : ''}${d}</button>`).join('')}
+      ${Math.abs(off) > 40 ? '<span class="tag warn">llega a su tope al recoger: mejor girar su horn 3 dientes</span>' : ''}</span>`;
+  };
+  $('tryInfo').innerHTML = (conv
+    ? `<b>De pie elegida:</b> ${conv.variante ? 'la ' + esc(conv.variante) : 'variante 6'} (hombro ${conv.sh > 0 ? '+' : '−'}, codo ${conv.sk > 0 ? '+' : '−'}, delanteras ${conv.fi ? 'invertidas' : 'igual'}).
        Ya están guardadas las posturas <b>de pie</b>, <b>estirada</b> y <b>recogida</b>. Prueba estas rutinas, marca <b>✓ funciona</b> o <b>✗ no</b>
-       y guarda las buenas en "Mis rutinas". Robot en el aire primero; luego en el suelo sujetándolo. <button data-convreset="1">Volver a buscar el sentido</button>`
-    : `<b>Paso 1:</b> busca la variante de <b>De pie</b> en la que las 4 patas quedan iguales (codos doblados hacia atrás y pezuñas bajo el cuerpo).
-       Robot en el aire. Pruébalas una a una y marca la buena con <b>✓ funciona</b>: se guardan los parámetros y aparecen las demás rutinas
-       (andar, girar, sentarse, tumbarse, saludar…).`;
-  const list = rts.candidatas.filter(c => c.etapa === stage || (c.etapa === 1 && pr[c.id] && pr[c.id].mark === 'bien'));
+       y guarda las buenas en "Mis rutinas". Robot en el aire primero; luego en el suelo sujetándolo. <button data-convreset="1">Volver a elegir la de pie</button>`
+    : `<b>Paso 1:</b> la buena es la <b>6</b> (hombro −, codo +, delanteras invertidas). Prueba la 6 y sus variantes y marca la mejor con <b>✓ funciona</b>:
+       se guarda como postura "de pie" y aparecen las demás rutinas (andar, girar, sentarse…). Cada una recoge las 4 patas y se levanta
+       con las 4 a la vez, muy despacio (antes iban de una en una y cada pata cargaba sola con su esquina). Entre prueba y prueba, <b>Bajar despacio</b>.`)
+    + `<div class="row" style="margin-top:8px;align-items:center">Codos delanteros: ${nudge('B')} ${nudge('A')}</div>
+       <div class="pz">B3 lleva +45 y A3 −15 (15° hacia delante en A3 es −15 porque va en espejo de B3; si A3 se fue hacia atrás, pulsa +15 dos veces).
+       El ajuste corre ese servo en todas las posturas y rutinas.</div>`;
+  const list = rts.candidatas.filter(c => c.etapa === stage || c.ayuda || (c.etapa === 1 && pr[c.id] && pr[c.id].mark === 'bien'));
   $('tries').innerHTML = list.map(c => {
     const mk = pr[c.id] && pr[c.id].mark;
     return `<div class="card ${mk === 'bien' ? 'hl' : ''}"><div class="top"><span class="ch">${esc(c.nombre)}</span>${mk ? `<span class="tag ${mk === 'bien' ? 'ok' : 'bad'}">${mk === 'bien' ? '✓ funciona' : '✗ no'}</span>` : ''}</div>
       <div class="pz">${esc(c.desc)} · ${c.pasos} pasos</div>
-      <div class="row"><button class="pri" data-try="${esc(c.id)}">▶ Probar</button><button data-mark="${esc(c.id)}" data-mk="bien">✓ Funciona</button>
-        <button data-mark="${esc(c.id)}" data-mk="mal">✗ No</button>${mk ? `<button data-mark="${esc(c.id)}" data-mk="">borrar marca</button>` : ''}
+      <div class="row"><button class="pri" data-try="${esc(c.id)}">▶ Probar</button>${c.ayuda ? '' : `<button data-mark="${esc(c.id)}" data-mk="bien">✓ Funciona</button>
+        <button data-mark="${esc(c.id)}" data-mk="mal">✗ No</button>${mk ? `<button data-mark="${esc(c.id)}" data-mk="">borrar marca</button>` : ''}`}
         <button data-viewtry="${esc(c.id)}" title="Abrirla en el editor de bloques">bloques</button></div>
       ${mk === 'bien' && c.etapa === 2 ? `<div class="row"><button data-savetry="${esc(c.id)}" data-name="${esc(c.nombre.toLowerCase())}">Guardar en mis rutinas</button></div>` : ''}</div>`;
   }).join('');
@@ -1503,7 +1514,8 @@ document.addEventListener('click', async e => {
   else if (d.run) rtPost('/api/routine_run', {nombre: d.run}, `ejecutando "${d.run}"…`);
   else if (d.del) { if (confirm(`¿Borrar la rutina "${d.del}"?`)) rtPost('/api/routine_delete', {nombre: d.del}, 'borrando…'); }
   else if (d.edit) openInBlocks(d.edit);
-  else if (d.convreset) { if (confirm('¿Olvidar el sentido encontrado y volver a probar las variantes de "De pie"?')) rtPost('/api/convention_reset', {}, 'volviendo al paso 1…'); }
+  else if (d.convreset) { if (confirm('¿Olvidar la de pie elegida y volver a probar la 6 y sus variantes?')) rtPost('/api/convention_reset', {}, 'volviendo al paso 1…'); }
+  else if (d.nudge) { await act('/api/calibrate', {ch: +d.nudge, action: 'nudge', delta: +d.d}, `canal ${d.nudge}: ajuste ${+d.d > 0 ? '+' : ''}${d.d}°`); renderRt(); }
   else if (b.id === 'blkRun') {
     await ensureBlockly();
     const prog = blkProgram();

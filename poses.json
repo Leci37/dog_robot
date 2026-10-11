@@ -1,15 +1,5 @@
 {
   "C": {
-    "de_pie_v1": {
-      "pectoral": 60,
-      "hombro": 55,
-      "codo": 90
-    },
-    "de_pie_v2": {
-      "pectoral": 60,
-      "hombro": 55,
-      "codo": 90
-    },
     "todas_90_v1": {
       "pectoral": 90,
       "hombro": 90,
@@ -27,16 +17,6 @@
     }
   },
   "D": {
-    "de_pie_v1": {
-      "pectoral": 120,
-      "hombro": 120,
-      "codo": 90
-    },
-    "de_pie_v2": {
-      "pectoral": 120,
-      "hombro": 120,
-      "codo": 90
-    },
     "todas_90_v1": {
       "pectoral": 90,
       "hombro": 90,
@@ -54,16 +34,6 @@
     }
   },
   "A": {
-    "de_pie_v1": {
-      "codo": 90,
-      "hombro": 60,
-      "pectoral": 120
-    },
-    "de_pie_v2": {
-      "codo": 90,
-      "hombro": 60,
-      "pectoral": 120
-    },
     "todas_90_v1": {
       "codo": 90,
       "hombro": 90,
@@ -81,16 +51,6 @@
     }
   },
   "B": {
-    "de_pie_v1": {
-      "hombro": 120,
-      "pectoral": 60,
-      "codo": 90
-    },
-    "de_pie_v2": {
-      "hombro": 120,
-      "pectoral": 60,
-      "codo": 90
-    },
     "todas_90_v1": {
       "hombro": 90,
       "pectoral": 90,

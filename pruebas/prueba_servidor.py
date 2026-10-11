@@ -96,7 +96,8 @@ st = call("/api/state")
 check(st["ultima"]["angulos"].get("2") == 110, "memoria de posición: recuerda el último ángulo aunque esté suelto")
 st = call("/api/pose_save", {"pata": "todas", "nombre": "memo", "usar_ultima": True})
 check(st["poses"]["A"]["memo"]["hombro"] == 110, "guardar con la última posición conocida")
-st = call("/api/pose_save", {"pata": "todas", "nombre": "dibujo", "angulos": {"4": 95, "2": 120, "0": 70}})
+chA = {m["articulacion"]: k for k, m in st["map"].items() if m.get("pata") == "A"}  # el codo de A cambió de canal (0 -> 1)
+st = call("/api/pose_save", {"pata": "todas", "nombre": "dibujo", "angulos": {chA["pectoral"]: 95, chA["hombro"]: 120, chA["codo"]: 70}})
 check(st["poses"]["A"]["dibujo"] == {"pectoral": 95, "hombro": 120, "codo": 70}, "guardar lo dibujado (copiar del robot)")
 st = call("/api/lock_loose", {"a": "ultima"})
 check(sum(1 for v in st["angles"].values() if v is not None) == 12 and st["angles"]["2"] == 110,
@@ -161,21 +162,47 @@ call("/api/board_led", {"activo": True, "canal": 2}, expect=400)
 check(True, "no deja poner el LED en un canal con servo")
 call("/api/map", {"ch": 9, "pata": "A", "articulacion": "codo"}, expect=400)
 check(True, "no deja poner un servo en el canal del LED")
-time.sleep(2.5)
+time.sleep(4.5)  # el servidor relee la configuración del LED cada 2 s
 leds = [ln for ln in open(FAKE_LOG) if ln.startswith("led9 ")]
-check(len(leds) >= 2, f"el LED del canal 9 parpadea ({len(leds)} cambios en 2,5 s)")
+check(len(leds) >= 2, f"el LED del canal 9 parpadea ({len(leds)} cambios en 4,5 s)")
 st = call("/api/board_led", {"activo": False, "canal": 9})
 check(not st["led_placa"]["activo"] and not st["map"]["9"].get("led"), "LED de vida desactivado y canal libre otra vez")
 
+# --- ajuste fino de un servo (calibración ±N°): el ángulo lógico no cambia, el físico sí ---
+call("/api/off", {})
+m0 = call("/api/state")["map"]
+chB3 = next(k for k, m in m0.items() if m.get("pata") == "B" and m.get("articulacion") == "codo")
+off0 = m0[chB3].get("offset", 0)
+call("/api/angle", {"ch": int(chB3), "angle": 100})
+st = call("/api/calibrate", {"ch": int(chB3), "action": "nudge", "delta": 5})
+check(st["map"][chB3]["offset"] == off0 + 5 and st["angles"][chB3] == 100, f"B3 (canal {chB3}): ajuste {off0} -> +5 sin cambiar su ángulo lógico")
+st = call("/api/calibrate", {"ch": int(chB3), "action": "nudge", "delta": -5})
+check(st["map"][chB3]["offset"] == off0, "ajuste devuelto a como estaba")
+call("/api/calibrate", {"ch": int(chB3), "action": "nudge", "delta": 40}, expect=400)
+check(True, "no deja correr el ajuste más de 30° de golpe")
+call("/api/off", {})
+
 call("/api/convention_reset", {})
 rt = call("/api/routines")
-check(len([c for c in rt["candidatas"] if c["etapa"] == 1]) == 8 and not rt["convencion"], "etapa 1: 8 variantes de 'De pie'")
-cid = rt["candidatas"][0]["id"]
+e1 = [c for c in rt["candidatas"] if c["etapa"] == 1]
+check(len([c for c in e1 if not c.get("ayuda")]) == 7 and any(c["id"] == "bajar" for c in e1) and not rt["convencion"],
+      "etapa 1: la 6 y sus 6 variantes, más 'Bajar despacio'")
+check(all("variante" not in c["nombre"] for c in e1), "ya no están las 8 variantes viejas de 'De pie'")
+cid = "de-pie-6"
 call("/api/routine_run", {"candidata": cid})
+time.sleep(0.3)
 fin = wait_routine()
 check(fin["fin"] == "terminada", f"ejecuta '{cid}': {fin.get('fin')} {fin.get('error', '')}")
-rt = call("/api/try_mark", {"id": cid, "mark": "bien"})
-check(rt["convencion"] == {"sh": 1, "sk": 1, "fi": False}, "✓ en De pie guarda la convención")
+check(call("/api/state")["potencia"]["ultima_tanda"] == 8, "al levantarse, hombros y codos de las 4 patas van juntos (8) aunque la fuente sea de 5 A")
+call("/api/routine_run", {"candidata": "bajar"})
+check(wait_routine()["fin"] == "terminada", "bajar despacio")
+call("/api/routine_run", {"candidata": "de-pie-6.2"})
+check(wait_routine()["fin"] == "terminada", "de pie 6.2 (alta)")
+rt = call("/api/try_mark", {"id": "de-pie-6", "mark": "bien"})
+rt = call("/api/try_mark", {"id": "de-pie-6.2", "mark": "bien"})
+check({k: rt["convencion"][k] for k in ("sh", "sk", "fi")} == {"sh": -1, "sk": 1, "fi": True} and rt["convencion"]["variante"] == "6.2",
+      f"✓ en la 6.2 guarda la convención de la 6 con su altura: {rt['convencion']}")
+check(rt["pruebas"].get("de-pie-6.2", {}).get("mark") == "bien" and "de-pie-6" not in rt["pruebas"], "solo queda una de pie marcada ✓")
 stage2 = [c for c in rt["candidatas"] if c["etapa"] == 2]
 check(len(stage2) >= 12, f"etapa 2: {len(stage2)} rutinas")
 poses = call("/api/state")["poses"]
@@ -254,7 +281,8 @@ for it in rep["items"]:
     print(f"      [{it['estado']:5}] {it['area']}: {it['item']} — {it['detalle']}")
 
 vals = [float(ln.split()[1]) for ln in open(FAKE_LOG) if not ln.startswith("led") and ln.split()[1] != "None"]
-check(vals and min(vals) >= 30 and max(vals) <= 150, f"todos los ángulos enviados entre 30 y 150 ({min(vals)}–{max(vals)}, {len(vals)} órdenes)")
+# ángulos físicos: los lógicos 30-150 más la calibración de cada servo (B3 +45), siempre dentro de 5-175
+check(vals and min(vals) >= 5 and max(vals) <= 175, f"todos los ángulos enviados entre 5 y 175 ({min(vals)}–{max(vals)}, {len(vals)} órdenes)")
 
 print("\nRESULTADO:", "TODO BIEN" if not fails else f"{len(fails)} FALLOS")
 for f in fails:

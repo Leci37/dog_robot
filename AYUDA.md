@@ -85,16 +85,18 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
 
 4. RUTINAS Y BLOQUES (para que ande)
 ------------------------------------
-- Web > "Rutinas para probar". Paso 1: prueba las 8 variantes de "De pie" (robot en el aire) y marca
-  ✓ la que deja las 4 patas iguales. Eso guarda el sentido de las articulaciones y las posturas
-  "de pie", "estirada" y "recogida", y aparecen ~15 rutinas: de pie alto/bajo, tumbarse, levantarse,
-  sentarse, reverencia, flexiones, balanceo, saludar, marcar el paso, andar (corto/largo/atrás), girar.
-  Marca ✓/✗ cada una y guarda las buenas en "Mis rutinas".
+- Web > "Rutinas para probar". Paso 1: la buena es la "De pie 6" (encontrada el 11-10). Prueba la 6 y
+  sus variantes (6.1 baja, 6.2 alta, 6.3 y 6.4 inclinadas, 6.5 y 6.6 pectorales) y marca ✓ la mejor.
+  Cada una recoge las 4 patas y se levanta con las 4 a la vez, muy despacio. Entre prueba y prueba,
+  "Bajar despacio". Los codos delanteros tienen su ajuste ahí mismo (B3 +45, A3 -15; botones ±5/±15).
+  Al marcar ✓ se guardan las posturas "de pie", "estirada" y "recogida", y aparecen ~15 rutinas: de pie
+  alto/bajo, tumbarse, levantarse, sentarse, reverencia, flexiones, balanceo, saludar, marcar el paso,
+  andar (corto/largo/atrás), girar. Marca ✓/✗ cada una y guarda las buenas en "Mis rutinas".
 - Web > "Programar con bloques": como Scratch. Bloques de mover (pata/articulación/grados, relativo,
   pata entera), posturas, todo a mitad, soltar, esperar, velocidad, repetir y ejecutar rutina.
   Los ángulos son los de la pata D; las demás hacen el mismo gesto. Guarda el programa con un nombre.
 - Cualquier rutina se para con "Parar rutina" (arriba), "Soltar todo" o la tecla X/S de la pantalla.
-- En el suelo: primero sujetando el robot con la mano. El codo de A (canal 0) no responde.
+- En el suelo: primero sujetando el robot con la mano. El codo de A está ahora en el canal 1.
 
 5. INFORME PARA LA MUDANZA
 --------------------------
