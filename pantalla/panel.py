@@ -271,7 +271,7 @@ class Panel:
     def draw_outputs(self, y, x, wid, G, Y, R, B, DIM, REV, now):
         d = self.d
         self.box(y, x, 19, wid, "16 SALIDAS PCA9685")
-        self.put(y, x + wid - 40, " ↑↓ elegir ←→ mover P probar L soltar ", curses.color_pair(6))
+        self.put(y, x + wid - 42, " ↑↓ elegir ←→5° Pág15° Inicio/Fin30° ", curses.color_pair(6))
         st = d.state or {}
         m, ang = st.get("map", {}), st.get("angles", {})
         self.put(y + 1, x + 2, "can pata/art.       ángulo 0-180°   grados   pulso  estado", DIM | B)
@@ -361,12 +361,16 @@ class Panel:
             on = svc.get(name)
             self.put(y + 5, xx, f"● {name} ", G if on else R)
             xx += len(name) + 3
-        energy = s.get("energia") or []
-        golpes = sum(1 for ln in energy if "DE GOLPE" in ln)
+        ap = s.get("apagones") or {"total": 0, "por_corriente": 0, "lista": []}
         self.put(y + 6, x + 2, f"placa PCA9685: {'responde' if e.get('pca') else 'NO RESPONDE'}", G if e.get("pca") else R | B)
-        self.put(y + 6, x + 32, f"cortes recientes: {golpes}", Y if golpes else 0)
-        last = next((ln for ln in reversed(energy) if "ARRANQUE" not in ln), energy[-1] if energy else "")
-        self.put(y + 7, x + 2, ("último: " + last[11:])[:wid - 4], DIM)
+        self.put(y + 6, x + 30, f"apagados de golpe: {ap['total']} ({ap['por_corriente']} por corriente)",
+                 (R | B) if ap["total"] else G)
+        if ap["lista"]:
+            lt = ap["lista"][-1]
+            txt = f"último apagado: {lt['hora'][5:]} · {lt['causa']}" + (f" ({lt['caidas']} caídas)" if lt["caidas"] else "")
+        else:
+            txt = "sin apagados de golpe registrados"
+        self.put(y + 7, x + 2, txt[:wid - 4], R if ap["lista"] else DIM)
 
     def draw_robot(self, y, x, wid, G, Y, R, B, now):
         d, st = self.d, self.d.state or {}
@@ -447,9 +451,11 @@ class Panel:
         if k == curses.KEY_DOWN:
             self.sel = (self.sel + 1) % 16
             return None
-        if k in (curses.KEY_LEFT, curses.KEY_RIGHT):
+        steps = {curses.KEY_LEFT: -5, curses.KEY_RIGHT: 5, curses.KEY_NPAGE: -15, curses.KEY_PPAGE: 15,
+                 curses.KEY_HOME: 30, curses.KEY_END: -30}
+        if k in steps:
             cur = st.get("angles", {}).get(str(self.sel))
-            a = max(30, min(150, (cur if cur is not None else 90) + (5 if k == curses.KEY_RIGHT else -5)))
+            a = max(30, min(150, (cur if cur is not None else 90) + steps[k]))
             self.action(f"Salida {self.sel} a {a}°", "/api/angle", {"ch": self.sel, "angle": a, "speed": "lento"}, timeout=20)
             return None
         try:

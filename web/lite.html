@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LUIS LECI control · lite</title>
+<style>
+/* Versión ligera para el navegador de la tele (Raspberry Pi 2): sin librerías, sin sombras ni animaciones;
+   la tabla de salidas se crea una vez y en cada consulta solo se cambian textos y clases. */
+:root{--bg:#111;--card:#1c1c1c;--ink:#eee;--mut:#999;--line:#333;--acc:#7f77dd;--ok:#4caf50;--warn:#e0a020;--bad:#e05050}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.4 sans-serif}
+header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 12px;background:#1a1640;border-bottom:2px solid var(--acc)}
+h1{font-size:19px;margin:0;flex:1}
+.tag{padding:3px 10px;border-radius:12px;background:var(--line);font-size:15px}
+.ok{background:var(--ok);color:#000}.warn{background:var(--warn);color:#000}.bad{background:var(--bad);color:#fff}
+main{padding:10px 12px}
+button{font:inherit;font-size:17px;border:1px solid #555;background:#2a2a2a;color:var(--ink);border-radius:8px;padding:8px 12px}
+button:active{background:#444}
+button:disabled{opacity:.4}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+button.stop{background:var(--bad);border-color:var(--bad);color:#fff;font-weight:bold}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;align-items:center}
+.big button{font-size:20px;padding:12px 18px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:8px 0}
+.alert{background:#4a1515;border:2px solid var(--bad);border-radius:10px;padding:8px 10px;margin:8px 0;display:none}
+.meter{height:16px;background:#333;border-radius:8px;overflow:hidden;flex:1;min-width:120px}
+.meter i{display:block;height:100%;width:0;background:var(--ok)}
+table{border-collapse:collapse;width:100%}
+td{padding:4px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+td.lab{width:150px}
+td.bar{width:28%}
+td.bar .meter{height:14px}
+td.amp{width:56px;text-align:right}
+tr.held td{color:#9fe09f}
+tr.free td{color:var(--mut)}
+tr.note td{color:#ff9090}
+tr.led td{color:#9ad}
+tr.mov td{background:#5a4a00;color:#fff}
+td.btn button{padding:5px 9px;font-size:15px;margin-left:2px}
+#off{display:none;position:sticky;top:0;z-index:5;background:var(--bad);color:#fff;padding:8px;text-align:center;font-weight:bold}
+.mut{color:var(--mut);font-size:14px}
+</style>
+</head>
+<body>
+<div id="off">Sin conexión con la Pi · reintentando sola… (si se ha reiniciado tarda 2-3 minutos)</div>
+<header>
+  <h1>LUIS LECI control <span class="mut">· lite</span></h1>
+  <span class="tag" id="vivo">●</span>
+  <span class="tag" id="pw">alimentación…</span>
+  <span class="tag" id="apag">apagados…</span>
+  <span class="tag" id="net">red…</span>
+</header>
+<main>
+  <div class="alert" id="freno">
+    <b>Freno por falta de corriente:</b> a la Pi le falta corriente ahora mismo y mover servos puede apagarla, así que los movimientos están bloqueados.
+    Revisa el cargador/cable de la Pi y el GND de la clema.
+    <div class="row"><button id="permitir">Permitir mover aunque falte corriente</button></div>
+  </div>
+  <div class="row big">
+    <button class="stop" data-a="off">Soltar todo</button>
+    <button class="pri" data-a="sujetar">Bloquear todo (donde estaba)</button>
+    <button class="pri" data-a="mitad">Todo a mitad</button>
+    <button class="pri" data-a="recogida">Recoger</button>
+    <button class="pri" data-a="estirada">Estirar</button>
+    <button class="pri" data-a="de pie">De pie</button>
+    <button data-a="parar">Parar rutina</button>
+  </div>
+  <div class="box">
+    <div class="row" style="margin:2px 0">
+      <b>Consumo servos:</b> <span id="amps">…</span>
+      <div class="meter"><i id="ampsbar"></i></div>
+      <span id="lim" class="mut"></span>
+    </div>
+    <div class="row" id="progrow" style="margin:2px 0;display:none">
+      <b id="progtxt">Sujetando…</b>
+      <div class="meter"><i id="progbar" style="background:var(--acc)"></i></div>
+    </div>
+    <div class="row" style="margin:2px 0"><span id="rt" class="mut">sin rutina en marcha</span></div>
+    <div class="row" id="rts" style="margin:4px 0"></div>
+  </div>
+  <div class="box"><table id="outs"></table></div>
+  <div class="box mut" id="apaglist"></div>
+  <div class="row"><span class="mut" id="msg"></span></div>
+  <p class="mut">Versión ligera para la tele. La completa (bloques, rutinas para probar, calibrar, mapear…) está en
+    <a href="/" style="color:#aaf">/</a> desde el PC. Alt+F4 vuelve al panel de texto.</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const JN = {pectoral: 1, hombro: 2, codo: 3};
+const STEPS = [-30, -15, -5, 5, 15, 30];
+let st = null, cons = null, lastOk = Date.now(), prev = {}, flash = {}, busy = false, prog = null;
+async function api(path, body) {
+  const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), body ? 120000 : 6000);
+  try {
+    const r = await fetch(path, body ? {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body), signal: ctl.signal}
+                                       : {signal: ctl.signal, cache: 'no-store'});
+    const j = await r.json(); lastOk = Date.now();
+    if (r.status === 409) throw new Error('el robot todavía se está moviendo: espera a que termine');
+    if (!r.ok) throw new Error(j.error || r.status);
+    return j;
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('la Pi no responde');
+    throw e;
+  } finally { clearTimeout(tm); }
+}
+async function act(path, body, text) {
+  if (busy && path !== '/api/off' && path !== '/api/routine_stop') { $('msg').textContent = 'espera, todavía se está moviendo…'; return; }
+  busy = true; $('msg').textContent = text;
+  try { const j = await api(path, body); if (j && j.angles) { st = j; draw(); } $('msg').textContent = 'listo'; }
+  catch (e) { $('msg').textContent = 'Error: ' + e.message; }
+  busy = false; prog = null;
+}
+// tabla de 16 salidas: se crea una vez
+const rows = [];
+(function build() {
+  const t = $('outs');
+  for (let ch = 0; ch < 16; ch++) {
+    const tr = t.insertRow();
+    tr.innerHTML = `<td>${ch}</td><td class="lab"></td><td class="bar"><div class="meter"><i></i></div></td><td class="ang"></td>
+      <td class="est"></td><td class="amp"></td>
+      <td class="btn">${STEPS.map(d => `<button data-ch="${ch}" data-d="${d}">${d > 0 ? '+' + d : '−' + -d}</button>`).join('')}<button data-ch="${ch}" data-rel="1">soltar</button></td>`;
+    rows.push({tr, lab: tr.cells[1], bar: tr.querySelector('i'), ang: tr.cells[3], est: tr.cells[4], amp: tr.cells[5]});
+  }
+})();
+function draw() {
+  if (!st) return;
+  const now = Date.now(), cc = (cons && cons.canales) || {};
+  for (let ch = 0; ch < 16; ch++) {
+    const m = st.map[ch] || {}, a = st.angles[ch], r = rows[ch], c = cc[ch];
+    if (prev[ch] !== undefined && prev[ch] !== a) flash[ch] = now + 2000;
+    prev[ch] = a;
+    const lab = m.pata ? `${m.pata}${JN[m.articulacion] || '?'} ${m.articulacion}${m.nota ? ' !' : ''}` : m.led ? 'LED de vida' : (m.libre ? 'libre' : 'sin mapear');
+    if (r.lab.textContent !== lab) r.lab.textContent = lab;
+    r.bar.style.width = a == null ? '0' : Math.round(a / 180 * 100) + '%';
+    r.ang.textContent = a == null ? '—' : a + '°';
+    const mov = (c && c.estado === 'moviendo') || (flash[ch] && now < flash[ch]);
+    r.est.textContent = mov ? 'MOVIENDO' : (m.led ? 'parpadea' : a == null ? 'suelto' : 'sujeto');
+    r.amp.textContent = c ? c.A.toFixed(1) + ' A' : '';
+    r.tr.className = mov ? 'mov' : m.led ? 'led' : (m.nota && m.pata) ? 'note' : (m.libre || !m.pata) ? 'free' : (a == null ? '' : 'held');
+  }
+  const mapped = Object.values(st.map).filter(m => m.pata).length;
+  const held = Object.keys(st.angles).filter(k => st.angles[k] !== null && (st.map[k] || {}).pata).length;
+  const p = st.potencia || {}, lim = (cons && cons.limite_A) || p.amperios || 5;
+  const total = cons ? cons.total_A : held * 0.3;
+  $('amps').textContent = total.toFixed(1) + ' A';
+  $('ampsbar').style.width = Math.min(100, total / lim * 100) + '%';
+  $('ampsbar').style.background = total > lim ? 'var(--bad)' : total > 0.8 * lim ? 'var(--warn)' : 'var(--ok)';
+  $('lim').textContent = (p.limitar ? `límite ${lim} A · ${p.a_la_vez_12} servo(s) a la vez` : 'SIN LÍMITE') + ` · ${held}/${mapped} sujetos`;
+  const pg = cons && cons.progreso;
+  if (pg && pg.running) {  // barra de "Bloquear todo" que da el servidor (paso a paso, pata a pata)
+    $('progrow').style.display = 'flex';
+    $('progtxt').textContent = `${pg.nombre || 'Bloqueando'} ${pg.paso}/${pg.total}${pg.detalle ? ' · ' + pg.detalle : ''}`;
+    $('progbar').style.width = Math.min(100, pg.paso / Math.max(1, pg.total) * 100) + '%';
+  } else if (prog) {  // servidor antiguo (sin /api/lock_all): cuenta los que ya están sujetos
+    const done = Math.max(0, held - prog.start), tot = Math.max(1, prog.total);
+    $('progrow').style.display = 'flex';
+    $('progtxt').textContent = `Sujetando ${Math.min(done, tot)}/${tot}…`;
+    $('progbar').style.width = Math.min(100, done / tot * 100) + '%';
+  } else $('progrow').style.display = 'none';
+  const r = st.rutina || {};
+  $('rt').textContent = r.running ? `▶ ${r.nombre} · paso ${r.paso}/${r.total}` : (r.fin ? `última rutina: ${r.nombre} (${r.fin})` : 'sin rutina en marcha');
+  const brake = cons ? (cons.falta_corriente && !cons.permitir_sin_corriente) : (p.falta_corriente_ahora && !p.permitir_sin_corriente);
+  $('freno').style.display = brake ? 'block' : 'none';
+}
+async function pollState() { try { st = await api('/api/state'); draw(); } catch {} }
+async function pollCons() { try { cons = await api('/api/consumo'); draw(); } catch {} }
+async function pollSys() {
+  try {
+    const s = await api('/api/system'), th = s.throttled || 0, uv = s.caidas_tension_arranque || 0;
+    $('pw').className = 'tag ' + (th & 1 ? 'bad' : (th & 0x10000 || uv) ? 'warn' : 'ok');
+    $('pw').textContent = th & 1 ? 'FALTA CORRIENTE' : (th & 0x10000 || uv) ? `hubo caídas (${uv})` : 'alimentación OK';
+    const ap = s.apagones || {total: 0, por_corriente: 0, lista: []};
+    $('apag').className = 'tag ' + (ap.total ? 'bad' : 'ok');
+    $('apag').textContent = `apagados de golpe: ${ap.total}` + (ap.total ? ` (${ap.por_corriente} por corriente)` : '');
+    $('apaglist').innerHTML = '<b>Apagados de golpe (últimos):</b><br>' + (ap.lista.length ? ap.lista.slice(-5).reverse().map(x =>
+      `${x.hora} · ${x.causa}${x.caidas ? ' (' + x.caidas + ' caídas de tensión antes)' : ''}`).join('<br>') : 'ninguno');
+    $('net').textContent = {router: 'router', directo: 'cable directo', 'sin-cable': 'sin cable'}[s.net.mode] || s.net.mode;
+  } catch {}
+}
+async function pollRt() {
+  try {
+    const r = await api('/api/routines'), names = Object.keys(r.guardadas || {});
+    const box = $('rts'); box.textContent = '';
+    if (names.length) {
+      const s = document.createElement('span'); s.className = 'mut'; s.textContent = 'Rutinas:'; box.appendChild(s);
+      names.slice(0, 9).forEach(n => { const b = document.createElement('button'); b.className = 'pri'; b.dataset.run = n; b.textContent = n; box.appendChild(b); });
+    }
+  } catch {}
+}
+async function lockAll() {
+  // "Bloquear todo" del servidor: a la vez si la fuente aguanta, si no uno a uno (pata a pata) con barra de progreso
+  $('msg').textContent = 'bloqueando todo donde estaba (según la memoria de posición)…';
+  try { await api('/api/lock_all', {segundos: 0.4}); $('msg').textContent = 'bloqueando… (mira la barra)'; return; }
+  catch (e) {
+    if (!/no existe|404/.test(e.message)) { $('msg').textContent = 'Error: ' + e.message; return; }
+  }
+  // servidor antiguo: sujetar los sueltos donde estaban, sin barra del servidor
+  const loose = st ? Object.keys(st.map).filter(k => st.map[k].pata && st.angles[k] === null).length : 0;
+  if (!loose) { $('msg').textContent = 'no hay servos sueltos'; return; }
+  prog = {start: Object.keys(st.angles).filter(k => st.angles[k] !== null && (st.map[k] || {}).pata).length, total: loose};
+  act('/api/lock_loose', {a: 'ultima', speed: 'normal'}, `sujetando ${loose} servos donde estaban…`);
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const d = b.dataset;
+  if (b.id === 'permitir') {
+    if (!confirm('¿Permitir mover servos aunque a la Pi le falte corriente? Puede apagarse de golpe.')) return;
+    const p = (st && st.potencia) || {};
+    act('/api/power', {limitar: p.limitar !== false, amperios: p.amperios || 5, permitir_sin_corriente: true}, 'permitiendo mover…');
+  } else if (d.ch !== undefined && d.d) {
+    const ch = +d.ch, cur = st && st.angles[ch] != null ? st.angles[ch] : 90;
+    const a = Math.max(30, Math.min(150, cur + +d.d));
+    act('/api/angle', {ch, angle: a, speed: 'normal'}, `salida ${ch} → ${a}°…`);
+  } else if (d.rel) act('/api/release', {ch: +d.ch}, `soltando la salida ${d.ch}…`);
+  else if (d.a === 'off') { busy = false; act('/api/off', {}, 'soltando todo…'); }
+  else if (d.a === 'sujetar') lockAll();
+  else if (d.a === 'mitad') act('/api/pose90', {speed: 'normal'}, 'todo a mitad…');
+  else if (d.a === 'parar') { busy = false; act('/api/routine_stop', {}, 'parando la rutina…'); }
+  else if (d.a) act('/api/pose_go', {pata: 'todas', nombre: d.a, speed: 'normal'}, `postura "${d.a}"…`);
+  else if (d.run) act('/api/routine_run', {nombre: d.run}, `rutina "${d.run}"…`);
+});
+setInterval(() => {
+  const off = Date.now() - lastOk > 10000;
+  $('off').style.display = off ? 'block' : 'none';
+  const v = $('vivo'); v.className = 'tag ' + (off ? 'bad' : 'ok');
+  v.textContent = off ? '● sin conexión' : (Math.floor(Date.now() / 500) % 2 ? '● VIVO' : '○ VIVO');
+}, 500);
+pollState(); pollCons(); pollSys(); pollRt();
+setInterval(pollState, 2000); setInterval(pollCons, 1000); setInterval(pollSys, 6000); setInterval(pollRt, 15000);
+setInterval(draw, 700);
+</script>
+</body>
+</html>
