@@ -196,7 +196,7 @@ class Panel:
         self.put(y, 1, "TECLAS", B)
         self.put(y, 9, "S soltar todo   M bloquear a mitad (90°)   R recoger   E estirar   1-9 rutina   X parar rutina")
         y += 1
-        self.put(y, 9, "W web en esta pantalla   C consola (en vez del panel)   T consola aparte (Alt+F1 vuelve)")
+        self.put(y, 9, "W página web aquí (con RATÓN, colores y scroll)   C consola   T consola aparte (Alt+F1 vuelve)", G | B)
         y += 1
         self.put(y, 9, "H ayuda   A apagar   B reiniciar")
         y += 1
