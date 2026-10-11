@@ -1130,6 +1130,15 @@ class Handler(BaseHTTPRequestHandler):
             # todas las patas juntas, poco a poco y alternando
             move_many({ch: a for _, _, (ch, a) in interleaved(per_leg)}, pz)
             log(f"postura '{name}' a la vez en patas {list(per_leg)}")
+        elif p == "/api/pose_delete":
+            name, poses = b.get("nombre", ""), load_poses()
+            found = False
+            for leg in LEGS:
+                found |= poses.get(leg, {}).pop(name, None) is not None
+            if not found:
+                raise ValueError(f"no hay postura '{name}'")
+            write_json(POSES_FILE, poses)
+            log(f"postura '{name}' borrada")
         elif p == "/api/leg_release":
             leg = b["pata"]
             for ch in leg_channels(leg).values():

@@ -147,6 +147,17 @@ body.tv .row button{font-size:17px;padding:8px 12px}
     <button data-ps="todas" data-pn="recogida">Guardar como recogida (todas)</button>
     <button data-ps="todas" data-pn="estirada">Guardar como estirada (todas)</button>
   </div>
+  <div class="card" style="margin-bottom:12px">
+    <div class="ch">Mis posturas (sentado, de pie…)</div>
+    <div class="legend" style="margin:0">Los servos no dicen dónde están: si los sueltas y colocas la pata a mano, el robot no puede leerlo.
+      Coloca el robot con los grupos de abajo, los deslizadores de cada pata o los botones ±1/±5 de cada canal (quedan sujetos),
+      escribe un nombre y pulsa <b>Guardar postura</b>. Luego vuelves a ella con un botón (y sale en el bloque "postura").</div>
+    <div class="row">
+      <input id="poseName" placeholder="nombre: sentado, de pie…" style="font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);width:220px">
+      <button class="pri" id="poseSave">Guardar postura actual (las 4 patas)</button>
+    </div>
+    <div class="row" id="poseList"></div>
+  </div>
   <div class="grid legs" id="groups"></div>
   <div class="legend">
     Vista desde arriba, cabeza delante: <b>A</b> delantera izq · <b>B</b> delantera der · <b>C</b> trasera der · <b>D</b> trasera izq.
@@ -201,6 +212,15 @@ body.tv .row button{font-size:17px;padding:8px 12px}
   <div class="grid" id="grid"></div>
   <div id="msg"></div>
   <table id="sum"></table>
+  <h2 class="sec" id="esquema">Esquema de conexiones</h2>
+  <div class="legend">Raspberry Pi, placa PCA9685, fuentes y los 12 servos con su canal y su estado (11-10-2026).
+    <b>Avisos:</b> el codo de A (canal 0) no responde · el codo de B (canal 6) está girado · las traseras C y D van bien ·
+    las delanteras siguen otro orden de cables, puede haber alguno cruzado.
+    <a href="/static/esquema.svg" target="_blank">Abrir el esquema a pantalla completa</a></div>
+  <div style="overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:12px">
+    <img src="/static/esquema.svg" alt="Esquema de conexiones del SpotMicro" style="display:block;width:100%;min-width:760px;height:auto"></div>
+  <div class="legend" style="margin-top:10px">Mapa actual (en vivo, sale de la configuración del robot):</div>
+  <div style="overflow-x:auto"><table id="mapLive"></table></div>
   <div class="sp"></div>
 </main>
 
@@ -330,9 +350,30 @@ function renderPower() {
       (p.amperios < 10 ? ' <b>Con menos de 10 A, ponerse de pie o andar puede cortar la fuente: pruébalo en el aire.</b>' : '')
     : '<b>Límite DESACTIVADO:</b> todos los servos se mueven a la vez. Solo con una fuente grande (15-20 A).';
 }
+function renderMapLive() {
+  const names = {A: 'A · delantera izq.', B: 'B · delantera der.', C: 'C · trasera der.', D: 'D · trasera izq.'};
+  let h = '<tr><th>Canal</th><th>Pata</th><th>Articulación</th><th>Ajuste</th><th>Nota</th><th>Ahora</th></tr>';
+  for (let ch = 0; ch < 16; ch++) {
+    const m = st.map[ch] || {}, a = st.angles[ch];
+    h += `<tr><td>${ch}</td><td>${m.pata ? names[m.pata] : (m.libre ? 'libre' : 'sin mapear')}</td><td>${m.articulacion || '—'}</td>
+      <td>${m.offset || m.invertir ? `${m.offset > 0 ? '+' : ''}${m.offset || 0}°${m.invertir ? ' invertido' : ''}` : '—'}</td>
+      <td>${m.nota ? '⚠ ' + esc(m.nota) : ''}</td><td>${a == null ? 'suelto' : a + '°'}</td></tr>`;
+  }
+  $('mapLive').innerHTML = h;
+}
+function renderPoses() {
+  const names = new Set();
+  Object.entries(st.poses || {}).forEach(([leg, p]) => { if (LEGS[leg]) Object.keys(p).forEach(n => names.add(n)); });
+  $('poseList').innerHTML = names.size ? [...names].map(n =>
+    `<span class="tag m" style="display:inline-flex;gap:6px;align-items:center;padding:4px 6px 4px 10px">${esc(n)}
+      <button data-posego="${esc(n)}" title="Ir a esta postura">▶ ir</button><button data-posedel="${esc(n)}" title="Borrar">✕</button></span>`).join('')
+    : '<span class="pz">Todavía no hay posturas guardadas.</span>';
+}
 function render() {
   renderRunning(st.rutina);
   renderPower();
+  renderPoses();
+  renderMapLive();
   const dups = dupKeys();
   let html = '';
   for (let ch = 0; ch < 16; ch++) {
@@ -615,7 +656,7 @@ function renderConn() {
     LED verde: corto-corto-largo = programa vivo · parpadeo rápido = no responde
     <h3>IR A</h3>
     <a href="#sysd" data-open="sysd">Sistema</a> · <a href="#tries">Rutinas para probar</a> · <a href="#myRt">Mis rutinas</a> ·
-    <a href="#blkd" data-open="blkd">Bloques</a> · <a href="#groups">Grupos</a> · <a href="#legs">Patas</a> · <a href="#grid">Canales</a>`;
+    <a href="#blkd" data-open="blkd">Bloques</a> · <a href="#groups">Grupos</a> · <a href="#legs">Patas</a> · <a href="#grid">Canales</a> · <a href="#esquema">Esquema de conexiones</a>`;
 }
 document.addEventListener('click', e => {
   if (e.target.closest('#stBtn')) { $('stPanel').hidden = !$('stPanel').hidden; renderConn(); if (!$('stPanel').hidden) pollConn(); return; }
@@ -871,6 +912,18 @@ document.addEventListener('click', async e => {
   else if (b.id === 'blkNew') { await ensureBlockly(); ws.clear(); Blockly.serialization.workspaces.load(SAMPLE, ws); $('blkName').value = ''; }
 });
 document.addEventListener('change', e => { if (e.target.id === 'blkLoad' && e.target.value) openInBlocks(e.target.value); });
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.id === 'poseSave') {
+    const name = $('poseName').value.trim();
+    if (!name) { $('msg').textContent = 'Escribe un nombre para la postura.'; $('poseName').focus(); return; }
+    act('/api/pose_save', {pata: 'todas', nombre: name}, `guardando la postura "${name}"…`);
+  } else if (b.dataset.posego) {
+    act('/api/pose_go', {pata: 'todas', nombre: b.dataset.posego, speed: speed()}, `yendo a la postura "${b.dataset.posego}"… (respeta el límite de consumo)`);
+  } else if (b.dataset.posedel) {
+    if (confirm(`¿Borrar la postura "${b.dataset.posedel}"?`)) act('/api/pose_delete', {nombre: b.dataset.posedel}, 'borrando…');
+  }
+});
 async function setPower() {
   const body = {limitar: $('plim').checked, amperios: +$('pamp').value};
   if (!body.limitar && !confirm('¿Quitar el límite de consumo? Solo con una fuente de 15-20 A: si no, la fuente puede cortarse.')) { $('plim').checked = true; return; }
