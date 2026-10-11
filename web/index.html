@@ -73,6 +73,17 @@ pre#ayuda{white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-
 .pwrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:15px}
 .pwrow input[type=range]{width:min(360px,60vw);accent-color:var(--acc)}
 .pwrow b{font-size:20px;min-width:52px}
+.vivo-mapa{overflow-x:auto}
+.vivo-mapa svg{display:block;width:100%;min-width:620px;height:auto}
+.vleg svg{display:block;width:100%;height:auto;touch-action:none;background:var(--bg);border-radius:8px}
+.vleg .jrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px}
+.vleg .jrow b{min-width:118px}
+.vleg .jrow button{padding:3px 7px;font-size:12px}
+.vleg .q{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:13px}
+.vleg .why{display:none;gap:6px;flex-wrap:wrap}
+.vleg.ask .why{display:flex}
+.vt{fill:var(--ink);font:12px system-ui,sans-serif}.vtm{fill:var(--mut);font:11px system-ui,sans-serif}
+.vh{fill:var(--ink);font:600 13px system-ui,sans-serif}
 #stw{position:relative}
 #stBtn{cursor:pointer;border:1px solid transparent;font:inherit;font-size:13px}
 .stpanel{position:absolute;right:0;top:calc(100% + 8px);width:min(460px,92vw);max-height:78vh;overflow:auto;background:var(--card);
@@ -221,6 +232,13 @@ body.tv .row button{font-size:17px;padding:8px 12px}
     <img src="/static/esquema.svg?v=2" alt="Esquema de conexiones del SpotMicro" style="display:block;width:100%;min-width:760px;height:auto"></div>
   <div class="legend" style="margin-top:10px">Mapa actual (en vivo, sale de la configuración del robot):</div>
   <div style="overflow-x:auto"><table id="mapLive"></table></div>
+  <h2 class="sec" id="vivo">El robot en vivo</h2>
+  <div class="legend">Así cree la Pi que está el robot <b>ahora mismo</b> (se actualiza solo). Compáralo con el robot de verdad y,
+    en cada pata, contesta <b>¿Está así de verdad?</b>. Si no, marca qué articulación va al revés y la Pi lo corrige.
+    Puedes <b>arrastrar</b> el punto de la rodilla (mueve el hombro) o la pezuña (mueve el codo). Robot en el aire.</div>
+  <div class="card vivo-mapa" id="vivoMapa"></div>
+  <div class="grid legs" id="vivoPatas" style="margin-top:10px"></div>
+  <div class="pz" id="vivoMsg" style="margin-top:6px"></div>
   <div class="sp"></div>
 </main>
 
@@ -402,11 +420,181 @@ function renderPoses() {
       <button data-posego="${esc(n)}" title="Ir a esta postura">▶ ir</button><button data-posedel="${esc(n)}" title="Borrar">✕</button></span>`).join('')
     : '<span class="pz">Todavía no hay posturas guardadas.</span>';
 }
+// ---------- el robot en vivo: lo que cree la Pi, pata a pata ----------
+// Ángulo "de gesto" = el de la pata D; las derechas en espejo (180−a) y, si la convención lo dice, las delanteras
+// invertidas (igual que gesture_angle en server.py). Dibujo de lado, cabeza a la izquierda: a 90° la pata cae recta;
+// hombro + = muslo hacia delante; codo + = la parte de abajo se dobla hacia atrás (patas de ~110 y ~130 mm).
+const V_RIGHT = new Set(['B', 'C']), V_FRONT = new Set(['A', 'B']);
+const V_TITLE = {A: 'A · delantera izquierda', B: 'B · delantera derecha', C: 'C · trasera derecha', D: 'D · trasera izquierda'};
+const V_L1 = 82, V_L2 = 97, V_HIP = {x: 150, y: 52};
+let vDrag = null, vPreview = {};
+const vConv = () => st.convencion || {sh: 1, sk: 1, fi: false};
+function vGesture(leg, art, v) {
+  if (V_RIGHT.has(leg)) v = 180 - v;
+  let dev = v - 90;
+  if (vConv().fi && V_FRONT.has(leg) && art !== 'pectoral') dev = -dev;
+  return 90 + dev;
+}
+function vLogical(leg, art, g) {
+  let dev = g - 90;
+  if (vConv().fi && V_FRONT.has(leg) && art !== 'pectoral') dev = -dev;
+  let v = 90 + dev;
+  if (V_RIGHT.has(leg)) v = 180 - v;
+  return Math.max(LIM.min, Math.min(LIM.max, Math.round(v)));
+}
+function vLegState(L) {
+  const chs = legChannels(L), out = {};
+  JOINTS.forEach(j => {
+    const ch = chs[j], key = L + j;
+    const a = vPreview[key] != null ? vPreview[key] : (ch !== undefined ? st.angles[ch] : null);
+    out[j] = {ch, logical: a, loose: a == null, g: a == null ? 90 : vGesture(L, j, a), note: ch !== undefined && st.map[ch] ? st.map[ch].nota : ''};
+  });
+  return out;
+}
+function vGeom(s) {
+  const c = vConv(), rad = d => d * Math.PI / 180;
+  const p1 = c.sh * (s.hombro.g - 90), kb = c.sk * (s.codo.g - 90), p2 = p1 - kb;
+  const K = {x: V_HIP.x - V_L1 * Math.sin(rad(p1)), y: V_HIP.y + V_L1 * Math.cos(rad(p1))};
+  const F = {x: K.x - V_L2 * Math.sin(rad(p2)), y: K.y + V_L2 * Math.cos(rad(p2))};
+  return {p1, kb, K, F};
+}
+function vLegSvg(L, s) {
+  const g = vGeom(s), stc = j => s[j].loose ? 'stroke-dasharray="6 5"' : '';
+  const col = j => s[j].note ? 'var(--bad)' : (s[j].loose ? 'var(--mut)' : 'var(--acc)');
+  const pd = (s.pectoral.g - 90) * (V_RIGHT.has(L) ? -1 : 1);
+  return `<svg viewBox="0 0 300 250" data-leg="${L}" role="img" aria-label="Pata ${L} vista de lado">
+    <line x1="10" y1="236" x2="290" y2="236" stroke="var(--line)" stroke-width="2"/>
+    <text x="14" y="20" class="vtm">← cabeza</text>
+    <rect x="${V_HIP.x - 70}" y="${V_HIP.y - 26}" width="140" height="22" rx="6" fill="var(--card)" stroke="var(--line)"/>
+    <text x="${V_HIP.x}" y="${V_HIP.y - 11}" class="vtm" text-anchor="middle">cuerpo</text>
+    <line x1="${V_HIP.x}" y1="${V_HIP.y}" x2="${g.K.x}" y2="${g.K.y}" stroke="${col('hombro')}" stroke-width="16" stroke-linecap="round" ${stc('hombro')} opacity=".85"/>
+    <line x1="${g.K.x}" y1="${g.K.y}" x2="${g.F.x}" y2="${g.F.y}" stroke="${col('codo')}" stroke-width="9" stroke-linecap="round" ${stc('codo')} opacity=".85"/>
+    <circle cx="${V_HIP.x}" cy="${V_HIP.y}" r="9" fill="var(--card)" stroke="var(--ink)" stroke-width="2"/>
+    <circle cx="${g.K.x}" cy="${g.K.y}" r="11" fill="var(--acc)" stroke="var(--card)" stroke-width="2" data-h="hombro" style="cursor:grab"/>
+    <circle cx="${g.F.x}" cy="${g.F.y}" r="11" fill="#e8892a" stroke="var(--card)" stroke-width="2" data-h="codo" style="cursor:grab"/>
+    <text x="${V_HIP.x + 14}" y="${V_HIP.y + 18}" class="vt">hombro ${s.hombro.loose ? 'suelto' : s.hombro.logical + '°'}</text>
+    <text x="${g.K.x + 16}" y="${g.K.y + 4}" class="vt">codo ${s.codo.loose ? 'suelto' : s.codo.logical + '°'}</text>
+    <g transform="translate(250 40)">
+      <text x="0" y="-20" class="vtm" text-anchor="middle">pectoral (de frente)</text>
+      <line x1="-22" y1="0" x2="22" y2="0" stroke="var(--line)" stroke-width="5"/>
+      <line x1="0" y1="0" x2="${(40 * Math.sin(pd * Math.PI / 180)).toFixed(1)}" y2="${(40 * Math.cos(pd * Math.PI / 180)).toFixed(1)}" stroke="${col('pectoral')}" stroke-width="7" stroke-linecap="round" ${stc('pectoral')}/>
+      <text x="0" y="58" class="vt" text-anchor="middle">${s.pectoral.loose ? 'suelto' : s.pectoral.logical + '°'}</text>
+    </g>
+  </svg>`;
+}
+function vMapSvg() {
+  const parts = Object.keys(V_TITLE).map(L => {
+    const chs = legChannels(L), v = (st.verificacion || {})[L];
+    const x = V_RIGHT.has(L) ? 452 : 20, y = V_FRONT.has(L) ? 40 : 222;
+    const color = v ? (v.ok ? 'var(--ok)' : 'var(--bad)') : 'var(--mut)';
+    const rows = JOINTS.map((j, i) => {
+      const ch = chs[j], m = ch !== undefined ? st.map[ch] : null;
+      return `<text x="${x + 10}" y="${y + 44 + i * 18}" class="vt">${i + 1} ${j}${j === 'codo' ? ' (rodilla)' : ''} · canal ${ch ?? '—'}${m && m.nota ? ' ⚠ ' + esc(m.nota) : ''}</text>`;
+    }).join('');
+    const cx = V_RIGHT.has(L) ? 400 : 240, cy = V_FRONT.has(L) ? 92 : 268;
+    return `<rect x="${x}" y="${y}" width="208" height="102" rx="8" fill="var(--card)" stroke="${color}" stroke-width="2"/>
+      <text x="${x + 10}" y="${y + 22}" class="vh">${V_TITLE[L]}</text>
+      <text x="${x + 198}" y="${y + 22}" class="vtm" text-anchor="end">${v ? (v.ok ? '✓ comprobada' : '✗ no coincide') : 'sin comprobar'}</text>${rows}
+      <line x1="${V_RIGHT.has(L) ? x : x + 208}" y1="${y + 51}" x2="${cx}" y2="${cy}" stroke="var(--line)" stroke-width="1.5"/>
+      <circle cx="${cx}" cy="${cy}" r="14" fill="${color}" opacity=".9"/><text x="${cx}" y="${cy + 5}" class="vh" text-anchor="middle" style="fill:var(--card)">${L}</text>`;
+  }).join('');
+  return `<svg viewBox="0 0 680 352" role="img" aria-label="El robot visto desde arriba: patas, componentes y canales">
+    <text x="340" y="22" class="vh" text-anchor="middle">Visto desde arriba · cabeza arriba</text>
+    <rect x="240" y="62" width="160" height="236" rx="16" fill="var(--bg)" stroke="var(--ink)" stroke-width="1.5"/>
+    <rect x="262" y="66" width="116" height="20" rx="4" fill="var(--card)" stroke="var(--line)"/>
+    ${[278, 300, 340, 362].map(cx => `<circle cx="${cx}" cy="76" r="7" fill="var(--ink)"/>`).join('')}
+    <text x="320" y="104" class="vtm" text-anchor="middle">2 sensores ultrasonidos (HC-SR04)</text>
+    <rect x="270" y="122" width="100" height="44" rx="5" fill="var(--card)" stroke="var(--acc)"/>
+    <text x="320" y="141" class="vt" text-anchor="middle">Raspberry Pi 2</text><text x="320" y="157" class="vtm" text-anchor="middle">dentro del cuerpo</text>
+    <rect x="270" y="176" width="100" height="44" rx="5" fill="var(--card)" stroke="var(--acc)"/>
+    <text x="320" y="195" class="vt" text-anchor="middle">PCA9685</text><text x="320" y="211" class="vtm" text-anchor="middle">placa de servos</text>
+    <text x="320" y="244" class="vtm" text-anchor="middle">fuentes por cable:</text>
+    <text x="320" y="260" class="vtm" text-anchor="middle">Pi 5,1 V · servos V+/GND</text>
+    ${parts}
+    <text x="340" y="342" class="vtm" text-anchor="middle">En la pata: la pieza grande redondeada es el muslo (lo mueve el hombro); la fina, la parte de abajo (la mueve el codo).</text>
+  </svg>`;
+}
+function renderVivo() {
+  if (vDrag) return;
+  $('vivoMapa').innerHTML = vMapSvg();
+  $('vivoPatas').innerHTML = Object.keys(V_TITLE).map(L => {
+    const s = vLegState(L), v = (st.verificacion || {})[L];
+    const chip = v ? `<span class="tag ${v.ok ? 'ok' : 'bad'}">${v.ok ? '✓ coincide' : '✗ no coincide'}</span>` : '<span class="tag">sin comprobar</span>';
+    const rows = JOINTS.map((j, i) => {
+      const x = s[j];
+      return `<div class="jrow"><b>${i + 1} ${j}${j === 'codo' ? ' (rodilla)' : ''} · c${x.ch ?? '—'}</b>
+        <span class="pz">${x.loose ? 'suelto' : x.logical + '°'}${x.note ? ' ⚠ ' + esc(x.note) : ''}</span>
+        ${x.ch === undefined ? '' : `<button data-vj="${L}|${j}|-5">−5</button><button data-vj="${L}|${j}|5">+5</button>
+        <button data-vt="${x.ch}" title="Lo mueve ±8° y lo deja sujeto">probar</button>
+        <button data-vz="${x.ch}" title="La posición actual pasa a ser su 90° (recta)">fijar 90°</button>`}</div>`;
+    }).join('');
+    const ask = v && !v.ok ? 'ask' : '';
+    return `<div class="card vleg ${ask}" id="vleg${L}"><div class="top"><span class="ch">${V_TITLE[L]}</span>${chip}</div>
+      ${vLegSvg(L, s)}${rows}
+      <div class="q">¿Está así de verdad? <button class="pri" data-vok="${L}">✓ Sí</button><button data-vno="${L}">✗ No</button>
+        ${v ? `<button data-vclr="${L}">borrar</button>` : ''}</div>
+      <div class="why"><span class="pz">¿Qué va al revés? (la Pi invierte ese servo sin moverlo)</span>
+        ${JOINTS.map(j => `<button data-vinv="${L}|${j}">${j} al revés</button>`).join('')}</div></div>`;
+  }).join('');
+  $('vivoMsg').textContent = st.convencion ? '' : 'Sentido de las articulaciones aún sin confirmar: el dibujo supone el más habitual. Corrígelo con "✗ No" o marcando ✓ una variante de "De pie".';
+}
+function vPoint(svg, ev) {
+  const r = svg.getBoundingClientRect(), k = 300 / r.width;
+  return {x: (ev.clientX - r.left) * k, y: (ev.clientY - r.top) * k};
+}
+document.addEventListener('pointerdown', e => {
+  const h = e.target.closest && e.target.closest('[data-h]'); if (!h) return;
+  const svg = h.closest('svg');
+  vDrag = {L: svg.dataset.leg, j: h.dataset.h}; dragging = true; e.preventDefault();
+});
+document.addEventListener('pointermove', e => {
+  if (!vDrag) return;
+  const {L, j} = vDrag, svg = document.querySelector(`#vleg${L} svg`); if (!svg) return;
+  const c = vConv(), p = vPoint(svg, e), g = vGeom(vLegState(L)), deg = r => r * 180 / Math.PI;
+  if (j === 'hombro') vPreview[L + 'hombro'] = vLogical(L, 'hombro', 90 + deg(Math.atan2(-(p.x - V_HIP.x), p.y - V_HIP.y)) * c.sh);
+  else vPreview[L + 'codo'] = vLogical(L, 'codo', 90 + (g.p1 - deg(Math.atan2(-(p.x - g.K.x), p.y - g.K.y))) * c.sk);
+  svg.outerHTML = vLegSvg(L, vLegState(L));
+});
+document.addEventListener('pointerup', async () => {
+  if (!vDrag) return;
+  const {L, j} = vDrag, key = L + j, target = vPreview[key], ch = legChannels(L)[j];
+  vDrag = null; dragging = false;
+  if (target == null || ch === undefined) { delete vPreview[key]; render(); return; }
+  await act('/api/angle', {ch, angle: target, speed: speed()}, `pata ${L}: ${j} → ${target}°`);
+  delete vPreview[key]; render();
+});
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  const d = b.dataset;
+  if (d.vj) {
+    const [L, j, delta] = d.vj.split('|'), ch = legChannels(L)[j], cur = st.angles[ch], c = vConv();
+    const g = (cur == null ? 90 : vGesture(L, j, cur)) + (+delta) * (j === 'pectoral' ? 1 : j === 'hombro' ? c.sh : c.sk);
+    act('/api/angle', {ch, angle: vLogical(L, j, g), speed: speed()}, `pata ${L}: ${j} ${+delta > 0 ? '+' : ''}${delta}°`);
+  }
+  else if (d.vt) act('/api/test', {ch: +d.vt, delta: 8, center: Math.max(38, Math.min(142, st.angles[+d.vt] ?? 90)), speed: speed(), hold: true}, `probando canal ${d.vt}… mira el robot`);
+  else if (d.vz) act('/api/calibrate', {ch: +d.vz, action: 'zero'}, `canal ${d.vz}: esta posición es ahora su 90°`);
+  else if (d.vok) act('/api/leg_check', {pata: d.vok, ok: true}, `pata ${d.vok}: coincide`);
+  else if (d.vno) act('/api/leg_check', {pata: d.vno, ok: false}, `pata ${d.vno}: no coincide, marca qué va al revés`);
+  else if (d.vclr) act('/api/leg_check', {pata: d.vclr, ok: null}, 'marca borrada');
+  else if (d.vinv) {
+    const [L, j] = d.vinv.split('|'), ch = legChannels(L)[j];
+    if (st.angles[ch] == null) { $('vivoMsg').textContent = `El ${j} de ${L} está suelto: muévelo antes (probar o ±5) para que la Pi sepa dónde está.`; return; }
+    act('/api/calibrate', {ch, action: 'invert'}, `pata ${L}: ${j} invertido (no se mueve; cambia cómo lo entiende la Pi)`);
+  }
+});
+let vFast = null;
+new IntersectionObserver(es => {
+  const on = es.some(x => x.isIntersecting);
+  if (on && !vFast) vFast = setInterval(() => { if (!busy && !dragging) poll(); }, 1500);
+  if (!on && vFast) { clearInterval(vFast); vFast = null; }
+}).observe(document.getElementById('vivo'));
+
 function render() {
   renderRunning(st.rutina);
   renderPower();
   renderPoses();
   renderMapLive();
+  renderVivo();
   const dups = dupKeys();
   let html = '';
   for (let ch = 0; ch < 16; ch++) {

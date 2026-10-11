@@ -136,6 +136,16 @@ check(call("/api/state")["potencia"]["ultima_tanda"] == 12, "sin límite: los 12
 call("/api/power", {"amperios": 0.5}, expect=400)
 call("/api/power", {"limitar": True, "amperios": 5})
 
+st = call("/api/leg_check", {"pata": "C", "ok": True})
+check(st["verificacion"]["C"]["ok"] is True, "pata C marcada como 'coincide con el dibujo'")
+st = call("/api/leg_check", {"pata": "A", "ok": False})
+check(st["verificacion"]["A"]["ok"] is False, "pata A marcada como 'no coincide'")
+call("/api/leg_check", {"pata": "Z", "ok": True}, expect=400)
+st = call("/api/leg_check", {"pata": "A", "ok": None})
+check("A" not in st["verificacion"], "borra la marca de la pata A")
+call("/api/leg_check", {"pata": "C", "ok": None})
+check("convencion" in st and "verificacion" in st, "el estado lleva convención y verificación para el robot en vivo")
+
 rep = call("/api/informe")
 check(rep["resumen"]["ok"] > 5, f"informe: {rep['resumen']}")
 for it in rep["items"]:

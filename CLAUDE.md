@@ -124,3 +124,9 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
 - 2026-10-11 15:40: esquema de conexiones (web/static/esquema.svg, al final de la web, en la documentación y como
   artefacto: https://claude.ai/artifact/T9jZtMM2dSXeoykRx2TbbN). Avisos: codo A (canal 0) no responde, codo B
   (canal 6) girado, delanteras con otro orden de cables (posible cable cruzado), traseras C y D bien.
+- 2026-10-11 15:50: navegador kiosco instalado y probado (cage + chromium arrancan; Pi 2 sin GLES3 → `--disable-gpu`).
+  Sección "El robot en vivo" al final de la web: vista desde arriba con componentes y canales + 4 patas de lado según
+  lo que cree la Pi (ángulos de gesto, convención o la habitual si falta), arrastrables; "¿Está así de verdad?" →
+  `/api/leg_check` (config.json `verificacion`); "X al revés" → calibrate invert del canal. Referencias del usuario:
+  render del SpotMicro (4 círculos delante = 2 HC-SR04) y fotos de un DOGZILLA Lite (parecido, no igual: servos de bus,
+  246×145×170-195 mm de pie, ~99-125 mm plegado). El usuario a veces llama "rodilla" al codo (articulación 3).

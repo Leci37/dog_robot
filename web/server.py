@@ -851,8 +851,9 @@ class Handler(BaseHTTPRequestHandler):
         pc = power_cfg()
         potencia = dict(pc, a_la_vez_12=max_movers(12, 0), estimacion={"moviendo_A": I_MOVE, "sujetando_A": I_HOLD},
                         ultima_tanda=power_info["ultima_tanda"])
+        cfg = load_config()
         return {"angles": angles, "map": load_map()["canales"], "poses": load_poses(), "rutina": dict(routine),
-                "potencia": potencia,
+                "potencia": potencia, "convencion": cfg.get("convencion"), "verificacion": cfg.get("verificacion", {}),
                 "limits": {"min": SAFE_MIN, "max": SAFE_MAX, "max_delta": MAX_DELTA}}
 
     STATIC_TYPES = {".js": "application/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png",
@@ -900,6 +901,21 @@ class Handler(BaseHTTPRequestHandler):
             n = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(n) or b"{}")
             path = urlsplit(self.path).path
+            if path == "/api/leg_check":  # "¿la pata está de verdad como la dibuja la Pi?"
+                leg = body.get("pata")
+                if leg not in LEGS:
+                    raise ValueError("pata no válida")
+                cfg = load_config()
+                ver = cfg.setdefault("verificacion", {})
+                if body.get("ok") is None:
+                    ver.pop(leg, None)
+                else:
+                    ver[leg] = {"ok": bool(body["ok"]), "hora": datetime.now().isoformat(timespec="seconds"),
+                                "angulos": {j: angles[ch] for j, ch in leg_channels(leg).items()}}
+                write_json(CONFIG_FILE, cfg)
+                log(f"pata {leg}: el dibujo {'COINCIDE' if body.get('ok') else 'NO coincide' if body.get('ok') is not None else 'sin comprobar'} con el robot")
+                self._send(200, self.state())
+                return
             if path == "/api/power":
                 amps = float(body.get("amperios", 5))
                 if not 1 <= amps <= 60:

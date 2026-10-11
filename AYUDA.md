@@ -103,6 +103,13 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
   esos amperios (con 5 A, de uno en uno). Con una fuente de 15-20 A, sube el deslizador.
 - Esquema de conexiones (Pi, placa, fuentes y los 12 servos con su canal y avisos): al final de la web,
   en http://<ip>/static/esquema.svg y en web/static/esquema.svg del proyecto.
+- "El robot en vivo" (al final de la web): dibujo desde arriba (qué pata es cada una, sensores, Pi, placa y
+  canales) y las 4 patas de lado tal como cree la Pi que están, en tiempo real. En cada pata: "¿Está así de
+  verdad? ✓/✗". Si no, "pectoral/hombro/codo al revés" (la Pi invierte ese servo sin moverlo). Se puede
+  arrastrar la rodilla (mueve el hombro) o la pezuña (mueve el codo), y usar ±5, probar y fijar 90°.
+- Partes del robot (como en el dibujo del SpotMicro): delante, 2 sensores de ultrasonidos HC-SR04 (los 4
+  "ojos"); en cada esquina el pectoral; la pieza grande redondeada es el muslo (hombro); la fina, la parte
+  de abajo (codo o rodilla). Dentro: Raspberry Pi y PCA9685.
 
 6. SI ALGO VA MAL
 -----------------
