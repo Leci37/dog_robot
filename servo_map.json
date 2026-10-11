@@ -2,13 +2,11 @@
   "_nota": "Canal PCA9685 -> pata y articulación. Vista desde arriba, cabeza delante: A delantera izq, B delantera der, C trasera der, D trasera izq. Articulaciones (del cuerpo al suelo): 1 pectoral (abre/cierra al lado), 2 hombro (pata adelante/atrás), 3 codo (dobla la parte de abajo).",
   "canales": {
     "0": {
-      "pata": "A",
-      "articulacion": "codo",
-      "nota": "no responde"
+      "libre": true
     },
     "1": {
-      "libre": true,
-      "nota": "aquí estaba el codo de B (su conector se pasó al canal 6)"
+      "pata": "A",
+      "articulacion": "codo"
     },
     "2": {
       "pata": "A",

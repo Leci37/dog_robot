@@ -3,5 +3,25 @@
     "limitar": true,
     "amperios": 5.0,
     "permitir_sin_corriente": true
+  },
+  "verificacion": {
+    "C": {
+      "ok": false,
+      "hora": "2026-10-11T22:10:01",
+      "angulos": {
+        "pectoral": null,
+        "hombro": 55,
+        "codo": 150
+      }
+    },
+    "D": {
+      "ok": false,
+      "hora": "2026-10-11T22:10:03",
+      "angulos": {
+        "pectoral": null,
+        "hombro": null,
+        "codo": null
+      }
+    }
   }
 }
