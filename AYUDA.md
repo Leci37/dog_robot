@@ -103,7 +103,7 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
 
 5a. PROTECCIONES (para que nadie apague la Pi pulsando botones)
 ---------------------------------------------------------------
-- Freno por falta de corriente: si la Pi tiene falta de corriente en ese momento, NO mueve servos (pasó 5
+- Falta de corriente: desde el 11-10-2026 16:45 solo AVISA (aviso rojo) y deja mover (lo pidió el usuario). Si se desmarca la casilla "Permitir mover aunque falte corriente", vuelve a frenar y NO mueve servos (pasó 5
   veces el 11-10-2026 que se apagaba al moverlos). Se puede permitir con la casilla de la barra de arriba.
 - Un movimiento cada vez: si llega otra orden mientras el robot se mueve, se descarta (no se encola).
 - Avisos abajo a la derecha: falta corriente, consumo alto, muchos botones a la vez, rutina en marcha.
