@@ -73,6 +73,9 @@ pre#ayuda{white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-
 .pwrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:15px}
 .pwrow input[type=range]{width:min(360px,60vw);accent-color:var(--acc)}
 .pwrow b{font-size:20px;min-width:52px}
+@keyframes vivo{0%,7.1%{opacity:1}7.2%,14.2%{opacity:.15}14.3%,21.4%{opacity:1}21.5%,28.5%{opacity:.15}28.6%,57.1%{opacity:1}57.2%,100%{opacity:.15}}
+.dot.on{animation:vivo 2.1s linear infinite}
+@media (prefers-reduced-motion:reduce){.dot.on{animation:none}}
 .amp{display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 8px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
 .amp .g{display:grid;grid-template-columns:repeat(3,9px);grid-auto-rows:9px;gap:2px}
 .amp .s{border-radius:2px;border:1px solid var(--line);background:transparent}
@@ -211,6 +214,15 @@ html{scroll-behavior:smooth}
         <div class="kv">Comprueba que todo está listo para funcionar en otra casa (red, alimentación, servicios, robot).</div>
         <div class="row"><button class="pri" id="repBtn">Comprobar ahora</button></div>
         <div class="kv" id="repSum"></div></div>
+      <div class="card"><div class="ch">LED de vida</div>
+        <div class="kv">El <b>LED verde de la Pi</b> hace corto-corto-largo mientras el programa está vivo (rápido = no responde).
+          El LED rojo de la placa de servos va directo a la corriente y <b>no se puede controlar</b>; para tener uno en la placa,
+          pincha un LED con resistencia de 220–470 Ω en un canal libre: pata larga (+) con la resistencia al pin de señal,
+          pata corta (−) al GND. Parpadea a la par que el de la Pi. <b>Nunca con un servo en ese canal.</b></div>
+        <div class="row" style="align-items:center"><label class="kv"><input type="checkbox" id="ledOn"> LED de vida en el canal</label>
+          <select id="ledCh" style="font:inherit;padding:4px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--ink)">
+            <option>7</option><option>8</option><option selected>9</option></select></div>
+        <div class="pz" id="ledInfo"></div></div>
     </div>
     <div id="rep"></div>
     <details id="helpd" style="margin-top:10px"><summary class="kv"><b>Ayuda: cómo conectarse, pantalla, cortes de corriente y qué hacer si algo falla</b></summary>
@@ -519,8 +531,27 @@ function dupKeys() {
   }
   return d;
 }
+let ledSynced = false;
+function renderLed() {
+  const c = st.led_placa; if (!c) return;
+  if (document.activeElement !== $('ledCh')) $('ledCh').value = String(c.canal);
+  $('ledOn').checked = c.activo;
+  $('ledInfo').textContent = c.activo ? `Activo en el canal ${c.canal}: debe parpadear igual que el LED verde de la Pi.` : 'Apagado.';
+  const p = st.led_patron;
+  if (p && !ledSynced) {  // el punto de la cabecera, en fase con los LEDs (misma hora que la Pi)
+    const offset = p.hora_pi - Date.now() / 1000;
+    $('dot').style.animationDelay = `-${((Date.now() / 1000 + offset) % p.periodo).toFixed(3)}s`;
+    ledSynced = true;
+  }
+}
+document.addEventListener('change', async e => {
+  if (e.target.id !== 'ledOn' && e.target.id !== 'ledCh') return;
+  try { st = await api('/api/board_led', {activo: $('ledOn').checked, canal: +$('ledCh').value}); render(); }
+  catch (err) { $('ledInfo').textContent = 'No se pudo: ' + err.message; $('ledOn').checked = false; }
+});
 function renderPower() {
   const p = st.potencia; if (!p) return;
+  renderLed();
   if (document.activeElement !== $('pamp')) { $('pamp').value = p.amperios; $('pampv').textContent = p.amperios + ' A'; }
   $('plim').checked = p.limitar;
   $('pallow').checked = !!p.permitir_sin_corriente;
@@ -558,6 +589,7 @@ function mapDiag(ch, m) {
     'Arreglo: en Canales → canal 6 → Calibrar, muévelo hasta que quede como el de C o D y pulsa "Fijar aquí = 90°"; ' +
     'o recoloca el horn un diente (unos 14°). Su conector se pasó del canal 1 al 6.'};
   if (m.nota) return {cls: m.pata ? 'bad' : 'warn', short: '⚠ ' + m.nota, tip: (tag ? tag + ' · ' : 'Canal libre · ') + m.nota + '.'};
+  if (m.led) return {cls: '', short: '💡 LED de vida', tip: 'Canal con el LED de vida de la placa (corto-corto-largo, a la par que el LED verde de la Pi). Nunca conectes un servo aquí mientras esté activado.'};
   if (m.libre) return {cls: '', short: 'libre', tip: 'Canal libre: no hay nada conectado.'};
   if (!m.pata) return {cls: '', short: 'sin mapear', tip: 'Canal sin asignar.'};
   const v = ver[m.pata];

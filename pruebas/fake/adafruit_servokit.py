@@ -29,14 +29,26 @@ class _Servo:
 
 
 class _Channel:
-    duty_cycle = 0
+    def __init__(self, ch):
+        self.ch = ch
+        self._d = 0
+
+    @property
+    def duty_cycle(self):
+        return self._d
+
+    @duty_cycle.setter
+    def duty_cycle(self, v):
+        self._d = v
+        with open(_LOG, "a") as f:
+            f.write(f"led{self.ch} {v}\n")
 
 
 class _PCA:
     frequency = 50
 
     def __init__(self):
-        self.channels = [_Channel() for _ in range(16)]
+        self.channels = [_Channel(i) for i in range(16)]
 
 
 class ServoKit:

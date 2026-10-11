@@ -139,3 +139,4 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   Usuario compartirá la web con un compañero (Iván): todo pensado para que pulsar mucho no apague la Pi.
   Leer la posición real de los servos NO es posible con MG996R: haría falta sacar el cable del potenciómetro a un ADC
   (ADS1115) o cambiar a servos de bus con realimentación (como los del DOGZILLA).
+- 2026-10-11 16:15: LED de vida en la placa: el LED rojo de la PCA9685 va a VCC (no controlable); opción de LED en un canal libre (7-9) que mueve server.py (board_led_loop, config led_placa) con el mismo LED_PATTERN que sistema/led_vivo.py, sincronizados por la hora; el punto de la cabecera de la web también. OJO: otra sesión de Claude trabaja a la vez en este proyecto (lite.html, navegador.sh -> /lite, panel.py): no pisar sus ficheros sin coordinar.

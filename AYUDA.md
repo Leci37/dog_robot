@@ -77,6 +77,11 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
     parpadeo irregular                    = la Pi está arrancando o apagándose
     quieto (encendido o apagado)          = colgada: el watchdog la reinicia en ~1 minuto
     LED rojo apagado                      = no le llega corriente
+- LED de vida en la placa de servos: el LED rojo de la PCA9685 va directo a la corriente y no se puede
+  controlar. Pincha un LED con resistencia de 220-470 Ω en un canal libre (7, 8 o 9): pata larga (+) con la
+  resistencia al pin de señal, pata corta (-) a GND; actívalo en Sistema > "LED de vida". Hace el mismo
+  corto-corto-largo a la vez que el LED verde de la Pi. Nunca con un servo en ese canal.
+- El punto de la cabecera de la web también hace corto-corto-largo mientras estás conectado.
 
 4. RUTINAS Y BLOQUES (para que ande)
 ------------------------------------

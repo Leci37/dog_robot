@@ -167,6 +167,50 @@ def power_monitor():
         time.sleep(2)
 
 
+def undervoltage_count(boot):
+    out = run(["journalctl", "-k", "-b", boot, "-q", "--no-pager", "-g", "Undervoltage detected"], timeout=10)
+    return len(out.splitlines()) if out else 0
+
+
+_apg_cache = {"t": 0, "data": None}
+
+
+def outages():
+    """Apagados de golpe: los arranques del journal persistente que no terminaron con APAGADO-LIMPIO
+    (hora real del último registro y caídas de tensión antes de morir) + los anteriores al journal."""
+    if _apg_cache["data"] and time.time() - _apg_cache["t"] < 60:
+        return _apg_cache["data"]
+    try:
+        lines = ENERGY_LOG.read_text(errors="replace").splitlines()
+    except FileNotFoundError:
+        lines = []
+    clean = {ln.split("boot=")[1].split()[0] for ln in lines if "APAGADO-LIMPIO boot=" in ln}
+    lst, seen = [], set()
+    try:
+        boots = json.loads(run(["journalctl", "--list-boots", "-o", "json", "--no-pager"], timeout=10) or "[]")
+    except json.JSONDecodeError:
+        boots = []
+    for b in boots:
+        bid = b.get("boot_id", "")[:8]
+        seen.add(bid)
+        if b.get("index") == 0 or bid in clean:
+            continue
+        n = undervoltage_count(b["boot_id"])
+        hora = datetime.fromtimestamp(b.get("last_entry", 0) / 1e6).strftime("%Y-%m-%d %H:%M")
+        lst.append({"hora": hora, "causa": "falta de corriente" if n else "corte total o cuelgue", "caidas": n})
+    prev_id = None  # anteriores al journal persistente: solo sabemos que terminaron de golpe
+    for ln in lines:
+        if " ARRANQUE " not in ln:
+            continue
+        if "DE GOLPE" in ln and prev_id and prev_id not in seen:
+            lst.append({"hora": ln[:16] + " (aprox.)", "causa": "sin detalle (antes del registro completo)", "caidas": 0})
+        prev_id = ln.split("boot=")[1].split()[0].rstrip(";")
+    lst.sort(key=lambda x: x["hora"])
+    data = {"total": len(lst), "por_corriente": sum(1 for x in lst if x["causa"] == "falta de corriente"), "lista": lst[-20:]}
+    _apg_cache.update(t=time.time(), data=data)
+    return data
+
+
 def boot_check():
     """Al arrancar el servidor: ¿es un arranque nuevo de la Pi? ¿terminó bien el anterior?"""
     bid = boot_id()
@@ -182,6 +226,10 @@ def boot_check():
         prev = boots[-1].split("boot=")[1].split()[0].rstrip(";")
         clean = any(f"APAGADO-LIMPIO boot={prev}" in ln for ln in lines)
         how = "limpio" if clean else "DE GOLPE (corte de corriente, cuelgue o desenchufe sin apagar)"
+        if not clean:
+            n = undervoltage_count("-1")
+            how += ("; causa probable: FALTA DE CORRIENTE (%d caídas de tensión antes de apagarse)" % n if n else
+                    "; causa probable: corte total o cuelgue (sin caídas de tensión registradas)")
     else:
         how = "desconocido (primer registro)"
     t = read_throttled()
@@ -266,6 +314,7 @@ def system_info():
         "net": net_info(),
         "screen": screen_info(),
         "energia": energy,
+        "apagones": outages(),
         "ports": sorted(bound_ports),
         "ipv6_ll_fija": IPV6_LL,
         "ip_directa": LINK_LOCAL_IP,
@@ -742,6 +791,56 @@ def power_cfg():
             "permitir_sin_corriente": bool(p.get("permitir_sin_corriente", False))}
 
 
+# ---------- LED de vida en la placa (un LED en un canal libre de la PCA9685) ----------
+# El LED rojo de la placa va directo a VCC y no se puede controlar. Un LED con resistencia en un canal libre sí:
+# hace el mismo corto-corto-largo que el LED verde de la Pi (sistema/led_vivo.py), sincronizado por la hora.
+LED_PATTERN = [(1, 0.15), (0, 0.15), (1, 0.15), (0, 0.15), (1, 0.6), (0, 0.9)]
+LED_PERIOD = sum(d for _, d in LED_PATTERN)
+
+
+def led_phase_on(t=None):
+    t = (time.time() if t is None else t) % LED_PERIOD
+    for on, d in LED_PATTERN:
+        if t < d:
+            return bool(on)
+        t -= d
+    return False
+
+
+def led_cfg():
+    c = load_json(CONFIG_FILE, {}).get("led_placa") or {}
+    return {"activo": bool(c.get("activo")), "canal": int(c.get("canal", 9))}
+
+
+def board_led_loop():
+    last, cfg, cfg_t = None, led_cfg(), 0.0
+    while True:
+        if time.time() - cfg_t > 2:
+            new = led_cfg()
+            if last is not None and new["canal"] != cfg["canal"]:
+                try:
+                    kit._pca.channels[cfg["canal"]].duty_cycle = 0
+                except Exception:  # noqa: BLE001
+                    pass
+                last = None
+            cfg, cfg_t = new, time.time()
+        if cfg["activo"]:
+            on = led_phase_on()
+            if on != last:
+                try:
+                    kit._pca.channels[cfg["canal"]].duty_cycle = 0xFFFF if on else 0
+                except Exception:  # noqa: BLE001
+                    pass
+                last = on
+        elif last is not None:
+            try:
+                kit._pca.channels[cfg["canal"]].duty_cycle = 0
+            except Exception:  # noqa: BLE001
+                pass
+            last = None
+        time.sleep(0.02)
+
+
 # ---------- memoria de posición: el último ángulo mandado a cada servo sobrevive a cortes y reinicios ----------
 LAST_FILE = ROOT / "ultima_posicion.json"
 last_known = {}          # canal -> último ángulo lógico mandado (aunque luego se soltara)
@@ -936,6 +1035,7 @@ class Handler(BaseHTTPRequestHandler):
         return {"angles": angles, "map": load_map()["canales"], "poses": load_poses(), "rutina": dict(routine),
                 "potencia": potencia, "convencion": cfg.get("convencion"), "verificacion": cfg.get("verificacion", {}),
                 "ultima": {"angulos": {str(k): v for k, v in last_known.items()}, "hora": last_info["hora"]},
+                "led_placa": led_cfg(), "led_patron": {"pasos": LED_PATTERN, "periodo": LED_PERIOD, "hora_pi": time.time()},
                 "limits": {"min": SAFE_MIN, "max": SAFE_MAX, "max_delta": MAX_DELTA}}
 
     STATIC_TYPES = {".js": "application/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png",
@@ -961,6 +1061,8 @@ class Handler(BaseHTTPRequestHandler):
         path = urlsplit(self.path).path
         if path in ("/", "/index.html"):
             self._send(200, (WEB / "index.html").read_bytes(), "text/html; charset=utf-8")
+        elif path in ("/lite", "/lite.html"):  # versión ligera para el navegador de la tele
+            self._send(200, (WEB / "lite.html").read_bytes(), "text/html; charset=utf-8")
         elif path == "/api/state":
             self._send(200, self.state())
         elif path == "/api/system":
@@ -985,6 +1087,27 @@ class Handler(BaseHTTPRequestHandler):
             n = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(n) or b"{}")
             path = urlsplit(self.path).path
+            if path == "/api/board_led":  # LED de vida en un canal libre de la placa
+                ch, on = int(body.get("canal", 9)), bool(body.get("activo"))
+                if not 0 <= ch <= 15:
+                    raise ValueError("canal fuera de rango 0-15")
+                data = load_map()
+                m = data["canales"].get(str(ch), {})
+                if on and m.get("pata"):
+                    raise ValueError(f"el canal {ch} tiene un servo ({m['pata']} {m['articulacion']}): el LED va en un canal libre")
+                old = led_cfg()
+                for k, v in data["canales"].items():  # quitar la marca del canal anterior
+                    if v.get("led"):
+                        data["canales"][k] = {"libre": True}
+                if on:
+                    data["canales"][str(ch)] = {"libre": True, "led": True, "nota": "LED de vida (corto-corto-largo)"}
+                save_map(data)
+                cfg = load_config()
+                cfg["led_placa"] = {"activo": on, "canal": ch}
+                write_json(CONFIG_FILE, cfg)
+                log(f"LED de vida en la placa: {'canal ' + str(ch) if on else 'apagado'} (antes {old})")
+                self._send(200, self.state())
+                return
             if path == "/api/leg_check":  # "¿la pata está de verdad como la dibuja la Pi?"
                 leg = body.get("pata")
                 if leg not in LEGS:
@@ -1326,6 +1449,8 @@ class Handler(BaseHTTPRequestHandler):
                 leg, joint = b["pata"], b["articulacion"]
                 if leg not in LEGS or joint not in JOINTS:
                     raise ValueError("pata o articulación no válida")
+                if data["canales"].get(key, {}).get("led") and led_cfg()["activo"]:
+                    raise ValueError(f"el canal {ch} tiene el LED de vida: desactívalo antes de poner un servo")
                 old = data["canales"].get(key, {})
                 entry = {"pata": leg, "articulacion": joint}
                 for f in ("offset", "invertir", "nota"):  # conservar calibración al re-mapear
@@ -1368,6 +1493,7 @@ if __name__ == "__main__":
     recover_angles()
     boot_check()
     threading.Thread(target=power_monitor, daemon=True).start()
+    threading.Thread(target=board_led_loop, daemon=True).start()
     servers = []
     for port in PORTS:
         try:

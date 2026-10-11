@@ -64,6 +64,10 @@ con = call("/api/conexion")
 check(con["via"] and con["ssh"]["usuario"], f"/api/conexion: entra {con['via']}")
 check("contrasena" in con["ssh"] and "luislecinana" not in con["ssh"]["contrasena"], "no muestra la contraseña en claro")
 check(b"AYUDA" in call("/ayuda"), "/ayuda responde")
+lite = call("/lite")
+check(isinstance(lite, bytes) and b"lite" in lite and b"blockly" not in lite.lower(), "versión lite (sin Blockly) en /lite")
+ap = call("/api/system").get("apagones", {})
+check({"total", "por_corriente", "lista"} <= set(ap), f"registro de apagados de golpe: {ap.get('total')} ({ap.get('por_corriente')} por corriente)")
 
 # --- freno por falta de corriente, consumo, órdenes simultáneas, memoria de posición ---
 cons = call("/api/consumo")
@@ -98,6 +102,19 @@ st = call("/api/lock_loose", {"a": "ultima"})
 check(sum(1 for v in st["angles"].values() if v is not None) == 12 and st["angles"]["2"] == 110,
       "sujetar los sueltos donde estaban (12 sujetos, A2 en 110)")
 call("/api/off", {})
+
+# --- LED de vida en la placa ---
+st = call("/api/board_led", {"activo": True, "canal": 9})
+check(st["led_placa"] == {"activo": True, "canal": 9} and st["map"]["9"].get("led"), "LED de vida activado en el canal 9")
+call("/api/board_led", {"activo": True, "canal": 2}, expect=400)
+check(True, "no deja poner el LED en un canal con servo")
+call("/api/map", {"ch": 9, "pata": "A", "articulacion": "codo"}, expect=400)
+check(True, "no deja poner un servo en el canal del LED")
+time.sleep(2.5)
+leds = [ln for ln in open(FAKE_LOG) if ln.startswith("led9 ")]
+check(len(leds) >= 2, f"el LED del canal 9 parpadea ({len(leds)} cambios en 2,5 s)")
+st = call("/api/board_led", {"activo": False, "canal": 9})
+check(not st["led_placa"]["activo"] and not st["map"]["9"].get("led"), "LED de vida desactivado y canal libre otra vez")
 
 call("/api/convention_reset", {})
 rt = call("/api/routines")
@@ -185,7 +202,7 @@ check(rep["resumen"]["ok"] > 5, f"informe: {rep['resumen']}")
 for it in rep["items"]:
     print(f"      [{it['estado']:5}] {it['area']}: {it['item']} — {it['detalle']}")
 
-vals = [float(ln.split()[1]) for ln in open(FAKE_LOG) if ln.split()[1] != "None"]
+vals = [float(ln.split()[1]) for ln in open(FAKE_LOG) if not ln.startswith("led") and ln.split()[1] != "None"]
 check(vals and min(vals) >= 30 and max(vals) <= 150, f"todos los ángulos enviados entre 30 y 150 ({min(vals)}–{max(vals)}, {len(vals)} órdenes)")
 
 print("\nRESULTADO:", "TODO BIEN" if not fails else f"{len(fails)} FALLOS")

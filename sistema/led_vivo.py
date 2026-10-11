@@ -7,6 +7,8 @@
   quieto (encendido o apagado)          -> colgada: el watchdog la reiniciará en ~1 minuto
   apagado del todo                      -> sin corriente
 
+El patrón va sincronizado con la hora: el LED de vida de la placa de servos (un LED en un canal libre de la
+PCA9685, lo mueve web/server.py con el mismo LED_PATTERN) parpadea exactamente a la vez.
 Servicio systemd: spotmicro-led (como root, para poder escribir en /sys/class/leds).
 Al pararse (apagado, reinicio) devuelve el LED a su modo normal.
 """
@@ -17,13 +19,20 @@ import urllib.request
 from pathlib import Path
 
 LED = Path("/sys/class/leds/ACT")
-CHECK_URL = "http://127.0.0.1:8080/api/state"
-SHORT, LONG, GAP, PAUSE = 0.15, 0.6, 0.15, 0.9
+CHECK_URL = "http://127.0.0.1:8080/api/consumo"
+LED_PATTERN = [(1, 0.15), (0, 0.15), (1, 0.15), (0, 0.15), (1, 0.6), (0, 0.9)]  # igual que en server.py
+LED_PERIOD = sum(d for _, d in LED_PATTERN)
+FAST = 0.08
 NORMAL_TRIGGER = "mmc0"
 
 
-def set_led(on):
-    (LED / "brightness").write_text("1" if on else "0")
+def phase_on(t):
+    t %= LED_PERIOD
+    for on, d in LED_PATTERN:
+        if t < d:
+            return bool(on)
+        t -= d
+    return False
 
 
 def restore(*_):
@@ -42,25 +51,20 @@ def web_ok():
         return False
 
 
-def blink(on_s, off_s):
-    set_led(True)
-    time.sleep(on_s)
-    set_led(False)
-    time.sleep(off_s)
-
-
 def main():
     signal.signal(signal.SIGTERM, restore)
     signal.signal(signal.SIGINT, restore)
     (LED / "trigger").write_text("none")
+    ok, checked, last = True, 0.0, None
     while True:
-        if web_ok():
-            blink(SHORT, GAP)
-            blink(SHORT, GAP)
-            blink(LONG, PAUSE)
-        else:
-            for _ in range(10):  # ~1,6 s de parpadeo rápido y vuelve a comprobar
-                blink(0.08, 0.08)
+        now = time.time()
+        if now - checked > 4:
+            ok, checked = web_ok(), now
+        on = phase_on(now) if ok else int(now / FAST) % 2 == 0
+        if on != last:
+            (LED / "brightness").write_text("1" if on else "0")
+            last = on
+        time.sleep(0.01)
 
 
 if __name__ == "__main__":
