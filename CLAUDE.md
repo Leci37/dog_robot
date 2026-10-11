@@ -225,3 +225,12 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   D3 en 115 = −5 respecto a la 6.7, y D1 en 100 = +5, D2 en 70 = −5; se le dijo) y "10° a un hombro hacia la posición
   del otro" (no dijo cuál ni hacia dónde: se le dio el panel "Afinar patas" con los 12 servos para que lo ajuste él).
   Comentó que las patas tienen "cierta (a)simetría": de ahí el panel.
+- 2026-10-12 (4): D3 a +18 ("la dirección más"). Barra de botones arriba (`#quick`, en `renderRt`): las 5 de pie
+  favoritas (`FAVORITAS_6`: 6.7, 6, 6.1, 6.2, 6.5; candidatas con `favorita`), Bajar despacio, las de andar
+  (candidatas con `andar`), marchas y Parar. Más rutinas de andar (el usuario: "con más fuerza", "desde arriba va mejor",
+  "más rápidas"): rápido (`fast`: el pie sube y avanza en un movimiento, velocidad rápida), alto (agachado `ALTA` 22:
+  el codo hace menos fuerza y B3 tiene margen), alto y rápido, pasitos rápidos, paso largo, trote rápido, trote alto y
+  de lado (`crab_program`, con los pectorales; sentido sin confirmar). Pruebas con simulador: TODO BIEN.
+- 2026-10-12 (5): el usuario afinó los servos en "Afinar patas" con el robot en la 6.7 y la dejó **por defecto**:
+  ajustes A1 +10, A3 −15, B1 −15, B3 +50, C1 −5, C3 −10, D3 −22 (D3 al final al revés que el +18 que pidió de palabra).
+  Físicos en la de pie: A 105/105/45, B 70/75/170, C 80/105/50, D 95/75/98 (pectoral/hombro/codo).

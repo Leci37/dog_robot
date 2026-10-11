@@ -97,6 +97,11 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
   gira). Luego girar a izquierda/derecha, marcar el paso, de pie alto/bajo, tumbarse, levantarse, sentarse,
   reverencia, flexiones, balanceo y saludar. Las de pie siguen debajo: marcar ✓ otra cambia la que usan todas.
   Marca ✓/✗ cada una y guarda las buenas en "Mis rutinas".
+- Barra de botones arriba del todo: las 5 de pie mejores (6.7, 6, 6.1, 6.2, 6.5; la elegida en azul con ✓),
+  Bajar despacio, todas las de andar, la velocidad y Parar.
+- Andar: paso a paso, con balanceo, rápido, alto, alto y rápido, pasitos rápidos, paso largo, trote lento,
+  trote rápido, trote alto, de lado, hacia atrás y paseo. Las "altas" van con las patas más rectas (el codo
+  hace menos fuerza) y las "rápidas" suben y avanzan el pie de una vez.
 - Velocidad de las rutinas: marchas 1ª muy lenta, 2ª lenta, 3ª normal, 4ª rápida, 5ª muy rápida. Botones en
   "Rutinas para probar" y, con una rutina en marcha, al lado de "Parar rutina": se nota en el paso siguiente.
 - Web > "Programar con bloques": como Scratch. Bloques de mover (pata/articulación/grados, relativo,

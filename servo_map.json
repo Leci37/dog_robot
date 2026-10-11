@@ -21,16 +21,20 @@
     },
     "4": {
       "pata": "A",
-      "articulacion": "pectoral"
+      "articulacion": "pectoral",
+      "offset": 10,
+      "invertir": false
     },
     "5": {
       "pata": "B",
-      "articulacion": "pectoral"
+      "articulacion": "pectoral",
+      "offset": -15,
+      "invertir": false
     },
     "6": {
       "pata": "B",
       "articulacion": "codo",
-      "offset": 45,
+      "offset": 50,
       "invertir": false,
       "nota": "B3: horn girado; +45 hacia delante pedido por el usuario el 12-10 (variante 6)"
     },
@@ -63,12 +67,14 @@
     },
     "14": {
       "pata": "C",
-      "articulacion": "codo"
+      "articulacion": "codo",
+      "offset": -10,
+      "invertir": false
     },
     "15": {
       "pata": "D",
       "articulacion": "codo",
-      "offset": 18,
+      "offset": -22,
       "invertir": false
     }
   },

@@ -205,7 +205,11 @@ check({k: rt["convencion"][k] for k in ("sh", "sk", "fi")} == {"sh": -1, "sk": 1
 check(rt["pruebas"].get("de-pie-6.2", {}).get("mark") == "bien" and "de-pie-6" not in rt["pruebas"], "solo queda una de pie marcada ✓")
 stage2 = [c for c in rt["candidatas"] if c["etapa"] == 2]
 check(len(stage2) >= 12, f"etapa 2: {len(stage2)} rutinas")
-check([c["id"] for c in stage2[:5]] == ["andar", "andar-balanceo", "trote", "andar-atras", "paseo"], "las 5 de andar van primero")
+walks = [c["id"] for c in stage2 if c.get("andar")]
+check(len(walks) >= 12 and stage2[0]["id"] == "andar" and {"andar-rapido", "andar-alto", "trote-rapido", "andar-lado"} <= set(walks),
+      f"rutinas de andar (van primero): {len(walks)}")
+favs = sorted((c for c in rt["candidatas"] if c.get("favorita")), key=lambda c: c["favorita"])
+check([c["id"] for c in favs] == ["de-pie-6.7", "de-pie-6", "de-pie-6.1", "de-pie-6.2", "de-pie-6.5"], "las 5 de pie favoritas para la barra de arriba")
 rt = call("/api/routine_speed", {"marcha": 5})
 check(rt["marcha"] == 5 and rt["marchas"]["1"].startswith("1ª"), f"marcha 5: {rt['marchas']['5']}")
 call("/api/routine_speed", {"marcha": 9}, expect=400)

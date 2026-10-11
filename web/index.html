@@ -151,6 +151,9 @@ html{scroll-behavior:smooth}
 .tvbtns button{font-size:22px;padding:16px 26px;border-radius:14px;font-weight:600}
 .tvbtns.small button{font-size:17px;padding:10px 18px;font-weight:500}
 .tvrt{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+.quick{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--card);margin-bottom:14px}
+.quick .row{align-items:center;margin-top:6px}.quick .row:first-child{margin-top:0}
+.quick .lbl{min-width:76px;font-weight:600}
 .tvrt button{font-size:19px;padding:12px 20px;border-radius:12px}
 @media (max-width:900px){.tvtiles{grid-template-columns:repeat(2,1fr)}}
 </style>
@@ -174,6 +177,7 @@ html{scroll-behavior:smooth}
 <aside id="alerts" aria-live="polite"></aside>
 <div id="mapTip" hidden></div>
 <main>
+  <section id="quick" class="quick" hidden aria-label="Botones rápidos"></section>
   <section id="tvdash" class="tvdash" hidden>
     <div class="tvtiles">
       <div class="tile" id="tvNet"></div><div class="tile" id="tvPw"></div>
@@ -1309,7 +1313,7 @@ function renderRunning(ex) {
     $('rtGear').innerHTML = Object.entries(rts.marchas).map(([n, t]) => `<option value="${n}" ${+n === rts.marcha ? 'selected' : ''}>${esc(t)}</option>`).join('');
   }
 }
-let lastFin = '', lastTryInfo = '', tuneOpen = true;
+let lastFin = '', lastTryInfo = '', lastQuick = '', tuneOpen = true;
 document.addEventListener('toggle', e => { if (e.target.id === 'tuneBox') tuneOpen = e.target.open; }, true);
 function renderRt() {
   if (!rts) return;
@@ -1344,6 +1348,17 @@ function renderRt() {
        ${Object.entries(rts.marchas || {}).map(([n, t]) => `<button data-gear="${n}" class="${+n === rts.marcha ? 'pri' : ''}">${esc(t)}</button>`).join('')}
        <span class="pz">(se puede cambiar con la rutina en marcha)</span></div>` + tune;
   if (infoHtml !== lastTryInfo) { $('tryInfo').innerHTML = infoHtml; lastTryInfo = infoHtml; }  // sin repintar cada 5 s
+  // barra de arriba: las 5 de pie favoritas, las de andar, la velocidad y parar
+  const chosen = id => pr[id] && pr[id].mark === 'bien';
+  const qb = (c, label) => `<button data-try="${esc(c.id)}" title="${esc(c.desc)}" class="${chosen(c.id) ? 'pri' : ''}">${esc(label)}${chosen(c.id) ? ' ✓' : ''}</button>`;
+  const favs = rts.candidatas.filter(c => c.favorita).sort((a, b) => a.favorita - b.favorita);
+  const bajar = rts.candidatas.find(c => c.id === 'bajar'), walks = rts.candidatas.filter(c => c.andar);
+  const quick = `<div class="row"><span class="lbl">De pie</span>${favs.map(c => qb(c, c.nombre.replace('De pie ', ''))).join('')}${bajar ? qb(bajar, 'Bajar despacio') : ''}</div>
+    ${walks.length ? `<div class="row"><span class="lbl">Andar</span>${walks.map(c => qb(c, c.nombre.replace('Andar · ', ''))).join('')}</div>` : ''}
+    <div class="row"><span class="lbl">Velocidad</span>${Object.entries(rts.marchas || {}).map(([n, t]) => `<button data-gear="${n}" class="${+n === rts.marcha ? 'pri' : ''}">${esc(t)}</button>`).join('')}
+      <button class="stop" data-qstop="1">Parar</button></div>`;
+  if (quick !== lastQuick) { $('quick').innerHTML = quick; lastQuick = quick; }
+  $('quick').hidden = TV;
   const list = stage === 1 ? rts.candidatas : [...rts.candidatas.filter(c => c.etapa === 2), ...rts.candidatas.filter(c => c.etapa === 1)];
   const firstStand = list.find(c => c.etapa === 1);
   $('tries').innerHTML = list.map(c => {
@@ -1523,7 +1538,7 @@ document.addEventListener('click', async e => {
   if (b.id === 'repBtn') runReport();
   else if (b.id === 'instBtn') sysPost('/api/system_action', {accion: 'instalar-navegador'}, 'lanzando la instalación del navegador (sigue sola en segundo plano)…');
   else if (d.viewtry) openInBlocks(null, d.viewtry);
-  else if (b.id === 'rtStop' || b.id === 'blkStop') rtPost('/api/routine_stop', {}, 'parando la rutina…');
+  else if (b.id === 'rtStop' || b.id === 'blkStop' || d.qstop) rtPost('/api/routine_stop', {}, 'parando la rutina…');
   else if (d.try) rtPost('/api/routine_run', {candidata: d.try}, 'probando… mira el robot');
   else if (d.mark !== undefined) rtPost('/api/try_mark', {id: d.mark, mark: d.mk}, 'marcando…');
   else if (d.savetry) {

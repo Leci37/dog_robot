@@ -616,7 +616,9 @@ VARIANTES_6 = [  # (id, nombre, descripción, agachado delanteras, agachado tras
     # 12-10-2026, el usuario: "la 2, con un poco de la 5" -> la elegida para andar
     ("6.7", "De pie 6.7 · alta + pectorales +5", "la 6.2 con un poco de la 6.5 (agachado 30, pectorales +5)", 30, 30, 5),
 ]
+FAVORITAS_6 = ["6.7", "6", "6.1", "6.2", "6.5"]  # las 5 mejores según el usuario (12-10): botones arriba en la web
 TUCK = 52  # agachado de "recogido": codos lejos de los topes 30/150 (con los topes hubo apagones)
+ALTA = 22  # agachado de las marchas "altas": patas más rectas, el codo hace menos fuerza (el usuario: "desde arriba va mejor")
 
 def dev_angle(leg, art, dev, conv):
     s = conv.get("sh", 1) if art == "hombro" else conv.get("sk", 1) if art == "codo" else 1
@@ -697,11 +699,12 @@ def _gait(conv):
     return k0, h0, hom, cod
 
 
-def walk_program(conv, step_l, step_r, cycles=3, lift=16, sway=0):
+def walk_program(conv, step_l, step_r, cycles=3, lift=16, sway=0, fast=False):
     """Paso a paso (creep): una pata cada vez y las otras 3 siempre apoyadas, en el orden D A C B (al revés hacia
     atrás). Cada pata sube (hombro y codo a la vez: el pie sale vertical), avanza en el aire y baja; luego el cuerpo
     avanza con las 4 juntas. Con `sway`, antes de levantar una pata el cuerpo se aparta hacia el otro lado con los
-    pectorales (supone que pectoral + abre la pata: si se cae hacia la pata levantada, es al revés)."""
+    pectorales (supone que pectoral + abre la pata: si se cae hacia la pata levantada, es al revés). Con `fast`, el pie
+    sube y avanza en un solo movimiento (en diagonal) y todo va a velocidad rápida: menos pasos y más ritmo."""
     k0, h0, hom, cod = _gait(conv)
     p0 = conv.get("pectoral", 0)
     step = {L: step_l if L in ("A", "D") else step_r for L in LEGS}
@@ -711,15 +714,19 @@ def walk_program(conv, step_l, step_r, cycles=3, lift=16, sway=0):
     def pecs(side):  # side +1: pies hacia la izquierda, cuerpo a la derecha (para levantar una izquierda)
         return [{"pata": L, "art": "pectoral", "angulo": dev_angle(L, "pectoral", p0 + (side if L in ("A", "D") else -side) * sway, conv)}
                 for L in LEGS]
-    prog = [S(base_stance(conv), juntos=True), {"op": "esperar", "s": 0.5}, S([hom(L, hd[L]) for L in LEGS], juntos=True)]
+    prog = [{"op": "velocidad", "v": "rapido" if fast else "normal"}, S(base_stance(conv), juntos=True),
+            {"op": "esperar", "s": 0.5}, S([hom(L, hd[L]) for L in LEGS], juntos=True)]
     cycle = []
     for L in order:
         if sway:
             cycle.append(S(pecs(1 if L in ("A", "D") else -1), juntos=True))
         dest = h0[L] + step[L] / 2
-        cycle += [S([hom(L, hd[L] + lift / 2), cod(L, k0[L] + lift)], juntos=True),   # sube
-                  S([hom(L, dest + lift / 2)], juntos=True),                           # avanza en el aire
-                  S([hom(L, dest), cod(L, k0[L])], juntos=True)]                       # baja
+        if fast:
+            cycle.append(S([hom(L, dest + lift / 2), cod(L, k0[L] + lift)], juntos=True))  # sube y avanza a la vez
+        else:
+            cycle += [S([hom(L, hd[L] + lift / 2), cod(L, k0[L] + lift)], juntos=True),   # sube
+                      S([hom(L, dest + lift / 2)], juntos=True)]                           # avanza en el aire
+        cycle.append(S([hom(L, dest), cod(L, k0[L])], juntos=True))                         # baja
         hd[L] = dest
         for x in LEGS:
             hd[x] -= step[x] / 4
@@ -729,17 +736,46 @@ def walk_program(conv, step_l, step_r, cycles=3, lift=16, sway=0):
     return prog
 
 
-def trot_program(conv, step=12, cycles=4, lift=16):
-    """Trote lento: las diagonales A+C y B+D se turnan. Una sube, avanza en el aire mientras la otra empuja el
-    cuerpo hacia delante, y baja. Solo 2 patas apoyadas: más rápido pero menos estable que el paso a paso."""
+def trot_program(conv, step=12, cycles=4, lift=16, fast=False):
+    """Trote: las diagonales A+C y B+D se turnan. Una sube, avanza en el aire mientras la otra empuja el cuerpo
+    hacia delante, y baja. Solo 2 patas apoyadas: más rápido pero menos estable que el paso a paso. Con `fast`,
+    subir, avanzar y empujar van en un solo movimiento y a velocidad rápida (el trote aguanta mejor con ritmo)."""
     k0, h0, hom, cod = _gait(conv)
     cycle = []
     for up, down in ((["A", "C"], ["B", "D"]), (["B", "D"], ["A", "C"])):
-        cycle += [S([o for L in up for o in (hom(L, h0[L] - step / 2 + lift / 2), cod(L, k0[L] + lift))], juntos=True),
-                  S([hom(L, h0[L] + step / 2 + lift / 2) for L in up] + [hom(L, h0[L] - step / 2) for L in down], juntos=True),
-                  S([o for L in up for o in (hom(L, h0[L] + step / 2), cod(L, k0[L]))], juntos=True)]
-    return [S(base_stance(conv), juntos=True), {"op": "esperar", "s": 0.5},
-            {"op": "repetir", "n": cycles, "pasos": cycle}, S(base_stance(conv), juntos=True)]
+        swing = [hom(L, h0[L] + step / 2 + lift / 2) for L in up] + [hom(L, h0[L] - step / 2) for L in down]
+        if fast:
+            cycle.append(S(swing + [cod(L, k0[L] + lift) for L in up], juntos=True))
+        else:
+            cycle += [S([o for L in up for o in (hom(L, h0[L] - step / 2 + lift / 2), cod(L, k0[L] + lift))], juntos=True),
+                      S(swing, juntos=True)]
+        cycle.append(S([o for L in up for o in (hom(L, h0[L] + step / 2), cod(L, k0[L]))], juntos=True))
+    return [{"op": "velocidad", "v": "rapido" if fast else "normal"}, S(base_stance(conv), juntos=True),
+            {"op": "esperar", "s": 0.5}, {"op": "repetir", "n": cycles, "pasos": cycle}, S(base_stance(conv), juntos=True)]
+
+
+def crab_program(conv, step=8, cycles=3, lift=16):
+    """De lado (cangrejo): paso a paso, pero cada pie se mueve de lado con el pectoral y luego el cuerpo se desplaza
+    con los 4 pectorales. Hacia la izquierda si pectoral + abre la pata (sin confirmar; si no, va a la derecha)."""
+    k0, h0, hom, cod = _gait(conv)
+    p0 = conv.get("pectoral", 0)
+    order = ["D", "A", "C", "B"]
+    lat = {L: -step / 2 + i * step / 4 for i, L in enumerate(order)}  # desplazamiento de cada pie hacia la izquierda
+    pec = lambda L, s: {"pata": L, "art": "pectoral", "angulo": dev_angle(L, "pectoral", p0 + (s if L in ("A", "D") else -s), conv)}  # noqa: E731
+    prog = [{"op": "velocidad", "v": "normal"}, S(base_stance(conv), juntos=True), {"op": "esperar", "s": 0.5},
+            S([pec(L, lat[L]) for L in LEGS], juntos=True)]
+    cycle = []
+    for L in order:
+        cycle += [S([hom(L, h0[L] + lift / 2), cod(L, k0[L] + lift)], juntos=True),    # sube
+                  S([pec(L, step / 2)], juntos=True),                                  # se mueve de lado en el aire
+                  S([hom(L, h0[L]), cod(L, k0[L])], juntos=True)]                      # baja
+        lat[L] = step / 2
+        for x in LEGS:
+            lat[x] -= step / 4
+        cycle.append(S([pec(x, lat[x]) for x in LEGS], juntos=True))                   # el cuerpo se desplaza
+    prog.append({"op": "repetir", "n": cycles, "pasos": cycle})
+    prog.append(S(base_stance(conv), juntos=True))
+    return prog
 
 
 def march_program(conv, n=4, lift=16):
@@ -759,6 +795,7 @@ def candidate_routines(conv_saved):
         prog = stand_program(conv)
         tope = tope_warnings([S(base_stance(conv))])  # solo la postura final: al recoger, B3 (+45) ya se queda en su tope
         cands.append({"id": f"de-pie-{vid}", "etapa": 1, "nombre": name, "conv": conv, "programa": prog,
+                      "favorita": FAVORITAS_6.index(vid) + 1 if vid in FAVORITAS_6 else 0,
                       "desc": f"{desc} · recoge las 4 patas y se levanta con las 4 a la vez"
                               + (f" · ⚠ {', '.join(tope)} llega a su tope y no sigue (recolocar el horn)" if tope else "")})
     cands.append({"id": "bajar", "etapa": 1, "ayuda": True, "nombre": "Bajar despacio",
@@ -772,11 +809,27 @@ def candidate_routines(conv_saved):
     st = lambda beta, **kw: S(stance(c, beta, **kw))  # noqa: E731
     st0 = S(base_stance(c))  # la de pie elegida
     walk = lambda l, r, n=3: walk_program(c, l, r, cycles=n)  # noqa: E731
-    two = [  # primero las 5 de andar (las que se están probando), luego girar y el resto
+    alta = c | {"delanteras": ALTA, "traseras": ALTA}  # patas más rectas: el codo hace menos fuerza
+    two = [  # primero las de andar (las que se están probando, también en la barra de arriba), luego girar y el resto
         ("andar", "Andar · paso a paso", "Una pata cada vez, las otras 3 apoyadas (la más segura), 3 ciclos", walk(12, 12)),
         ("andar-balanceo", "Andar · con balanceo", "Paso a paso apartando el cuerpo de la pata que levanta (más estable si "
          "se cae hacia ella; si se cae más, el balanceo va al revés: dímelo)", walk_program(c, 12, 12, sway=10)),
+        ("andar-rapido", "Andar · rápido", "Paso a paso con más ritmo: el pie sube y avanza de una vez, a velocidad rápida, 4 ciclos",
+         walk_program(c, 12, 12, cycles=4, lift=14, fast=True)),
+        ("andar-alto", "Andar · alto", f"Paso a paso con las patas más rectas (agachado {ALTA}): el codo hace menos fuerza, 3 ciclos",
+         walk_program(alta, 12, 12)),
+        ("andar-alto-rapido", "Andar · alto y rápido", f"Las dos cosas: patas más rectas ({ALTA}) y con ritmo, 4 ciclos",
+         walk_program(alta, 12, 12, cycles=4, lift=14, fast=True)),
+        ("andar-pasitos", "Andar · pasitos rápidos", "Pasos cortos (8) y bajos, rápidos: cada movimiento pide menos fuerza, 5 ciclos",
+         walk_program(c, 8, 8, cycles=5, lift=12, fast=True)),
+        ("andar-largo", "Andar · paso largo", "Pasos de 18 y pie más alto, 3 ciclos", walk_program(c, 18, 18, lift=18)),
         ("trote", "Andar · trote lento", "Diagonales A+C y B+D a la vez: más rápido, menos estable, 4 ciclos", trot_program(c)),
+        ("trote-rapido", "Andar · trote rápido", "El trote con ritmo (sube, avanza y empuja de una vez): con ritmo se cae menos, 6 ciclos",
+         trot_program(c, cycles=6, lift=14, fast=True)),
+        ("trote-alto", "Andar · trote alto", f"Trote rápido con las patas más rectas ({ALTA}), 6 ciclos",
+         trot_program(alta, cycles=6, lift=14, fast=True)),
+        ("andar-lado", "Andar · de lado", "Como un cangrejo, con los pectorales (hacia la izquierda si pectoral + abre la pata), 3 ciclos",
+         crab_program(c)),
         ("andar-atras", "Andar · hacia atrás", "Paso a paso hacia atrás, 3 ciclos", walk(-12, -12)),
         ("paseo", "Andar · paseo", "Ruta: adelante, gira a la izquierda, adelante, gira a la derecha (2 ciclos cada tramo)",
          walk(12, 12, 2) + walk(-12, 12, 2) + walk(12, 12, 2) + walk(12, -12, 2)),
@@ -810,7 +863,8 @@ def candidate_routines(conv_saved):
           st0]),
     ]
     for rid, name, desc, prog in two:
-        cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "programa": juntos_multi(prog)})
+        cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "programa": juntos_multi(prog),
+                      "andar": rid.startswith(("andar", "trote", "paseo", "girar"))})
     return cands
 
 
