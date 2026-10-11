@@ -247,12 +247,45 @@ const LIM = {min: 30, max: 150};
 const speed = () => $('speed').value;
 const $ = id => document.getElementById(id);
 
+// Peticiones robustas: tiempo máximo, sin duplicar consultas pendientes y aviso si la Pi no responde
+// (en la otra casa la Pi puede reiniciarse: la página no se satura y se recupera sola).
+const pendingGets = {};
+let lastOk = Date.now();
 async function api(path, body) {
-  const r = await fetch(path, body ? {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)} : {});
-  const j = await r.json();
-  if (!r.ok) throw new Error(j.error || r.status);
-  return j;
+  if (!body && pendingGets[path]) return pendingGets[path];
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), body ? 180000 : 8000);
+  const run = (async () => {
+    try {
+      const r = await fetch(path, body ? {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body), signal: ctl.signal}
+                                         : {signal: ctl.signal, cache: 'no-store'});
+      const j = await r.json();
+      lastOk = Date.now();
+      if (!r.ok) throw new Error(j.error || r.status);
+      return j;
+    } catch (e) {
+      if (e.name === 'AbortError') throw new Error('la Pi no responde (tiempo agotado)');
+      if (e instanceof TypeError) throw new Error('sin conexión con la Pi');
+      throw e;
+    } finally { clearTimeout(timer); if (!body) delete pendingGets[path]; }
+  })();
+  if (!body) pendingGets[path] = run;
+  return run;
 }
+setInterval(() => {
+  const off = Date.now() - lastOk > 12000;
+  let ban = document.getElementById('offline');
+  if (off && !ban) {
+    ban = document.createElement('div');
+    ban.id = 'offline';
+    ban.style.cssText = 'position:sticky;top:0;z-index:40;background:var(--bad);color:#fff;padding:10px 16px;font-weight:600;text-align:center';
+    document.body.prepend(ban);
+  }
+  if (ban) {
+    ban.hidden = !off;
+    ban.textContent = `Sin conexión con la Pi desde hace ${Math.round((Date.now() - lastOk) / 1000)} s · reintentando sola… (si se ha reiniciado, tarda 2-3 minutos; mira el LED verde)`;
+  }
+}, 1000);
 function setBusy(b, text) {
   busy = b;
   document.querySelectorAll('button').forEach(x => { if (x.id !== 'off' && x.id !== 'stopseq') x.disabled = b || (seqRunning && !!x.dataset.seq); });
