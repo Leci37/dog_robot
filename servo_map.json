@@ -68,7 +68,7 @@
     "15": {
       "pata": "D",
       "articulacion": "codo",
-      "offset": 10,
+      "offset": 18,
       "invertir": false
     }
   },

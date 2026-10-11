@@ -221,7 +221,7 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   servidor de prueba lanzado con ruta relativa (se quedó uno vivo en el 8097 con el simulador): parar por el puerto.
 - 2026-10-12 (3): probó paso a paso, con balanceo, girar a la derecha y trote lento (todas terminadas; la Pi sin caídas
   de tensión). El "7,2 A" del trote es la estimación de la web (4 servos moviéndose ×1,2 + 8 sujetos ×0,3), no una medida.
-  Pidió de calibración por defecto C1 −5 y D3 +10 (puestos en servo_map.json; ojo: a mano había dejado C1 en 75 = −10 y
+  Pidió de calibración por defecto C1 −5 y D3 +10, luego D3 +18 "la dirección más" (puestos en servo_map.json; ojo: a mano había dejado C1 en 75 = −10 y
   D3 en 115 = −5 respecto a la 6.7, y D1 en 100 = +5, D2 en 70 = −5; se le dijo) y "10° a un hombro hacia la posición
   del otro" (no dijo cuál ni hacia dónde: se le dio el panel "Afinar patas" con los 12 servos para que lo ajuste él).
   Comentó que las patas tienen "cierta (a)simetría": de ahí el panel.
