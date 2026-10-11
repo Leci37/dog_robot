@@ -48,6 +48,11 @@ th,td{padding:7px 14px;border-bottom:1px solid var(--line);text-align:center;fon
 th{color:var(--mut);font-weight:500}
 td.dup{background:var(--bad-bg);color:var(--bad)}
 #msg{font-size:13px;color:var(--mut);min-height:20px;margin-top:6px}
+h2.sec{font-size:16px;font-weight:600;margin:22px 0 8px}
+.legs{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.jw{display:flex;flex-direction:column;gap:2px}
+.jl{display:flex;justify-content:space-between;font-size:13px}
+.pz{font-size:12px;color:var(--mut)}
 .sp{height:200px}
 </style>
 </head>
@@ -74,6 +79,16 @@ td.dup{background:var(--bad-bg);color:var(--bad)}
     &nbsp;Articulación, del cuerpo al suelo: <b>1</b> hombro (abre/cierra al lado) · <b>2</b> rodilla (pata adelante/atrás) · <b>3</b> tobillo (dobla la parte de abajo).
     Robot siempre en el aire. Límites 30–150°.
   </div>
+  <h2 class="sec">Patas</h2>
+  <div class="legend">Coloca la pata con los deslizadores y pulsa <b>Guardar como recogida</b> / <b>estirada</b>.
+    Después <b>Recoger</b> y <b>Estirar</b> mueven las 3 articulaciones a la vez. Robot en el aire.</div>
+  <div class="row" style="margin-bottom:10px">
+    <span style="align-self:center;color:var(--mut);font-size:14px">Todas las patas (una tras otra):</span>
+    <button class="pri" data-pg="todas" data-pn="recogida">Recoger todas</button>
+    <button class="pri" data-pg="todas" data-pn="estirada">Estirar todas</button>
+  </div>
+  <div class="grid legs" id="legs"></div>
+  <h2 class="sec">Canales</h2>
   <div class="grid" id="grid"></div>
   <div id="msg"></div>
   <table id="sum"></table>
@@ -116,7 +131,36 @@ async function act(path, body, text) {
 function label(m) {
   if (!m) return null;
   if (m.libre) return 'libre';
-  return m.pata + (JOINTS.indexOf(m.articulacion) + 1) + ' · ' + m.articulacion;
+  return m.pata + (JOINTS.indexOf(m.articulacion) + 1) + ' · ' + m.articulacion + (m.nota ? ' ⚠ ' + m.nota : '');
+}
+function legChannels(L) {
+  const out = {};
+  Object.entries(st.map).sort((a, b) => a[0] - b[0]).forEach(([ch, m]) => {
+    if (m.pata === L && out[m.articulacion] === undefined) out[m.articulacion] = +ch;
+  });
+  return out;
+}
+function renderLegs() {
+  const poses = st.poses || {};
+  let html = '';
+  for (const L of Object.keys(LEGS)) {
+    const chs = legChannels(L), p = poses[L] || {};
+    const fmt = q => q ? JOINTS.filter(j => q[j] != null).map(j => j[0] + ' ' + q[j] + '°').join(' · ') : 'sin guardar';
+    html += `<div class="card"><div class="top"><span class="ch">Pata ${L}</span><span class="ang">${LEGS[L]}</span></div>`;
+    JOINTS.forEach((j, i) => {
+      const ch = chs[j];
+      if (ch === undefined) { html += `<div class="jl"><span>${i + 1} ${j}</span><span class="ang">sin canal</span></div>`; return; }
+      const a = st.angles[ch], m = st.map[ch];
+      html += `<div class="jw"><div class="jl"><span>${i + 1} ${j} · canal ${ch}${m && m.nota ? ' ⚠' : ''}</span><span class="ang">${a == null ? 'suelto' : a + '°'}</span></div>
+        <input type="range" min="${LIM.min}" max="${LIM.max}" step="1" value="${a ?? 90}" data-s="${ch}"></div>`;
+    });
+    html += `<div class="row"><button class="pri" data-pg="${L}" data-pn="recogida" ${p.recogida ? '' : 'disabled'}>Recoger</button>
+        <button class="pri" data-pg="${L}" data-pn="estirada" ${p.estirada ? '' : 'disabled'}>Estirar</button>
+        <button data-lr="${L}">Soltar pata</button></div>
+      <div class="row"><button data-ps="${L}" data-pn="recogida">Guardar como recogida</button><button data-ps="${L}" data-pn="estirada">Guardar como estirada</button></div>
+      <div class="pz">recogida: ${fmt(p.recogida)}<br>estirada: ${fmt(p.estirada)}</div></div>`;
+  }
+  $('legs').innerHTML = html;
 }
 function dupKeys() {
   const seen = {}, d = new Set();
@@ -142,6 +186,7 @@ function render() {
     </div>`;
   }
   $('grid').innerHTML = html;
+  renderLegs();
   let n = 0, t = '<tr><th>Pata</th>' + JOINTS.map((j, i) => `<th>${i + 1} ${j}</th>`).join('') + '</tr>';
   for (const L of Object.keys(LEGS)) {
     t += `<tr><th>${L} <small>${LEGS[L]}</small></th>`;
@@ -198,6 +243,12 @@ document.addEventListener('click', e => {
     const n = Object.values(st.map).filter(m => !m.libre).length;
     if (confirm(`Llevar ${n} servos mapeados a 90°, uno a uno. ¿Robot en el aire?`)) act('/api/pose90', {speed: speed()}, 'postura 90°…');
   }
+  else if (d.pg) {
+    if (d.pg !== 'todas' || confirm(`¿${d.pn === 'recogida' ? 'Recoger' : 'Estirar'} todas las patas, una tras otra? Robot en el aire.`))
+      act('/api/pose_go', {pata: d.pg, nombre: d.pn, speed: speed()}, `${d.pn === 'recogida' ? 'recogiendo' : 'estirando'} ${d.pg === 'todas' ? 'todas las patas' : 'pata ' + d.pg}…`);
+  }
+  else if (d.ps) act('/api/pose_save', {pata: d.ps, nombre: d.pn}, `guardando postura ${d.pn} de ${d.ps}…`);
+  else if (d.lr) act('/api/leg_release', {pata: d.lr}, `soltando pata ${d.lr}…`);
   else if (d.t !== undefined) test(+d.t);
   else if (d.r !== undefined) act('/api/release', {ch: +d.r});
   else if (d.n !== undefined) { const ch = +d.n, cur = st.angles[ch] ?? 90; act('/api/angle', {ch, angle: Math.max(LIM.min, Math.min(LIM.max, cur + +d.d)), speed: speed()}); }
@@ -212,7 +263,7 @@ document.addEventListener('click', e => {
 document.addEventListener('input', e => {
   const s = e.target.dataset.s; if (s === undefined) return;
   dragging = true;
-  e.target.closest('.card').querySelector('.ang').textContent = 'ir a ' + e.target.value + '°';
+  (e.target.closest('.jw') || e.target.closest('.card')).querySelector('.ang').textContent = 'ir a ' + e.target.value + '°';
 });
 document.addEventListener('change', e => {
   const s = e.target.dataset.s; if (s === undefined) return;

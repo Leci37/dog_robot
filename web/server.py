@@ -15,6 +15,7 @@ from adafruit_servokit import ServoKit
 
 WEB = Path(__file__).resolve().parent
 MAP_FILE = WEB.parent / "servo_map.json"
+POSES_FILE = WEB.parent / "poses.json"  # {"A": {"recogida": {"hombro": 90, ...}, "estirada": {...}}, ...}
 LOG_FILE = WEB / "acciones.log"
 PORT = 8080
 
@@ -56,10 +57,49 @@ def load_map():
     return data
 
 
-def save_map(data):
-    tmp = MAP_FILE.with_suffix(".tmp")
+def write_json(path, data):
+    tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-    tmp.replace(MAP_FILE)
+    tmp.replace(path)
+
+
+def save_map(data):
+    write_json(MAP_FILE, data)
+
+
+def load_poses():
+    try:
+        return json.loads(POSES_FILE.read_text())
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def leg_channels(leg):
+    """{articulación: canal} de una pata según el mapa (primer canal si hay duplicados)."""
+    out = {}
+    for k, m in sorted(load_map()["canales"].items(), key=lambda x: int(x[0])):
+        if m.get("pata") == leg and m.get("articulacion") not in out:
+            out[m["articulacion"]] = int(k)
+    return out
+
+
+def move_many(targets, pause=0.03):
+    """Mueve varios canales a la vez, interpolando, para que la pata vaya suave y coordinada."""
+    targets = {ch: clamp(a) for ch, a in targets.items()}
+    for ch, a in targets.items():  # los sueltos no tienen ángulo conocido: salto escalonado
+        if angles[ch] is None:
+            kit.servo[ch].angle = a
+            angles[ch] = a
+            time.sleep(0.4)
+    start = {ch: angles[ch] for ch in targets}
+    n = max((abs(targets[ch] - start[ch]) for ch in targets), default=0)
+    for i in range(1, n + 1):
+        for ch in targets:
+            kit.servo[ch].angle = round(start[ch] + (targets[ch] - start[ch]) * i / n)
+        time.sleep(pause)
+    for ch, a in targets.items():
+        kit.servo[ch].angle = a
+        angles[ch] = a
 
 
 def clamp(a):
@@ -110,7 +150,7 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def state(self):
-        return {"angles": angles, "map": load_map()["canales"],
+        return {"angles": angles, "map": load_map()["canales"], "poses": load_poses(),
                 "limits": {"min": SAFE_MIN, "max": SAFE_MAX, "max_delta": MAX_DELTA}}
 
     def do_GET(self):
@@ -162,6 +202,38 @@ class Handler(BaseHTTPRequestHandler):
                 move_to(ch, CENTER, pause_of(b))
                 time.sleep(0.3)
             log(f"postura 90 en canales {chs}")
+        elif p == "/api/pose_save":
+            leg, name = b["pata"], b["nombre"]
+            if leg not in LEGS or not name:
+                raise ValueError("pata o nombre no válido")
+            chs = leg_channels(leg)
+            pose = {j: angles[ch] for j, ch in chs.items() if angles[ch] is not None}
+            if not pose:
+                raise ValueError(f"la pata {leg} está suelta: colócala con los deslizadores antes de guardar")
+            poses = load_poses()
+            poses.setdefault(leg, {})[name] = pose
+            write_json(POSES_FILE, poses)
+            log(f"postura '{name}' de {leg} guardada: {pose}")
+        elif p == "/api/pose_go":
+            name, pz = b["nombre"], pause_of(b)
+            legs = LEGS if b.get("pata") == "todas" else [b["pata"]]
+            poses, done = load_poses(), []
+            for leg in legs:  # pata a pata, nunca las 4 a la vez
+                pose = poses.get(leg, {}).get(name)
+                if not pose:
+                    continue
+                chs = leg_channels(leg)
+                move_many({chs[j]: a for j, a in pose.items() if j in chs}, pz)
+                done.append(leg)
+                time.sleep(0.3)
+            if not done:
+                raise ValueError(f"no hay postura '{name}' guardada para {', '.join(legs)}")
+            log(f"postura '{name}' en patas {done}")
+        elif p == "/api/leg_release":
+            leg = b["pata"]
+            for ch in leg_channels(leg).values():
+                release(ch)
+            log(f"soltar pata {leg}")
         elif p == "/api/release":
             ch = check_ch(b["ch"])
             release(ch)

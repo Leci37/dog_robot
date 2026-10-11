@@ -2,11 +2,13 @@
   "_nota": "Canal PCA9685 -> pata y articulaciÃ³n. Vista desde arriba, cabeza delante: A delantera izq, B delantera der, C trasera der, D trasera izq. Articulaciones (del cuerpo al suelo): 1 hombro (abre/cierra al lado), 2 rodilla (pata adelante/atrÃ¡s), 3 tobillo (dobla la parte de abajo).",
   "canales": {
     "0": {
-      "libre": true
+      "pata": "A",
+      "articulacion": "tobillo",
+      "nota": "no responde"
     },
     "1": {
       "pata": "B",
-      "articulacion": "rodilla"
+      "articulacion": "tobillo"
     },
     "2": {
       "pata": "A",
@@ -16,17 +18,25 @@
       "pata": "B",
       "articulacion": "rodilla"
     },
-    "14": {
-      "pata": "C",
-      "articulacion": "tobillo"
-    },
-    "15": {
-      "pata": "D",
-      "articulacion": "tobillo"
-    },
     "4": {
       "pata": "A",
       "articulacion": "hombro"
+    },
+    "5": {
+      "pata": "B",
+      "articulacion": "hombro"
+    },
+    "6": {
+      "libre": true
+    },
+    "7": {
+      "libre": true
+    },
+    "8": {
+      "libre": true
+    },
+    "9": {
+      "libre": true
     },
     "10": {
       "pata": "C",
@@ -44,9 +54,13 @@
       "pata": "D",
       "articulacion": "rodilla"
     },
-    "5": {
-      "pata": "B",
-      "articulacion": "hombro"
+    "14": {
+      "pata": "C",
+      "articulacion": "tobillo"
+    },
+    "15": {
+      "pata": "D",
+      "articulacion": "tobillo"
     }
   }
 }
