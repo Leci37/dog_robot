@@ -22,7 +22,7 @@ en `.gitignore`, **nunca** subirlo).
 
   | Pata | 1 pectoral | 2 hombro | 3 codo |
   |---|---|---|---|
-  | A delantera izq | 4 | 2 | 0 (**no responde**: la PCA saca pulso; falla el servo o su cable) |
+  | A delantera izq | 4 | 2 | 0 (**no responde**: la PCA saca pulso; 16:30 el usuario encontró un cable suelto y lo enchufó "en el pin 1": comprobar si es este codo y en qué canal quedó) |
   | B delantera der | 5 | 3 | **6** (conector movido desde el 1; a 90° quedaba "súper estirado": horn girado) |
   | C trasera der | 10 | 12 | 14 |
   | D trasera izq | 11 | 13 | 15 |
@@ -65,6 +65,18 @@ en `.gitignore`, **nunca** subirlo).
   `move_many` reparte en tandas: k = (A − sujetos·0,3) / (1,2 − 0,3), mínimo 1 (I_MOVE 1,2 A, I_HOLD 0,3 A).
   Con 5 A → 1 servo moviéndose a la vez; con 20 A → los 12. POST `/api/power`. Lo respetan grupos, rutinas y bloques.
 - Grupos (todos los pectorales/hombros/codos, espejo 180−a en B y C), Bloquear todo a mitad, Recoger/Estirar.
+- **Bloquear todo donde está** (`/api/lock_all` {segundos 0,2-2, soltar}; `plan_lock_all` en server.py): sujeta cada
+  servo en el ángulo apuntado (el que sujeta, si no la memoria `last_known`, si no 90°) y lo apunta. Todos a la vez si
+  `max_movers` lo permite; si no, uno a uno pata a pata con pausa; si la fuente no da para sujetar los 12
+  (12·0,3 + 0,9 > A) o `soltar`, bloquea-apunta-suelta (los que ya estaban sujetos no se sueltan). Es una rutina
+  (paso interno `bloquear`, `lock_step`): se para con Parar/Soltar todo y bloquea los movimientos a mano mientras dura.
+  Progreso en `GET /api/consumo` → `progreso` {running, nombre, paso, total, detalle, lista, fin, error}: barra en la
+  cabecera (`#lockProg`, chips A1…D3). "Guardar postura" con sueltos pregunta y hace esto antes de guardar (`usar_ultima`).
+- Pasos ±5/±15/±30 en canales y grupos. Franja de **apagados de golpe** arriba (`system_info()["apagones"]`:
+  `outages()` lee `journalctl --list-boots` y cuenta "Undervoltage detected" por arranque, caché 60 s).
+- **Versión ligera** `/lite` (`web/lite.html`, sin Blockly): la que abre el navegador de la tele (`pantalla/navegador.sh`).
+- Mapa: al poner una pata/articulación en otro canal, el canal viejo queda `{"libre", "nota": "antes B3 (pasado al
+  canal N)"}`, la calibración viaja si el canal nuevo no tenía, y se recarga `CAL` (`load_cal()` tras `save_map`).
 - **Rutinas para probar** (`candidate_routines` en server.py): etapa 1 = 8 variantes de "De pie" (signo de hombro,
   de codo y delanteras igual/invertidas). Al marcar ✓ una, se guarda la convención en `config.json` y las posturas
   "de pie"/"estirada"/"recogida" en `poses.json`; etapa 2 = 15 rutinas (de pie alto/bajo, tumbarse, levantarse,
@@ -103,7 +115,8 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   web si no responde, pone la consola en tty1 si el panel falla, arranca el LED; registro en `vigilante.log`.
 - Probar cambios del servidor sin tocar servos (en la Pi, desde una copia):
   `FAKE_LOG=/tmp/fake.log SPOTMICRO_PORTS=8099 SPOTMICRO_FAST=1 PYTHONPATH=pruebas/fake python3 web/server.py &`
-  y `python3 pruebas/prueba_servidor.py`.
+  y `python3 pruebas/prueba_servidor.py`. Si hay dos pruebas a la vez (dos sesiones), cada una en su puerto y su log:
+  `SPOTMICRO_PORTS=8097 … FAKE_LOG=/tmp/fake8.log` y `BASE=http://127.0.0.1:8097 FAKE_LOG=/tmp/fake8.log python3 pruebas/prueba_servidor.py`.
 
 ## Registro (añadir al final, con fecha)
 - 2026-10-06: SD grabada (Imager). Reinicios en bucle por cargador insuficiente.
@@ -140,3 +153,10 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   Leer la posición real de los servos NO es posible con MG996R: haría falta sacar el cable del potenciómetro a un ADC
   (ADS1115) o cambiar a servos de bus con realimentación (como los del DOGZILLA).
 - 2026-10-11 16:15: LED de vida en la placa: el LED rojo de la PCA9685 va a VCC (no controlable); opción de LED en un canal libre (7-9) que mueve server.py (board_led_loop, config led_placa) con el mismo LED_PATTERN que sistema/led_vivo.py, sincronizados por la hora; el punto de la cabecera de la web también. OJO: otra sesión de Claude trabaja a la vez en este proyecto (lite.html, navegador.sh -> /lite, panel.py): no pisar sus ficheros sin coordinar.
+- 2026-10-11 16:15: 6.º apagado de golpe (arranque 16:15). Después, falta de corriente casi continua (0x50005) incluso sin mover servos.
+- 2026-10-11 16:35: "Bloquear todo donde está" con barra de progreso (pedido del usuario: "uno a uno, bloquea, suelta…,
+  una barra de carga… 0,3-0,5 s por cada uno, y entonces guardarlo y mapearlo"); Guardar postura lo usa. Integrado lo de
+  la otra sesión (lite, apagones, ±5/15/30, mapa que libera el canal viejo; su primer /api/lock_all rehecho). Pruebas:
+  simulador TODO BIEN (con bloquear uno a uno / bloquea-y-suelta / a la vez y el cambio de canal del mapa). Dos sesiones
+  probando a la vez chocaron en el puerto 8099 → `BASE` en prueba_servidor.py. Cable suelto enchufado por el usuario
+  "en el pin 1" (¿codo de A?): pendiente de probar con "Probar" en el canal 0 y en el 1 y corregir el mapa.

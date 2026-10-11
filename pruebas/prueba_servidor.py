@@ -12,7 +12,7 @@ import time
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-BASE = "http://127.0.0.1:8099"
+BASE = os.environ.get("BASE", "http://127.0.0.1:8099")  # otro puerto si hay dos pruebas a la vez
 FAKE_LOG = os.environ.get("FAKE_LOG", "/tmp/fake.log")
 fails = []
 
@@ -102,6 +102,57 @@ st = call("/api/lock_loose", {"a": "ultima"})
 check(sum(1 for v in st["angles"].values() if v is not None) == 12 and st["angles"]["2"] == 110,
       "sujetar los sueltos donde estaban (12 sujetos, A2 en 110)")
 call("/api/off", {})
+
+# --- Bloquear todo y apuntar (barra de progreso): uno a uno con 5 A, bloquea-y-suelta con 3 A, a la vez con 20 A ---
+call("/api/angle", {"ch": 2, "angle": 112})
+call("/api/off", {})
+call("/api/lock_all", {"segundos": 0.3})
+time.sleep(0.6)
+pr = call("/api/consumo")["progreso"]
+check(pr["running"] and "uno a uno" in pr["nombre"] and pr["total"] == 12 and len(pr["lista"]) == 12
+      and pr["detalle"].startswith("bloqueando"), f"bloquear todo con 5 A: uno a uno con barra ({pr['paso']}/{pr['total']}: {pr['detalle']})")
+call("/api/angle", {"ch": 3, "angle": 100}, expect=400)
+check(True, "mientras bloquea no deja mover a mano")
+fin = wait_routine(60)
+st = call("/api/state")
+check(fin["fin"] == "terminada" and sum(1 for v in st["angles"].values() if v is not None) == 12 and st["angles"]["2"] == 112,
+      f"bloquear todo: {fin.get('fin')}, 12 sujetos y A2 en su memoria (112)")
+st = call("/api/pose_save", {"pata": "todas", "nombre": "bloqueada"})
+check(st["poses"]["A"]["bloqueada"]["hombro"] == 112 and sum(len(p.get("bloqueada", {})) for p in st["poses"].values()) == 12,
+      "después de bloquear, la postura se guarda con las 12")
+call("/api/off", {})
+call("/api/power", {"limitar": True, "amperios": 3, "permitir_sin_corriente": True})
+call("/api/lock_all", {"segundos": 0.2})
+fin = wait_routine(60)
+st = call("/api/state")
+check(fin["fin"] == "terminada" and "suelta" in fin["nombre"] and all(v is None for v in st["angles"].values())
+      and len(st["ultima"]["angulos"]) >= 12, f"con 3 A: {fin['nombre']} (quedan sueltos y todo apuntado)")
+call("/api/power", {"limitar": True, "amperios": 20, "permitir_sin_corriente": True})
+call("/api/lock_all", {})
+fin = wait_routine(60)
+check(fin["fin"] == "terminada" and "a la vez" in fin["nombre"] and fin["total"] == 1, f"con 20 A: {fin['nombre']}")
+call("/api/power", {"limitar": True, "amperios": 5, "permitir_sin_corriente": True})
+call("/api/off", {})
+call("/api/pose_delete", {"nombre": "bloqueada"})
+
+# --- mapa: pasar un servo a otro conector deja libre el canal viejo ---
+m0 = call("/api/state")["map"]
+old = next(k for k, m in m0.items() if m.get("pata") == "D" and m.get("articulacion") == "codo")
+new = next(str(c) for c in (8, 7, 1) if m0.get(str(c), {}).get("libre") and not m0[str(c)].get("led"))  # un canal libre
+st = call("/api/map", {"ch": int(new), "pata": "D", "articulacion": "codo"})
+check(st["map"][old].get("libre") and "antes D3" in st["map"][old].get("nota", "") and st["map"][new].get("pata") == "D",
+      f"mapa: D3 del canal {old} al {new}, el {old} queda libre con nota")
+call("/api/map", {"ch": int(old), "pata": "D", "articulacion": "codo"})
+st = call("/api/state")
+check(st["map"][old].get("pata") == "D" and st["map"][new].get("libre"), "mapa: D3 vuelve a su canal")
+for k in (old, new):  # dejar el mapa como estaba
+    if k not in m0:
+        call("/api/map", {"ch": int(k), "clear": True})
+    elif m0[k].get("libre"):
+        call("/api/map", {"ch": int(k), "libre": True})
+shape = lambda mp: {k: (m.get("pata"), m.get("articulacion"), bool(m.get("libre"))) for k, m in mp.items()}
+m1 = call("/api/state")["map"]
+check(shape(m1) == shape(m0) and m1[old].get("offset") == m0[old].get("offset"), "mapa restaurado (con su calibración)")
 
 # --- LED de vida en la placa ---
 st = call("/api/board_led", {"activo": True, "canal": 9})

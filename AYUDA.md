@@ -109,10 +109,20 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
 - Avisos abajo a la derecha: falta corriente, consumo alto, muchos botones a la vez, rutina en marcha.
 - Cabecera: mini esquema de consumo en tiempo real (filas A B C D · pectoral hombro codo; gris suelto,
   ámbar sujetando ~0,3 A, rojo moviéndose ~1,2 A) y el total estimado frente al límite.
+- BLOQUEAR TODO DONDE ESTÁ (botón junto a "Bloquear todo a mitad", y al guardar una postura con servos sueltos):
+  sujeta cada servo en el último ángulo que le mandó la Pi y lo apunta en la memoria. Si la fuente da, todos a la vez;
+  si no, uno a uno cada 0,3 / 0,4 / 0,5 s (se elige en "Mis posturas") con una barra arriba: "Bloqueando A2 hombro… 3/12"
+  y un botón Parar. Si la fuente no da ni para tenerlos todos sujetos (o marcas "soltar cada uno después"), bloquea,
+  apunta y suelta cada uno. Al terminar, "Guardar postura" guarda las 12. Ojo: si moviste a mano una pata suelta,
+  salta hasta la posición apuntada (robot en el aire o bien apoyado).
 - Memoria de posición: la Pi guarda en la SD el último ángulo de cada servo (sobrevive a cortes).
   "Mis posturas" puede guardar con esa memoria, sujetar los sueltos donde estaban, o copiar del robot
   moviendo solo el dibujo en "El robot en vivo" (botón "Copiar del robot", no mueve los servos).
-- Tabla del mapa: filas en rojo/ámbar/verde y, al pasar el ratón, qué falla y cómo comprobarlo.
+- Tabla del mapa: filas en rojo/ámbar/verde y, al pasar el ratón, qué falla y cómo comprobarlo. Si cambias un servo
+  de conector, pon su pata/articulación en el canal nuevo: el viejo queda libre ("antes A3") y su ajuste se va con él.
+- Franja de apagados de golpe arriba: cuántas veces se apagó la Pi sin avisar y si fue por falta de corriente.
+- Botones ±5 / ±15 / ±30 en canales y grupos. En la pantalla HDMI: ←→ 5°, RePág/AvPág 15°, Inicio/Fin 30°.
+- La página web en la tele abre la versión ligera (http://<ip>/lite): mismas cosas básicas, sin bloques, más rápida.
 
 5b. LÍMITE DE CONSUMO Y ESQUEMA DE CONEXIONES
 ---------------------------------------------

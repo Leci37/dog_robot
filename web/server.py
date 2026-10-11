@@ -351,7 +351,8 @@ bound_ports = set()
 #   {"op": "esperar", "s": 0..30}    {"op": "velocidad", "v": "lento|normal|rapido"}
 #   {"op": "repetir", "n": 1..50, "pasos": [...]}    {"op": "rutina", "nombre": "..."}
 
-routine = {"running": False, "nombre": "", "paso": 0, "total": 0, "error": "", "stop": False, "fin": ""}
+routine = {"running": False, "nombre": "", "paso": 0, "total": 0, "error": "", "stop": False, "fin": "",
+           "detalle": "", "lista": []}  # detalle/lista: lo que hace ahora y los pasos con nombre (barra de "Bloquear todo")
 
 
 class RoutineStop(Exception):
@@ -442,10 +443,67 @@ def run_steps(steps, ctx, depth=0):
         else:
             if not power_cfg()["permitir_sin_corriente"] and low_power_now():
                 raise ValueError("falta de corriente en la Pi: rutina parada para que no se apague")
-            with lock:  # cada paso con el cerrojo de servos; entre pasos la web sigue respondiendo
-                run_move(st, ctx)
-                save_last()
+            if op == "bloquear":
+                lock_step(st, ctx)
+            else:
+                with lock:  # cada paso con el cerrojo de servos; entre pasos la web sigue respondiendo
+                    run_move(st, ctx)
+                    save_last()
         routine["paso"] += 1
+
+
+def lock_step(st, ctx):
+    """Un paso de "Bloquear todo": sujeta uno (o varios) en su ángulo, lo apunta en la memoria de posición,
+    espera un poco para que se vea y, en el modo bloquea-y-suelta, lo vuelve a soltar."""
+    routine["detalle"] = st.get("texto", "")
+    targets = {int(o["ch"]): clamp(o["angulo"]) for o in st.get("objetivos", [])}
+    with lock:
+        if targets:
+            move_many(targets, ctx["pause"])
+        save_last()
+    wait_s(st.get("s", 0))
+    if st.get("soltar"):
+        with lock:
+            for ch in targets:
+                release(ch)
+
+
+def plan_lock_all(b):
+    """"Bloquear todo y apuntar": deja los servos sujetos justo en el ángulo que la Pi tiene apuntado (el que ya
+    sujetan o, si están sueltos, el último que se les mandó; sin memoria, 90°) y lo guarda en la memoria, para que
+    lo que cree la Pi y el robot de verdad coincidan antes de guardar una postura.
+    Si la fuente aguanta, todos a la vez; si no, uno a uno, pata a pata (pectoral, hombro, codo) con una pausa
+    de 0,3-0,5 s para que se vea en la barra; y si ni siquiera hay corriente para dejarlos todos sujetos (o se pide
+    soltar), bloquea-apunta-suelta cada uno. Los servos que ya estaban sujetos no se sueltan nunca."""
+    secs = max(0.2, min(2.0, float(b.get("segundos", 0.4))))
+    objs = []
+    for leg in LEGS:
+        chs = leg_channels(leg)
+        for art in JOINTS:
+            if art not in chs:
+                continue
+            ch = chs[art]
+            if angles[ch] is not None:
+                a, src = angles[ch], "ya sujeto"
+            elif ch in last_known:
+                a, src = last_known[ch], "memoria"
+            else:
+                a, src = CENTER, "sin memoria: 90°"
+            objs.append({"ch": ch, "angulo": clamp(a), "origen": src, "tag": f"{leg}{JOINTS.index(art) + 1} {art}"})
+    if not objs:
+        raise ValueError("no hay servos en el mapa")
+    loose = [o for o in objs if o["origen"] != "ya sujeto"]
+    pc = power_cfg()
+    hold_all = not pc["limitar"] or len(objs) * I_HOLD + (I_MOVE - I_HOLD) <= pc["amperios"]
+    soltar = bool(b.get("soltar")) or not hold_all
+    lista = [f"{o['tag']} · {o['angulo']}° ({o['origen']})" for o in objs]
+    if not soltar and max_movers(len(loose), len(objs) - len(loose)) >= len(loose):
+        prog = [{"op": "bloquear", "objetivos": loose, "s": secs,
+                 "texto": f"bloqueando los {len(loose)} sueltos a la vez" if loose else "los 12 ya estaban sujetos: apuntando"}]
+        return prog, "Bloquear todo (a la vez)", ["todos a la vez: " + ", ".join(o["tag"].split()[0] for o in objs)]
+    prog = [{"op": "bloquear", "objetivos": [o], "s": secs, "soltar": soltar and o["origen"] != "ya sujeto",
+             "texto": f"bloqueando {txt}"} for o, txt in zip(objs, lista)]
+    return prog, "Bloquear todo (uno a uno" + (", bloquea y suelta)" if soltar else ")"), lista
 
 
 def run_move(st, ctx):
@@ -500,12 +558,13 @@ def run_move(st, ctx):
         move_many(targets, ctx["pause"])
 
 
-def start_routine(program, name):
+def start_routine(program, name, lista=None):
     if routine["running"]:
         raise ValueError(f"ya se está ejecutando '{routine['nombre']}': párala primero")
     if not isinstance(program, list) or not program:
         raise ValueError("programa vacío")
-    routine.update(running=True, nombre=name, paso=0, total=count_steps(program), error="", stop=False, fin="")
+    routine.update(running=True, nombre=name, paso=0, total=count_steps(program), error="", stop=False, fin="",
+                   detalle="", lista=lista or [])
     ctx = {"pause": SPEEDS["normal"], "conv": load_config().get("convencion") or {}}
 
     def worker():
@@ -924,6 +983,7 @@ def consumption():
     return {"canales": chans, "total_A": round(total, 2), "limite_A": pc["amperios"], "limitar": pc["limitar"],
             "falta_corriente": low_power_now(), "permitir_sin_corriente": pc["permitir_sin_corriente"],
             "rutina": routine["nombre"] if routine["running"] else "",
+            "progreso": {k: routine[k] for k in ("running", "nombre", "paso", "total", "detalle", "lista", "fin", "error")},
             "rechazadas_recientes": traffic["rechazadas"] if time.time() - traffic["ultima_rechazada"] < 8 else 0}
 
 
@@ -1138,7 +1198,7 @@ class Handler(BaseHTTPRequestHandler):
             if path in ("/api/screen", "/api/screen_boot", "/api/system_action"):
                 self.route_system(body)  # no tocan servos: sin esperar al cerrojo de movimiento
                 return
-            if path.startswith("/api/routine") or path in ("/api/try_mark", "/api/convention_reset"):
+            if path.startswith("/api/routine") or path in ("/api/try_mark", "/api/convention_reset", "/api/lock_all"):
                 self.route_routines(path, body)
                 return
             if path == "/api/off":
@@ -1182,6 +1242,10 @@ class Handler(BaseHTTPRequestHandler):
                 start_routine(r["programa"], b["nombre"])
             else:
                 start_routine(b.get("programa"), b.get("nombre") or "programa de bloques")
+        elif p == "/api/lock_all":
+            power_guard()
+            prog, name, lista = plan_lock_all(b)
+            start_routine(prog, name, lista)
         elif p == "/api/routine_stop":
             routine["stop"] = True
             log("rutina: parar pedido")
@@ -1453,12 +1517,26 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError(f"el canal {ch} tiene el LED de vida: desactívalo antes de poner un servo")
                 old = data["canales"].get(key, {})
                 entry = {"pata": leg, "articulacion": joint}
-                for f in ("offset", "invertir", "nota"):  # conservar calibración al re-mapear
+                for f in ("offset", "invertir"):  # la calibración es del servo que está en este canal
                     if f in old:
                         entry[f] = old[f]
+                if old.get("nota") and old.get("pata") == leg and old.get("articulacion") == joint:
+                    entry["nota"] = old["nota"]
+                tag = f"{leg}{JOINTS.index(joint) + 1}"
+                # si esa pata/articulación estaba en otro canal, el servo se ha cambiado de conector:
+                # el canal viejo queda libre y, si este canal no tenía calibración propia, se trae la del viejo
+                for k, m in list(data["canales"].items()):
+                    if k != key and m.get("pata") == leg and m.get("articulacion") == joint:
+                        if "offset" not in old and "invertir" not in old:
+                            for f in ("offset", "invertir"):
+                                if f in m:
+                                    entry[f] = m[f]
+                        data["canales"][k] = {"libre": True, "nota": f"antes {tag} (pasado al canal {ch})"}
+                        log(f"mapa: canal {k} libre: {tag} se ha pasado al canal {ch}")
                 data["canales"][key] = entry
-                log(f"mapa: canal {ch} = {leg}{JOINTS.index(joint) + 1} {joint}")
+                log(f"mapa: canal {ch} = {tag} {joint}")
             save_map(data)
+            load_cal()  # el ajuste de cada canal puede haber cambiado
         else:
             self._send(404, {"error": "no existe"})
             return

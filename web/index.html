@@ -92,6 +92,19 @@ pre#ayuda{white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-
 #mapLive tr.bad td{background:var(--bad-bg)}#mapLive tr.warn td{background:var(--warn-bg)}#mapLive tr.ok td{background:var(--ok-bg)}
 #mapLive tr[data-tip]{cursor:help;position:relative}
 #mapTip{position:fixed;z-index:45;max-width:360px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.45;box-shadow:0 8px 24px rgba(0,0,0,.2);pointer-events:none}
+#lockProg{flex-basis:100%;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:8px 12px;display:flex;flex-direction:column;gap:6px}
+#lockProg.bad{background:var(--bad-bg);border-color:var(--bad)}#lockProg.ok{background:var(--ok-bg)}
+#lockProg .lp-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap}#lockProg .lp-top b{font-size:15px}
+#lockProg .lp-top button{margin-left:auto;padding:3px 10px}
+#lockProg .lp-bar{height:12px;border-radius:6px;background:var(--line);overflow:hidden}
+#lockProg .lp-bar i{display:block;height:100%;background:var(--acc);transition:width .25s}
+#lockProg.ok .lp-bar i{background:var(--ok)}#lockProg.bad .lp-bar i{background:var(--bad)}
+#lockProg .lp-now{font-size:14px;font-variant-numeric:tabular-nums}
+#lockProg .lp-chips{display:flex;flex-wrap:wrap;gap:4px}
+#lockProg .lp-chips span{font-size:12px;padding:1px 7px;border-radius:6px;border:1px solid var(--line);color:var(--mut)}
+#lockProg .lp-chips span.done{background:#e0a53a;border-color:#c27c12;color:#1f1e1c}
+#lockProg .lp-chips span.now{background:var(--acc);border-color:var(--acc);color:var(--card);animation:lpnow .6s ease-in-out infinite alternate}
+@keyframes lpnow{from{opacity:1}to{opacity:.55}}
 .pmsg{border-radius:8px;padding:8px 12px;font-size:14px;background:var(--warn-bg);border:1px solid var(--line)}
 .pmsg.ok{background:var(--ok-bg)}.pmsg.bad{background:var(--bad-bg)}
 .plist{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
@@ -155,6 +168,7 @@ html{scroll-behavior:smooth}
   <div id="stw"><button id="stBtn" class="tag" title="Cómo estás conectado, credenciales y rutas">● estado ▾</button>
     <div id="stPanel" class="stpanel" hidden></div></div>
   <div id="now" class="now" hidden></div>
+  <div id="lockProg" hidden aria-live="polite"></div>
 </header>
 <aside id="alerts" aria-live="polite"></aside>
 <div id="mapTip" hidden></div>
@@ -243,6 +257,7 @@ html{scroll-behavior:smooth}
     Para enseñar posturas: <b>Bloquear todo a mitad</b> → mueve los grupos hasta recoger las patas →
     <b>Guardar como recogida (todas)</b>; igual para estirada.</div>
   <div class="row" style="margin-bottom:10px">
+    <button class="pri" id="lockAll" title="Sujeta cada servo en la última posición que le mandó la Pi y la apunta; uno a uno si la fuente no da para todos">Bloquear todo donde está</button>
     <button class="pri" id="pose90">Bloquear todo a mitad (90°)</button>
     <button class="pri" data-pg="todas" data-pn="recogida" id="recAll">Recoger todas</button>
     <button class="pri" data-pg="todas" data-pn="estirada" id="estAll">Estirar todas</button>
@@ -257,6 +272,11 @@ html{scroll-behavior:smooth}
     <div class="row">
       <input id="poseName" placeholder="nombre: sentado, de pie…" style="font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);width:220px">
       <button class="pri" id="poseSave">Guardar postura actual (las 4 patas)</button>
+    </div>
+    <div class="row pz" style="gap:14px">
+      <label>Al guardar, si hay sueltos, los bloquea primero: uno a uno cada
+        <select id="lockSecs"><option value="0.3">0,3 s</option><option value="0.4" selected>0,4 s</option><option value="0.5">0,5 s</option></select></label>
+      <label title="Bloquea, apunta y suelta cada servo: gasta menos, pero el robot no queda sujeto"><input type="checkbox" id="lockSuelta"> soltar cada uno después de apuntarlo</label>
     </div>
     <div class="pmsg" id="poseMsg" hidden></div>
     <div class="plist" id="poseList"></div>
@@ -454,7 +474,68 @@ function renderAlerts() {
   $('alerts').innerHTML = out.map(a => `<div class="al ${a.cls}"><b>${esc(a.title)}</b>${esc(a.text)}</div>`).join('');
 }
 async function pollCons() {
-  try { cons = await api('/api/consumo'); renderAmp(); renderAlerts(); } catch {}
+  try { cons = await api('/api/consumo'); renderAmp(); renderAlerts(); renderLock(cons.progreso); } catch {}
+  if (cons && cons.progreso && cons.progreso.running && /^Bloquear todo/.test(cons.progreso.nombre)) lockLoop();
+}
+// ---------- "Bloquear todo donde está": uno a uno con barra de progreso (o todos a la vez si da la corriente) ----------
+let lockSave = null, lockTimer = null, lockShowUntil = 0, lockWasRunning = false;
+function lockConfirmText(what, loose) {
+  const last = (st.ultima || {}).angulos || {}, p = st.potencia || {};
+  const noMem = loose.filter(x => last[x.ch] == null).map(x => x.tag);
+  const secs = String($('lockSecs').value).replace('.', ',');
+  const how = p.limitar && (p.a_la_vez_12 || 1) < 12 ? `uno a uno (${secs} s cada uno, límite ${p.amperios} A)` : 'todos a la vez (la fuente da)';
+  return `${what}, la Pi va a bloquear los servos ${how} en la última posición que les mandó y apuntarla en la memoria.\n\n` +
+    `Sueltos ahora: ${loose.map(x => x.tag).join(', ')}.` + (noMem.length ? `\nSin memoria (irán a 90°): ${noMem.join(', ')}.` : '') +
+    `\nSi moviste alguna pata a mano después de soltarla, dará un salto hasta esa posición.\n\n¿Robot en el aire o bien apoyado?`;
+}
+async function lockAll(saveName) {
+  const body = {segundos: +$('lockSecs').value, soltar: $('lockSuelta').checked, speed: speed()};
+  try { await api('/api/lock_all', body); }
+  catch (e) { flashAlert(e.message); if (saveName) poseMsg('No se pudo bloquear: ' + esc(e.message), 'bad'); return; }
+  lockSave = saveName || null;
+  if (saveName) poseMsg(`Bloqueando para guardar <b>${esc(saveName)}</b>… mira la barra de arriba. Al terminar se guarda sola.`, '');
+  lockLoop();
+}
+function lockLoop() {
+  if (lockTimer) return;
+  const tick = async () => {
+    try { cons = await api('/api/consumo'); renderAmp(); renderAlerts(); renderLock(cons.progreso); } catch {}
+    const p = cons && cons.progreso;
+    if (p && p.running) { lockTimer = setTimeout(tick, 300); return; }
+    lockTimer = null; lockDone(p);
+  };
+  lockTimer = setTimeout(tick, 50);
+}
+function lockDone(p) {
+  const name = lockSave; lockSave = null;
+  poll();
+  if (!name) return;
+  if (p && p.fin === 'terminada') savePose(name, {usar_ultima: true});
+  else poseMsg(`No se guardó <b>${esc(name)}</b>: el bloqueo terminó "${esc((p && p.fin) || '¿?')}"${p && p.error ? ' (' + esc(p.error) + ')' : ''}.`, 'bad');
+}
+function renderLock(p) {
+  const el = $('lockProg');
+  if (!p || !/^Bloquear todo/.test(p.nombre || '')) { if (Date.now() > lockShowUntil) el.hidden = true; return; }
+  if (p.running) lockWasRunning = true;
+  else if (lockWasRunning) { lockWasRunning = false; lockShowUntil = Date.now() + (p.fin === 'terminada' ? 6000 : 60000); }
+  if (!p.running && Date.now() > lockShowUntil) { el.hidden = true; return; }
+  const all = (p.lista || []).length === 1 && /^todos a la vez: /.test(p.lista[0]);
+  const tags = all ? p.lista[0].replace(/^todos a la vez: /, '').split(', ').map(t => ({t})) : (p.lista || []).map(x => ({t: x.split(' ')[0], tip: x}));
+  const pct = p.total ? Math.round(p.paso / p.total * 100) : 0, suelta = /suelta/.test(p.nombre);
+  const chips = tags.map((x, i) => {
+    const cls = all ? (p.paso >= 1 ? 'done' : p.running ? 'now' : '') : i < p.paso ? 'done' : i === p.paso && p.running ? 'now' : '';
+    return `<span class="${cls}" title="${esc(x.tip || x.t)}">${esc(x.t)}</span>`;
+  }).join('');
+  let head, now;
+  if (p.running) { head = `🔒 ${esc(p.nombre)} · ${p.paso}/${p.total}`; now = esc(p.detalle || 'empezando…'); el.className = ''; }
+  else if (p.fin === 'terminada') {
+    head = `✓ ${esc(p.nombre)}: hecho`; el.className = 'ok';
+    now = suelta ? 'Todos apuntados en la memoria (quedan sueltos).' : 'Todos sujetos y apuntados en la memoria: lo que cree la Pi y el robot coinciden.';
+  } else { head = `✗ ${esc(p.nombre)}: ${esc(p.fin || 'parado')} en ${p.paso}/${p.total}`; now = esc(p.error || 'Se paró antes de terminar.'); el.className = 'bad'; }
+  el.innerHTML = `<div class="lp-top"><b>${head}</b>${p.running ? '<button class="stop" id="lpStop">Parar</button>' : '<button id="lpClose" title="Cerrar">✕</button>'}</div>
+    <div class="lp-bar"><i style="width:${p.fin === 'terminada' && !p.running ? 100 : pct}%"></i></div>
+    <div class="lp-now">${now}</div><div class="lp-chips">${chips}</div>`;
+  el.hidden = false;
 }
 setInterval(pollCons, 1000);
 function label(m) {
@@ -974,6 +1055,13 @@ document.addEventListener('click', e => {
   if (b.id === 'off') { seqStop = true; if (window.speechSynthesis) speechSynthesis.cancel(); act('/api/off', {}, 'soltando todo…'); }
   else if (b.id === 'stopseq') { seqStop = true; if (window.speechSynthesis) speechSynthesis.cancel(); $('msg').textContent = 'parando tras el movimiento actual…'; }
   else if (d.seq) runSeq(d.seq);
+  else if (b.id === 'lockAll') {
+    const loose = poseLoose();
+    if (!loose.length) $('msg').textContent = 'Los 12 ya están sujetos: se apuntan tal cual en la memoria.';
+    if (!loose.length || confirm(lockConfirmText('Bloquear todo donde está', loose))) lockAll(null);
+  }
+  else if (b.id === 'lpStop') api('/api/routine_stop', {}).catch(e => flashAlert(e.message));
+  else if (b.id === 'lpClose') { lockShowUntil = 0; $('lockProg').hidden = true; }
   else if (b.id === 'pose90') {
     const n = Object.values(st.map).filter(m => !m.libre).length;
     if (confirm(`Bloquear los ${n} servos a 90°, poco a poco y alternando patas. ¿Robot en el aire?`)) act('/api/pose90', {speed: speed()}, 'bloqueando todo a mitad (90°)…');
@@ -1441,11 +1529,12 @@ document.addEventListener('click', e => {
     const loose = poseLoose();
     if (!loose.length) { savePose(name, {}); return; }
     const last = (st.ultima || {}).angulos || {}, known = loose.filter(x => last[x.ch] != null).length;
+    if (confirm(lockConfirmText(`Para guardar "${name}"`, loose))) { lockAll(name); return; }
     poseMsg(`<b>${loose.length} de 12 servos están sueltos</b> (${loose.map(x => x.tag).join(', ')}): la Pi no puede leer dónde están
       (los MG996R no lo dicen). Elige cómo guardar <b>${esc(name)}</b>:
       <div class="row" style="margin-top:8px">
         ${known ? `<button class="pri" data-psave="ultima" title="No mueve nada">Guardar con la última posición conocida (${known}/${loose.length})</button>` : ''}
-        <button data-psave="sujetar" title="Los sujeta de uno en uno, según los amperios">${known ? 'Sujetarlos donde estaban' : 'Sujetarlos a 90°'} y guardar</button>
+        <button data-psave="bloquear" title="Uno a uno con barra de progreso, según los amperios">Bloquear uno a uno y guardar</button>
         <button data-psave="dibujo" title="No mueve nada">Copiar del robot con el dibujo</button>
       </div>
       <div class="pz" style="margin-top:6px">La última posición conocida es lo último que la Pi les mandó${(st.ultima || {}).hora ? ' (' + esc(st.ultima.hora.replace('T', ' ')) + ')' : ''};
@@ -1453,11 +1542,7 @@ document.addEventListener('click', e => {
   } else if (b.dataset.psave) {
     const name = $('poseName').value.trim(); if (!name) { poseMsg('Escribe un nombre para la postura.', 'bad'); return; }
     if (b.dataset.psave === 'ultima') savePose(name, {usar_ultima: true});
-    else if (b.dataset.psave === 'sujetar') (async () => {
-      setBusy(true, 'sujetando los sueltos de uno en uno…');
-      try { st = await api('/api/lock_loose', {a: 'ultima', speed: speed()}); setBusy(false); savePose(name, {}); }
-      catch (err) { setBusy(false); poseMsg('No se pudieron sujetar: ' + esc(err.message), 'bad'); }
-    })();
+    else if (b.dataset.psave === 'bloquear') lockAll(name);
     else { vCopyMode(true); $('vivo').scrollIntoView({behavior: 'smooth'});
       poseMsg('Modo copiar activado abajo, en <b>El robot en vivo</b>: arrastra las patas del dibujo hasta que se parezcan al robot (no se mueve nada) y pulsa <b>Guardar el dibujo como postura</b>.', ''); }
   } else if (b.dataset.posego) {
