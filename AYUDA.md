@@ -132,6 +132,11 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
   (16, 47-49), 4 versiones cada una, y las Ganadoras. Se han quitado las peor valoradas y las dar la pata de pie.
 - "Repetir sin parar": casilla en cada rutina; al pulsarla se repite hasta Parar o Soltar todo (arriba sale la vuelta).
 - Oro (fila dorada, 101-106): mejoras de Galope fuerte · ritmo; valóralas para saber cuál ayuda.
+- MODO TORETO (casilla roja arriba, y caja roja con los Galope fuerte): máxima potencia. Cada movimiento va de un
+  salto con una "patada" de 6° de más (el servo mete toda su fuerza) y todos los servos a la vez. En la caja roja:
+  Toreto sí/no, Nitro y "Repetir sin parar" (Parar para acabar). NITRO: los servos a 200 Hz en vez de 50 (más
+  fuerza, pero los MG996R son analógicos y se calientan: pueden quemarse); se apaga solo a los 2 minutos.
+  Lo que más fuerza da de verdad es subir la fuente de servos a 6-6,8 V si tiene tornillo de ajuste (V.ADJ).
 - Velocidad de las rutinas: marchas 1ª muy lenta, 2ª lenta, 3ª normal, 4ª rápida, 5ª muy rápida. Botones en
   "Rutinas para probar" y, con una rutina en marcha, al lado de "Parar rutina": se nota en el paso siguiente.
 - Web > "Programar con bloques": como Scratch. Bloques de mover (pata/articulación/grados, relativo,

@@ -64,6 +64,16 @@ kit = ServoKit(channels=16)
 for _ch in range(16):
     kit.servo[_ch].set_pulse_width_range(MIN_US, MAX_US)
 lock = threading.Lock()
+# ---------- modo Toreto: máxima potencia (12-10, Luis: "como en Fast and Furious, no me importa si rompo algo") ----------
+# Toreto: 1) movimientos sin interpolar: salto directo con una "patada" de unos grados más allá del objetivo (error
+# grande = el servo mete toda la fuerza) y vuelta; 2) todo a la vez, sin tandas del límite de consumo.
+# Nitro (aparte, opcional y con tiempo): refresco a 200 Hz en vez de 50. Un MG996R analógico empuja el motor en cada
+# pulso: más fuerza y respuesta, pero se calienta y puede quemarse en minutos; por eso se apaga solo a los NITRO_S.
+TORETO_HZ, NORMAL_HZ = 200, 50
+TORETO_PATADA = 6            # grados de más al arrancar cada movimiento
+TORETO_S_POR_GRADO = 0.003   # lo que tarda el servo (MG996R ~0,17 s/60° a 5 V): espera tras el salto
+NITRO_S = 120
+toreto = {"on": False, "nitro": False, "hz": NORMAL_HZ, "nitro_hasta": 0.0}
 angles = {ch: None for ch in range(16)}  # último ángulo LÓGICO mandado; None = suelto
 CAL = {}  # canal -> (offset, invertir); se carga del mapa al arrancar
 
@@ -244,6 +254,11 @@ def boot_check():
 
 
 def on_sigterm(signum, frame):
+    if toreto["nitro"]:  # al volver a arrancar la librería pone 50 Hz: que los pulsos sigan siendo los mismos
+        try:
+            set_nitro(False)
+        except Exception:  # noqa: BLE001
+            pass
     state = run(["systemctl", "is-system-running"], timeout=2)
     if state == "stopping":
         energy_log(f"APAGADO-LIMPIO boot={boot_id()}")
@@ -1311,7 +1326,9 @@ def routines_info():
             "convencion": conv, "pruebas": cfg.get("pruebas", {}), "ejecutando": dict(routine),
             "marcha": gear(), "marchas": {str(k): v[0] for k, v in MARCHAS.items()},
             "valoraciones": {k: v["estrellas"] for k, v in cfg.get("valoraciones", {}).items()},
-            "home": home_id(cands, cfg), "populares": popular_ids(cands, cfg), "codigo_de_pie": CODIGO_DE_PIE}
+            "home": home_id(cands, cfg), "populares": popular_ids(cands, cfg), "codigo_de_pie": CODIGO_DE_PIE,
+            "toreto": toreto["on"], "nitro": toreto["nitro"], "toreto_hz": toreto["hz"],
+            "nitro_quedan_s": max(0, round(toreto["nitro_hasta"] - time.time())) if toreto["nitro"] else 0}
 
 
 # ---------- pestaña de estado: cómo me estoy conectando ----------
@@ -1549,7 +1566,7 @@ def move_many(targets, pause=0.03, juntos=False):
     cuerpo, en tandas cada pata carga sola con su esquina y su servo no puede (se queda a medias)."""
     targets = {ch: clamp(a) for ch, a in targets.items()}
     held_others = sum(1 for ch, a in angles.items() if a is not None and ch not in targets)
-    k = len(targets) if juntos else max_movers(len(targets), held_others)
+    k = len(targets) if juntos or toreto["on"] else max_movers(len(targets), held_others)
     power_info["ultima_tanda"] = k
     if k < len(targets):
         items = list(targets.items())
@@ -1593,6 +1610,9 @@ def _move_together(targets, pause):
 
 
 def _move_together_inner(targets, pause):
+    if toreto["on"]:
+        _move_toreto(targets)
+        return
     for ch, a in targets.items():  # sueltos: salto inevitable, escalonado
         if angles[ch] is None:
             write(ch, a)
@@ -1607,6 +1627,49 @@ def _move_together_inner(targets, pause):
     for ch, a in targets.items():
         write(ch, a)
         angles[ch] = a
+
+
+def _move_toreto(targets):
+    """Toreto: todos a la vez de un salto, pasándose TORETO_PATADA grados en el sentido del movimiento (el servo ve un
+    error grande y mete toda la fuerza), espera lo que tarda en llegar y deja cada uno en su sitio."""
+    delta = {ch: (targets[ch] - angles[ch]) if angles[ch] is not None else 0 for ch in targets}
+    dmax = max((abs(d) for d in delta.values()), default=0)
+    for ch, a in targets.items():
+        d = delta[ch]
+        write(ch, clamp(a + (TORETO_PATADA if d > 0 else -TORETO_PATADA)) if d else a)
+    time.sleep(max(0.03, (dmax + TORETO_PATADA) * TORETO_S_POR_GRADO))
+    for ch, a in targets.items():
+        write(ch, a)
+        angles[ch] = a
+
+
+def set_toreto(on):
+    """Modo Toreto sí/no (salto con patada y todo a la vez). Al quitarlo se quita también el Nitro."""
+    toreto["on"] = bool(on)
+    if not on and toreto["nitro"]:
+        set_nitro(False)
+
+
+def set_nitro(on):
+    """Nitro: cambia el refresco de la PCA9685 (200 Hz / 50 Hz), recalcula el pulso de los 16 canales (la librería
+    calcula el ancho de pulso con la frecuencia al configurar el rango) y vuelve a mandar los que sujetan."""
+    kit._pca.frequency = TORETO_HZ if on else NORMAL_HZ
+    for ch in range(16):
+        kit.servo[ch].set_pulse_width_range(MIN_US, MAX_US)
+    for ch, a in angles.items():
+        if a is not None:
+            write(ch, a)
+    toreto.update(nitro=bool(on), hz=round(kit._pca.frequency), nitro_hasta=time.time() + NITRO_S if on else 0.0)
+
+
+def nitro_watch():
+    """El Nitro se apaga solo a los NITRO_S segundos (los MG996R analógicos se calientan a 200 Hz)."""
+    while True:
+        time.sleep(2)
+        if toreto["nitro"] and time.time() > toreto["nitro_hasta"]:
+            with lock:
+                set_nitro(False)
+            log(f"Nitro apagado solo tras {NITRO_S} s (vuelta a {NORMAL_HZ} Hz)")
 
 
 def clamp(a):
@@ -1641,6 +1704,9 @@ def move_to(ch, target, pause=0.03):
 def _move_to(ch, target, pause=0.03):
     target = clamp(target)
     cur = angles[ch]
+    if toreto["on"] and cur is not None:
+        _move_toreto({ch: target})
+        return
     if cur is None:
         write(ch, target)  # primer pulso: salto absoluto
         time.sleep(0.6)
@@ -1692,6 +1758,8 @@ class Handler(BaseHTTPRequestHandler):
         return {"angles": angles, "map": load_map()["canales"], "poses": load_poses(), "rutina": dict(routine),
                 "potencia": potencia, "convencion": cfg.get("convencion"), "verificacion": cfg.get("verificacion", {}),
                 "ultima": {"angulos": {str(k): v for k, v in last_known.items()}, "hora": last_info["hora"]},
+                "toreto": toreto["on"], "nitro": toreto["nitro"], "toreto_hz": toreto["hz"],
+                "nitro_quedan_s": max(0, round(toreto["nitro_hasta"] - time.time())) if toreto["nitro"] else 0,
                 "led_placa": led_cfg(), "led_patron": {"pasos": LED_PATTERN, "periodo": LED_PERIOD, "hora_pi": time.time()},
                 "limits": {"min": SAFE_MIN, "max": SAFE_MAX, "max_delta": MAX_DELTA}}
 
@@ -1778,6 +1846,20 @@ class Handler(BaseHTTPRequestHandler):
                                 "angulos": {j: angles[ch] for j, ch in leg_channels(leg).items()}}
                 write_json(CONFIG_FILE, cfg)
                 log(f"pata {leg}: el dibujo {'COINCIDE' if body.get('ok') else 'NO coincide' if body.get('ok') is not None else 'sin comprobar'} con el robot")
+                self._send(200, self.state())
+                return
+            if path == "/api/toreto":  # Toreto sí/no (se guarda) y Nitro sí/no (200 Hz, no se guarda, se apaga solo)
+                on = bool(body.get("activo", toreto["on"]))
+                nitro = bool(body.get("nitro", toreto["nitro"])) and on
+                with lock:
+                    set_toreto(on)
+                    if nitro != toreto["nitro"]:
+                        set_nitro(nitro)
+                cfg = load_config()
+                cfg["toreto"] = on
+                write_json(CONFIG_FILE, cfg)
+                log(f"MODO TORETO {'ACTIVADO (salto con patada de ' + str(TORETO_PATADA) + '° y todo a la vez)' if on else 'desactivado'}"
+                    + (f" · NITRO {TORETO_HZ} Hz durante {NITRO_S} s" if toreto["nitro"] else f" · {toreto['hz']} Hz"))
                 self._send(200, self.state())
                 return
             if path == "/api/power":
@@ -2215,6 +2297,10 @@ if __name__ == "__main__":
     load_cal()
     load_last()
     recover_angles()
+    if load_config().get("toreto"):
+        set_toreto(True)  # el Nitro (200 Hz) nunca se enciende solo al arrancar
+        log("modo Toreto activo desde el arranque (sin Nitro)")
+    threading.Thread(target=nitro_watch, daemon=True).start()
     boot_check()
     threading.Thread(target=power_monitor, daemon=True).start()
     threading.Thread(target=board_led_loop, daemon=True).start()

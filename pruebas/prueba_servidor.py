@@ -344,6 +344,23 @@ check("A" not in st["verificacion"], "borra la marca de la pata A")
 call("/api/leg_check", {"pata": "C", "ok": None})
 check("convencion" in st and "verificacion" in st, "el estado lleva convención y verificación para el robot en vivo")
 
+# --- modo Toreto (salto con patada, todo a la vez) y Nitro (200 Hz, se apaga solo) ---
+st = call("/api/toreto", {"activo": True})
+check(st["toreto"] and not st["nitro"] and st["toreto_hz"] == 50, "Toreto activado (sin Nitro: sigue a 50 Hz)")
+call("/api/power", {"limitar": True, "amperios": 5, "permitir_sin_corriente": True})
+call("/api/routine_run", {"codigo": "18"})  # aquí ya no hay convención: solo las de pie
+fin = wait_routine()
+check(fin["fin"] == "terminada" and call("/api/state")["potencia"]["ultima_tanda"] >= 8,
+      f"De pie 6.7 en modo Toreto: {fin.get('fin')}, todo a la vez aunque el límite sea de 5 A")
+call("/api/angle", {"ch": 2, "angle": 100})
+check(call("/api/state")["angles"]["2"] == 100, "con Toreto un servo suelto llega a su ángulo (salto + patada)")
+st = call("/api/toreto", {"nitro": True})
+check(st["nitro"] and st["toreto_hz"] == 200 and 0 < st["nitro_quedan_s"] <= 120, f"Nitro: {st['toreto_hz']} Hz, {st['nitro_quedan_s']} s")
+st = call("/api/toreto", {"activo": False})
+check(not st["toreto"] and not st["nitro"] and st["toreto_hz"] == 50, "quitar Toreto quita el Nitro y vuelve a 50 Hz")
+call("/api/toreto", {"nitro": True})
+check(not call("/api/state")["nitro"], "el Nitro no se enciende sin Toreto")
+call("/api/off", {})
 rep = call("/api/informe")
 check(rep["resumen"]["ok"] > 5, f"informe: {rep['resumen']}")
 for it in rep["items"]:

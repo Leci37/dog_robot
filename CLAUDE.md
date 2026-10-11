@@ -314,3 +314,13 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   sube antes de avanzar), empuje final (`stance="empuje"`: aprieta al final del apoyo), B sube con el hombro
   (`hip={"B": 1.0}`, su codo está en el tope), ritmo + pisotón (press 7), aire con ritmo, y todo lo bueno junto.
   El contador de códigos automáticos ahora salta los fijos de CODIGOS.
+- 2026-10-12 (14, sesión "fork"): **modo Toreto** (Luis: "máxima potencia, como en Fast and Furious, no me importa si
+  rompo algo"). `toreto` en server.py: `_move_toreto` (salto directo con `TORETO_PATADA` 6° de más y vuelta, espera
+  `TORETO_S_POR_GRADO`), todo a la vez (ignora las tandas), también en `move_to`; config `toreto` (se guarda y se aplica
+  al arrancar). **Nitro** aparte: `set_nitro` pone la PCA9685 a `TORETO_HZ` 200 Hz (y `set_pulse_width_range` de los 16:
+  la librería calcula el pulso con la frecuencia) y `nitro_watch` lo apaga a los `NITRO_S` 120 s; nunca al arrancar; al
+  parar el servidor vuelve a 50 Hz (si no, al arrancar la librería pone 50 Hz con los registros de 200 Hz = pulsos ×4).
+  La otra sesión avisó con razón: los MG996R son analógicos y a 200 Hz se calientan/queman. `POST /api/toreto
+  {activo, nitro}`; `toreto`, `nitro`, `toreto_hz`, `nitro_quedan_s` en /api/state y /api/routines. Web: casilla
+  TORETO en la cabecera (cabecera con raya roja si está activo) y caja roja `#toreto` (Toreto, Nitro con confirmación,
+  "Repetir sin parar" con el `repetir` de la otra sesión, y los Galope fuerte en rojo con estrellas).

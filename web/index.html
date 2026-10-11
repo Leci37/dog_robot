@@ -172,6 +172,16 @@ button.rosa{background:#e8559a;border-color:#e8559a;color:#fff}button.rosa:hover
 .silverbox details{margin-top:8px}.silverbox summary{cursor:pointer;font-size:13px}
 .rank{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:2px 14px;font-size:13px;margin-top:6px}
 .rank span b{color:#e09800;letter-spacing:1px}
+.torbox{border:2px solid #c62828;border-radius:14px;padding:10px 12px 12px;margin-bottom:14px;
+  background:linear-gradient(135deg,#2a0707,#7a1414);color:#fff}
+.torbox h3{margin:0 0 4px;font-size:17px;letter-spacing:.5px}.torbox .pz{color:#ffcdd2}
+.torbox .row{align-items:center;margin-top:8px}.torbox label{display:inline-flex;gap:6px;align-items:center;font-weight:600;cursor:pointer}
+.torbox .stars button{color:#7f3b3b}.torbox .stars button.on{color:#ffca28}
+button.rojo{background:linear-gradient(180deg,#ef5350,#b71c1c);border-color:#7f0000;color:#fff;font-weight:700}
+button.rojo:hover{background:linear-gradient(180deg,#f44336,#8e0000)}
+.torchk{display:inline-flex;gap:6px;align-items:center;font-weight:800;padding:8px 12px;border-radius:12px;
+  background:#4a1010;color:#fff;border:2px solid #c62828;cursor:pointer}
+body.toreto-on header{box-shadow:inset 0 -4px 0 #e53935}body.toreto-on .torchk{background:#e53935}
 button.oro{background:linear-gradient(180deg,#fff3c4,#e0b13a);border-color:#b8891c;color:#3a2a00;font-weight:700}
 button.oro:hover{background:linear-gradient(180deg,#fff8dc,#ebc155)}
 .card.oro{border-color:#c9971f;box-shadow:inset 4px 0 0 #c9971f}
@@ -196,6 +206,7 @@ button.nueva{background:#1e9e4a;border-color:#1e9e4a;color:#fff}button.nueva:hov
   <span id="netb" class="tag" title="Conexión de red">red…</span>
   <div id="amp" class="amp" title="Consumo estimado de los servos (gris suelto · ámbar sujetando · rojo moviéndose)"></div>
   <span id="count" class="tag">0/12</span>
+  <label class="torchk" title="Modo Toreto: máxima potencia (salto directo con patada, todo a la vez)"><input type="checkbox" id="torHdr"> TORETO</label>
   <button class="home" id="homeBtn" title="Vuelve a la de pie elegida (✓): recoge las 4 patas y se levanta con las 4 a la vez">▲ De pie</button>
   <button class="stop" id="off">Soltar todo</button>
   <div id="stw"><button id="stBtn" class="tag" title="Cómo estás conectado, credenciales y rutas">● estado ▾</button>
@@ -206,6 +217,7 @@ button.nueva{background:#1e9e4a;border-color:#1e9e4a;color:#fff}button.nueva:hov
 <aside id="alerts" aria-live="polite"></aside>
 <div id="mapTip" hidden></div>
 <main>
+  <section id="toreto" class="torbox" hidden aria-label="Modo Toreto"></section>
   <section id="silver" class="silverbox" hidden aria-label="Las 6 ganadoras"></section>
   <section id="quick" class="quick" hidden aria-label="Botones rápidos"></section>
   <section id="tvdash" class="tvdash" hidden>
@@ -1353,7 +1365,7 @@ document.addEventListener('change', e => {  // casilla "Repetir sin parar" de ca
   const id = e.target.dataset && e.target.dataset.loop; if (!id) return;
   e.target.checked ? loopIds.add(id) : loopIds.delete(id); saveLoops(); lastQuick = ''; lastSilver = ''; renderRt();
 });
-let lastFin = '', lastTryInfo = '', lastQuick = '', lastSilver = '', tuneOpen = true, rankOpen = false;
+let lastTor = '', lastFin = '', lastTryInfo = '', lastQuick = '', lastSilver = '', tuneOpen = true, rankOpen = false;
 document.addEventListener('toggle', e => { if (e.target.id === 'rankBox') rankOpen = e.target.open; }, true);
 document.addEventListener('toggle', e => { if (e.target.id === 'tuneBox') tuneOpen = e.target.open; }, true);
 function renderRt() {
@@ -1431,6 +1443,21 @@ function renderRt() {
     <details ${rankOpen ? 'open' : ''} id="rankBox"><summary>Tus estrellas: ${ranked.length} rutinas valoradas, de mejor a peor</summary>
       <div class="rank">${ranked.map(([id, n]) => `<span><b>${'★'.repeat(n)}${'☆'.repeat(6 - n)}</b> ${esc(rtName[id])}</span>`).join('') || '<span class="pz">todavía ninguna</span>'}</div></details>` : '';
   if (silver !== lastSilver) { $('silver').innerHTML = silver; lastSilver = silver; }
+  // caja roja: modo Toreto con los Galope fuerte
+  const fuertes = rts.candidatas.filter(c => c.grupo === 'fuerte');
+  let torLoop = false; try { torLoop = localStorage.getItem('toretoRepetir') === '1'; } catch {}
+  const tor = fuertes.length ? `<h3>🔥 MODO TORETO · máxima potencia</h3>
+    <div class="pz">Toreto: cada movimiento va de un salto con una patada de 6° de más (el servo mete toda su fuerza) y todo a la vez.
+      Nitro: los servos a 200 Hz en vez de 50 (más fuerza y más calor: los MG996R pueden quemarse), se apaga solo a los 2 min.</div>
+    <div class="row"><label><input type="checkbox" data-tor="1" ${rts.toreto ? 'checked' : ''}> Toreto</label>
+      <label><input type="checkbox" data-nitro="1" ${rts.nitro ? 'checked' : ''} ${rts.toreto ? '' : 'disabled'}> Nitro 200 Hz${rts.nitro ? ` (quedan ${rts.nitro_quedan_s} s)` : ''}</label>
+      <label><input type="checkbox" id="torLoop" ${torLoop ? 'checked' : ''}> Repetir sin parar</label>
+      <button class="stop" data-qstop="1">■ Parar</button></div>
+    <div class="row">${fuertes.map(c => wrap(c, `<button class="rojo" data-tortry="${esc(c.id)}" title="${c.codigo ? 'código ' + c.codigo + ' · ' : ''}${esc(c.desc)}">${c.codigo ? c.codigo + ' · ' : ''}${esc(c.nombre.replace('Galope fuerte · ', 'Galope fuerte '))}</button>`)).join('')}</div>` : '';
+  if (tor !== lastTor) { $('toreto').innerHTML = tor; lastTor = tor; }
+  $('toreto').hidden = TV || !fuertes.length;
+  if (document.activeElement !== $('torHdr')) $('torHdr').checked = !!rts.toreto;
+  document.body.classList.toggle('toreto-on', !!rts.toreto);
   $('silver').hidden = TV || !platas.length;
   const list = stage === 1 ? rts.candidatas : [...platas, ...rts.candidatas.filter(c => c.suave), ...rts.candidatas.filter(c => c.nueva),
     ...curiosas, ...rts.candidatas.filter(c => c.etapa === 2 && !c.nueva && !c.suave && !c.curiosa && !c.plata),
@@ -1609,6 +1636,19 @@ async function openInBlocks(name, candidate) {
     $('blkd').scrollIntoView({behavior: 'smooth'});
   } catch (e) { $('blkMsg').textContent = 'Error: ' + e.message; }
 }
+async function setToreto(body, text) {
+  try { await api('/api/toreto', body); $('msg').textContent = text; } catch (e) { $('msg').textContent = 'Error: ' + e.message; }
+  pollRt();
+}
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'torHdr' || t.dataset.tor) setToreto({activo: t.checked}, t.checked ? 'MODO TORETO activado' : 'modo Toreto desactivado');
+  else if (t.dataset.nitro) {
+    if (t.checked && !confirm('Nitro: los servos a 200 Hz durante 2 minutos. Más fuerza, pero los MG996R se calientan y pueden quemarse. ¿Seguro?')) { t.checked = false; return; }
+    setToreto({nitro: t.checked}, t.checked ? 'NITRO: 200 Hz durante 2 minutos' : 'Nitro apagado (50 Hz)');
+  }
+  else if (t.id === 'torLoop') { try { localStorage.setItem('toretoRepetir', t.checked ? '1' : '0'); } catch {} }
+});
 $('rtGear').addEventListener('change', e => rtPost('/api/routine_speed', {marcha: +e.target.value}, 'cambiando la velocidad…'));
 document.addEventListener('click', async e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
@@ -1635,6 +1675,8 @@ document.addEventListener('click', async e => {
   else if (d.del) { if (confirm(`¿Borrar la rutina "${d.del}"?`)) rtPost('/api/routine_delete', {nombre: d.del}, 'borrando…'); }
   else if (d.edit) openInBlocks(d.edit);
   else if (d.convreset) { if (confirm('¿Olvidar la de pie elegida y volver a probar la 6 y sus variantes?')) rtPost('/api/convention_reset', {}, 'volviendo al paso 1…'); }
+  else if (d.tortry) rtPost('/api/routine_run', {candidata: d.tortry, repetir: !!($('torLoop') && $('torLoop').checked)},
+    ($('torLoop') && $('torLoop').checked ? 'en bucle (Parar para acabar)… ' : '') + (rts && rts.toreto ? 'modo Toreto…' : 'mira el robot…'));
   else if (d.rate) { const n = +d.estrellas === ((rts.valoraciones || {})[d.rate] || 0) ? 0 : +d.estrellas;  // no data-n: es el de los canales
     rtPost('/api/routine_rate', {id: d.rate, estrellas: n}, `valorando: ${n}/6 estrellas…`); }
   else if (d.gear) rtPost('/api/routine_speed', {marcha: +d.gear}, 'cambiando la velocidad…');
