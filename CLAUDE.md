@@ -339,3 +339,7 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   `toreto["patada"]` (3 por defecto, 0-10, config `toreto_patada`), nunca más de la mitad del movimiento y nada en movimientos
   de menos de 4°; espera 0,004 s/° + 0,02. Web: barra #hzbar en la cabecera (Hz, zona, calor, tiempo, patada). HDMI: panel con
   Hz y calor en la cabecera y teclas , . (pasar de 60 pide pulsar otra vez); /lite con deslizador de Hz y teclas , .
+- 2026-10-12 (16, sesión "fork"): Luis, sobre Dar la pata sentado · 2: "el brazo para arriba, rollo pedir el autobús, ti-ti-ti;
+  cuanto más arriba más equilibrado, y el culo para abajo". `autobus_routines`: autobus-b (120) y autobus-a (121), color
+  fucsia (`autobus`): culo 58, cuerpo atrás 8 y al lado 9, pata a hombro 60 y codo 2, ti-ti-ti (codo 2↔14 rápido ×6) y
+  saludo con el pectoral. Fila "Autobús" en la barra de arriba de la web. (Para la tele: pasarlo a la otra sesión.)

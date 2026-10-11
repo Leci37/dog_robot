@@ -157,6 +157,8 @@ html{scroll-behavior:smooth}
 button.home{background:#1e9e4a;border-color:#1e9e4a;color:#fff;font-weight:700;font-size:18px;padding:10px 22px;border-radius:12px}
 button.home:hover{background:#178a3f}
 button.amarillo{background:#f2c200;border-color:#f2c200;color:#222}button.amarillo:hover{background:#dbaf00}
+button.fucsia{background:#e91e8c;border-color:#c2185b;color:#fff;font-weight:700}button.fucsia:hover{background:#c2185b}
+.card.fucsia{border-color:#e91e8c;box-shadow:inset 4px 0 0 #e91e8c}
 button.rosa{background:#e8559a;border-color:#e8559a;color:#fff}button.rosa:hover{background:#d13f84}
 .card.amarillo{border-color:#f2c200;box-shadow:inset 4px 0 0 #f2c200}.card.rosa{border-color:#e8559a;box-shadow:inset 4px 0 0 #e8559a}
 .stars{display:flex;gap:1px;justify-content:center;line-height:1}
@@ -1454,10 +1456,12 @@ function renderRt() {
   const bajar = rts.candidatas.find(c => c.id === 'bajar'), walks = rts.candidatas.filter(c => c.andar);
   const creat = rts.candidatas.filter(c => c.creativa), nuevas = rts.candidatas.filter(c => c.nueva);
   const suaves = rts.candidatas.filter(c => c.suave), curiosas = rts.candidatas.filter(c => c.curiosa);
+  const buses = rts.candidatas.filter(c => c.autobus);
   const platas = rts.candidatas.filter(c => c.plata);
   const qc = c => wrap(c, `<button class="${c.color}" data-try="${esc(c.id)}" title="${c.codigo ? 'código ' + c.codigo + ' · ' : ''}${esc(c.desc)}">${esc(c.nombre)}</button>`);
   const qg = c => wrap(c, `<button class="nueva" data-try="${esc(c.id)}" title="${c.codigo ? 'código ' + c.codigo + ' · ' : ''}${esc(c.desc)}">${esc(c.nombre)}</button>`);
   const quick = `<div class="row"><span class="lbl">De pie</span>${favs.map(c => qb(c, c.nombre.replace('De pie ', ''))).join('')}${bajar ? qb(bajar, 'Bajar despacio') : ''}</div>
+    ${buses.length ? `<div class="row"><span class="lbl">Autobús</span>${buses.map(c => wrap(c, `<button class="fucsia" data-try="${esc(c.id)}" title="${esc(c.desc)}">${c.codigo ? c.codigo + ' · ' : ''}${esc(c.nombre)}</button>`)).join('')}</div>` : ''}
     ${suaves.length ? `<div class="row"><span class="lbl">De pie suave</span>${suaves.map(qc).join('')}</div>` : ''}
     ${nuevas.length ? `<div class="row"><span class="lbl">Nuevas</span>${nuevas.map(qg).join('')}</div>` : ''}
     ${curiosas.length ? `<div class="row"><span class="lbl">Curiosas</span>${curiosas.map(qc).join('')}</div>` : ''}

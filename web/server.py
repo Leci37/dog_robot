@@ -1119,6 +1119,37 @@ def amarillas_routines(c):
     ]
 
 
+def autobus_routines(c):
+    """"Pedir el autobús" (12-10, Luis, a partir de Dar la pata sentado · 2): sentado con el culo bien abajo (el peso
+    atrás), el cuerpo apartado de la pata y la pata lo más arriba posible y estirada ("cuanto más arriba, más
+    equilibrado"); la mano hace ti-ti-ti (el codo arriba y abajo rápido) y luego saluda de lado. Fucsia."""
+    k0, h0, hom, cod = _gait(c)
+    p0 = c.get("pectoral", 0)
+    pec = lambda L, s: {"pata": L, "art": "pectoral", "angulo": dev_angle(L, "pectoral", p0 + (s if L in ("A", "D") else -s), c)}  # noqa: E731
+
+    def bus(leg, culo=58, del_=14, atras=8, lado=9):
+        other = "A" if leg == "B" else "B"
+        side = -lado if leg in RIGHT else lado                       # el cuerpo, lejos de la pata que pide
+        wave = 10 if leg in ("A", "D") else -10
+        sit = [o for o in no_pec(stance(c, culo, ["C", "D"])) + no_pec(stance(c, del_, ["A", "B"]))
+               if not (o["pata"] in FRONT and o["art"] == "hombro")] + [hom(L, del_ / 2 + atras) for L in FRONT]
+        arriba = [hom(leg, 60), cod(leg, 2)]                          # lo más arriba y estirada
+        return [{"op": "velocidad", "v": "lento"}, S(base_stance(c), juntos=True), S(sit, juntos=True),
+                {"op": "esperar", "s": 0.8}, S([pec(L, side) for L in LEGS], juntos=True),
+                S([hom(other, del_ / 2 + atras + 4)], juntos=True),   # la otra delantera, un poco adelante: apoyo
+                S(arriba, juntos=True), {"op": "esperar", "s": 1},
+                {"op": "velocidad", "v": "rapido"},
+                {"op": "repetir", "n": 6, "pasos": [S([cod(leg, 14)]), S([cod(leg, 2)])]},          # ti-ti-ti
+                {"op": "repetir", "n": 3, "pasos": [S([pec(leg, side + wave)]), S([pec(leg, side - wave)])]},  # hola
+                S([pec(leg, side)]), {"op": "esperar", "s": 1}, {"op": "velocidad", "v": "lento"},
+                S([o for o in sit if o["pata"] == leg], juntos=True), S([pec(L, 0) for L in LEGS], juntos=True),
+                {"op": "esperar", "s": 0.5}, S(base_stance(c), juntos=True)]
+
+    return [("autobus-b", "Pedir el autobús · B", "Sentado con el culo abajo, la pata B lo más arriba y estirada, ti-ti-ti y saluda",
+             bus("B")),
+            ("autobus-a", "Pedir el autobús · A", "Lo mismo con la pata A", bus("A"))]
+
+
 def crab_program(conv, step=8, cycles=3, lift=16):
     """De lado (cangrejo): paso a paso, pero cada pie se mueve de lado con el pectoral y luego el cuerpo se desplaza
     con los 4 pectorales. Hacia la izquierda si pectoral + abre la pata (sin confirmar; si no, va a la derecha)."""
@@ -1176,6 +1207,7 @@ CODIGOS = {
     "pata-a-sentado-1": 96, "pata-a-sentado-2": 97, "pata-a-sentado-3": 98, "pata-a-sentado-4": 99,
     "pata-b-sentado-2": 47, "pata-b-sentado-3": 48, "pata-b-sentado-4": 49,
     # 12-10: las de oro (mejoras del galope fuerte · ritmo)
+    "autobus-b": 120, "autobus-a": 121,
     "oro-limpio": 101, "oro-empuje": 102, "oro-b-hombro": 103, "oro-pisoton": 104, "oro-aire": 105, "oro-todo": 106,
 }
 CODIGO_DE_PIE = 10
@@ -1323,6 +1355,8 @@ def _candidate_routines(conv_saved):
     for rid, name, desc, prog in amarillas_routines(c):  # de pie suaves: amarillas; la de Iván, rosa
         cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "suave": True, "programa": prog,
                       "color": "rosa" if rid == "pie-ivan" else "amarillo"})
+    for rid, name, desc, prog in autobus_routines(c):  # pedir el autobús: fucsia
+        cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "programa": prog, "color": "fucsia", "autobus": True})
     return [x for x in cands if x["id"] not in RETIRADAS]
 
 

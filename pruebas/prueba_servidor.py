@@ -250,6 +250,12 @@ fin = wait_routine()
 check(fin["nombre"].startswith("De pie") and fin["fin"] == "terminada", "botón P: para la rutina en marcha y se pone de pie")
 lite = call("/lite")
 check(b'id="code"' in lite and b"/api/home" in lite and b"populares" in lite, "la web de la tele tiene De pie (P), código y populares")
+bus = {c["id"]: c for c in rt["candidatas"] if c.get("autobus")}
+check(set(bus) == {"autobus-b", "autobus-a"} and bus["autobus-b"]["codigo"] == 120 and bus["autobus-b"]["color"] == "fucsia",
+      "pedir el autobús B y A (fucsia, códigos 120 y 121)")
+call("/api/routine_run", {"codigo": "120"})
+fin = wait_routine()
+check(fin["fin"] == "terminada", f"pedir el autobús B: {fin.get('fin')} {fin.get('error', '')}")
 rt = call("/api/routine_rate", {"id": "plata-galope", "estrellas": 4})
 check(rt["valoraciones"].get("plata-galope") == 4, "las de plata también se valoran")
 check([c["id"] for c in stage2 if c.get("suave")] == ["pie-suave", "pie-dos-tiempos", "pie-ivan"], "de pie suaves (amarillas) y la de Iván (rosa)")
