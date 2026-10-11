@@ -1,6 +1,6 @@
 {
   "potencia": {
     "limitar": true,
-    "amperios": 5
+    "amperios": 4.0
   }
 }

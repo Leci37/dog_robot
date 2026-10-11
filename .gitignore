@@ -12,3 +12,4 @@ net_test.log
 __pycache__/
 # credenciales y datos personales: SOLO en la Pi, nunca en GitHub
 NOTAS-LOCALES.md
+ultima_posicion.json

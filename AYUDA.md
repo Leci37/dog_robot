@@ -96,6 +96,19 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
 - Web > Sistema > "Informe para la mudanza" > Comprobar ahora: revisa red, alimentación, servicios,
   SSH, SD, placa de servos, mapa, rutinas y copias. Verde = bien, amarillo = aviso, rojo = fallo.
 
+5a. PROTECCIONES (para que nadie apague la Pi pulsando botones)
+---------------------------------------------------------------
+- Freno por falta de corriente: si la Pi tiene falta de corriente en ese momento, NO mueve servos (pasó 5
+  veces el 11-10-2026 que se apagaba al moverlos). Se puede permitir con la casilla de la barra de arriba.
+- Un movimiento cada vez: si llega otra orden mientras el robot se mueve, se descarta (no se encola).
+- Avisos abajo a la derecha: falta corriente, consumo alto, muchos botones a la vez, rutina en marcha.
+- Cabecera: mini esquema de consumo en tiempo real (filas A B C D · pectoral hombro codo; gris suelto,
+  ámbar sujetando ~0,3 A, rojo moviéndose ~1,2 A) y el total estimado frente al límite.
+- Memoria de posición: la Pi guarda en la SD el último ángulo de cada servo (sobrevive a cortes).
+  "Mis posturas" puede guardar con esa memoria, sujetar los sueltos donde estaban, o copiar del robot
+  moviendo solo el dibujo en "El robot en vivo" (botón "Copiar del robot", no mueve los servos).
+- Tabla del mapa: filas en rojo/ámbar/verde y, al pasar el ratón, qué falla y cómo comprobarlo.
+
 5b. LÍMITE DE CONSUMO Y ESQUEMA DE CONEXIONES
 ---------------------------------------------
 - Arriba del todo en la web: casilla "Limitar el consumo de los servos a la fuente" y deslizador con los

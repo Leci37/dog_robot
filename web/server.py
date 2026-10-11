@@ -391,8 +391,11 @@ def run_steps(steps, ctx, depth=0):
             run_steps(r["programa"], ctx, depth + 1)
             continue
         else:
+            if not power_cfg()["permitir_sin_corriente"] and low_power_now():
+                raise ValueError("falta de corriente en la Pi: rutina parada para que no se apague")
             with lock:  # cada paso con el cerrojo de servos; entre pasos la web sigue respondiendo
                 run_move(st, ctx)
+                save_last()
         routine["paso"] += 1
 
 
@@ -735,7 +738,45 @@ power_info = {"ultima_tanda": None}
 
 def power_cfg():
     p = load_json(CONFIG_FILE, {}).get("potencia") or {}
-    return {"limitar": p.get("limitar", True), "amperios": float(p.get("amperios", 5))}
+    return {"limitar": p.get("limitar", True), "amperios": float(p.get("amperios", 5)),
+            "permitir_sin_corriente": bool(p.get("permitir_sin_corriente", False))}
+
+
+# ---------- memoria de posición: el último ángulo mandado a cada servo sobrevive a cortes y reinicios ----------
+LAST_FILE = ROOT / "ultima_posicion.json"
+last_known = {}          # canal -> último ángulo lógico mandado (aunque luego se soltara)
+last_info = {"hora": None}
+
+
+def load_last():
+    d = load_json(LAST_FILE, {})
+    for k, v in (d.get("angulos") or {}).items():
+        last_known[int(k)] = v
+    last_info["hora"] = d.get("hora")
+
+
+def save_last():
+    changed = False
+    for ch, a in angles.items():
+        if a is not None and last_known.get(ch) != a:
+            last_known[ch] = a
+            changed = True
+    if changed:
+        last_info["hora"] = datetime.now().isoformat(timespec="seconds")
+        write_json(LAST_FILE, {"angulos": {str(k): v for k, v in sorted(last_known.items())}, "hora": last_info["hora"]})
+
+
+def low_power_now():
+    t = power["throttled"] if power["throttled"] is not None else read_throttled()
+    return bool(t and t & 1)
+
+
+def power_guard():
+    """Freno: con la Pi en falta de corriente, mover servos la reinicia (pasó 4 veces el 11-10-2026)."""
+    if low_power_now() and not power_cfg()["permitir_sin_corriente"]:
+        raise ValueError("FALTA DE CORRIENTE en la Pi ahora mismo: mover servos puede apagarla (ya pasó). "
+                         "Revisa el GND de la clema y el cargador/cable de la Pi, o marca arriba "
+                         "'Permitir mover aunque falte corriente'.")
 
 
 def max_movers(n_targets, n_held_others):
@@ -763,7 +804,39 @@ def move_many(targets, pause=0.03):
     _move_together(targets, pause)
 
 
+moving = set()                       # canales que se están moviendo ahora (para el consumo en tiempo real)
+traffic = {"rechazadas": 0, "ultima_rechazada": 0.0}
+MOVE_PATHS = ("/api/test", "/api/test_many", "/api/angle", "/api/pose90", "/api/group", "/api/pose_go", "/api/lock_loose",
+              "/api/leg_release", "/api/release")
+
+
+def consumption():
+    """Consumo estimado de los servos ahora mismo: suelto 0 · sujetando ~0,3 A · moviéndose ~1,2 A."""
+    chans, total = {}, 0.0
+    for k, m in load_map()["canales"].items():
+        if not m.get("pata"):
+            continue
+        ch = int(k)
+        est = "moviendo" if ch in moving else "sujeto" if angles[ch] is not None else "suelto"
+        amps = {"moviendo": I_MOVE, "sujeto": I_HOLD, "suelto": 0.0}[est]
+        total += amps
+        chans[k] = {"pata": m["pata"], "art": m["articulacion"], "estado": est, "A": amps}
+    pc = power_cfg()
+    return {"canales": chans, "total_A": round(total, 2), "limite_A": pc["amperios"], "limitar": pc["limitar"],
+            "falta_corriente": low_power_now(), "permitir_sin_corriente": pc["permitir_sin_corriente"],
+            "rutina": routine["nombre"] if routine["running"] else "",
+            "rechazadas_recientes": traffic["rechazadas"] if time.time() - traffic["ultima_rechazada"] < 8 else 0}
+
+
 def _move_together(targets, pause):
+    moving.update(targets)
+    try:
+        _move_together_inner(targets, pause)
+    finally:
+        moving.difference_update(targets)
+
+
+def _move_together_inner(targets, pause):
     for ch, a in targets.items():  # sueltos: salto inevitable, escalonado
         if angles[ch] is None:
             write(ch, a)
@@ -802,6 +875,14 @@ def write(ch, a):
 
 
 def move_to(ch, target, pause=0.03):
+    moving.add(ch)
+    try:
+        _move_to(ch, target, pause)
+    finally:
+        moving.discard(ch)
+
+
+def _move_to(ch, target, pause=0.03):
     target = clamp(target)
     cur = angles[ch]
     if cur is None:
@@ -850,10 +931,11 @@ class Handler(BaseHTTPRequestHandler):
     def state(self):
         pc = power_cfg()
         potencia = dict(pc, a_la_vez_12=max_movers(12, 0), estimacion={"moviendo_A": I_MOVE, "sujetando_A": I_HOLD},
-                        ultima_tanda=power_info["ultima_tanda"])
+                        ultima_tanda=power_info["ultima_tanda"], falta_corriente_ahora=low_power_now())
         cfg = load_config()
         return {"angles": angles, "map": load_map()["canales"], "poses": load_poses(), "rutina": dict(routine),
                 "potencia": potencia, "convencion": cfg.get("convencion"), "verificacion": cfg.get("verificacion", {}),
+                "ultima": {"angulos": {str(k): v for k, v in last_known.items()}, "hora": last_info["hora"]},
                 "limits": {"min": SAFE_MIN, "max": SAFE_MAX, "max_delta": MAX_DELTA}}
 
     STATIC_TYPES = {".js": "application/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png",
@@ -887,6 +969,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, routines_info())
         elif path == "/api/informe":
             self._send(200, report())
+        elif path == "/api/consumo":
+            self._send(200, consumption())
         elif path == "/api/conexion":
             self._send(200, connection_info(self.client_address[0], self.headers.get("Host", "")))
         elif path in ("/ayuda", "/ayuda.txt"):
@@ -921,7 +1005,8 @@ class Handler(BaseHTTPRequestHandler):
                 if not 1 <= amps <= 60:
                     raise ValueError("amperios entre 1 y 60")
                 cfg = load_config()
-                cfg["potencia"] = {"limitar": bool(body.get("limitar", True)), "amperios": amps}
+                cfg["potencia"] = {"limitar": bool(body.get("limitar", True)), "amperios": amps,
+                                   "permitir_sin_corriente": bool(body.get("permitir_sin_corriente", False))}
                 write_json(CONFIG_FILE, cfg)
                 log(f"límite de consumo: {'activado' if cfg['potencia']['limitar'] else 'DESACTIVADO'} · fuente {amps:g} A "
                     f"· {max_movers(12, 0)} servos a la vez")
@@ -937,6 +1022,21 @@ class Handler(BaseHTTPRequestHandler):
                 routine["stop"] = True  # parar cualquier rutina antes de soltar
             elif routine["running"]:
                 raise ValueError(f"hay una rutina en marcha ('{routine['nombre']}'): párala primero")
+            if path in MOVE_PATHS and path not in ("/api/release", "/api/leg_release"):
+                power_guard()
+            if path in MOVE_PATHS:
+                # si el robot ya se está moviendo, NO se encola: con varios botones a la vez se pasa de amperios
+                if not lock.acquire(timeout=1.0):
+                    traffic["rechazadas"] += 1
+                    traffic["ultima_rechazada"] = time.time()
+                    self._send(409, {"error": "el robot todavía se está moviendo: espera a que termine "
+                                              "(no pulses varios botones a la vez)"})
+                    return
+                try:
+                    self.route(body)
+                finally:
+                    lock.release()
+                return
             with lock:
                 self.route(body)
         except ValueError as e:
@@ -1102,6 +1202,12 @@ class Handler(BaseHTTPRequestHandler):
             ch = check_ch(b["ch"])
             move_to(ch, b["angle"], pause_of(b))
             log(f"canal {ch} -> {angles[ch]}")
+        elif p == "/api/lock_loose":  # sujetar los sueltos donde estaban (memoria) o a 90°, sin tocar los demás
+            where = b.get("a", "ultima")
+            order = interleaved({leg: {j: ch for j, ch in leg_channels(leg).items() if angles[ch] is None} for leg in LEGS})
+            if order:
+                move_many({ch: (last_known.get(ch, CENTER) if where == "ultima" else CENTER) for _, _, ch in order}, pause_of(b))
+            log(f"sujetar los sueltos ({where}): {[f'{l}{JOINTS.index(j) + 1}' for l, j, _ in order] or 'ninguno suelto'}")
         elif p == "/api/pose90":
             order = interleaved({leg: leg_channels(leg) for leg in LEGS})
             move_many({ch: CENTER for _, _, ch in order}, pause_of(b))
@@ -1123,16 +1229,29 @@ class Handler(BaseHTTPRequestHandler):
             legs = LEGS if b.get("pata") == "todas" else [b["pata"]]
             if not name or any(leg not in LEGS for leg in legs):
                 raise ValueError("pata o nombre no válido")
-            poses, saved = load_poses(), {}
+            # de dónde sale cada ángulo: el dibujo (copiar del robot), el servo sujeto o, si se pide, la memoria
+            explicit = {int(k): clamp(v) for k, v in (b.get("angulos") or {}).items()}
+            use_last = bool(b.get("usar_ultima"))
+            poses, saved, sources = load_poses(), {}, {"dibujo": 0, "sujeto": 0, "memoria": 0}
             for leg in legs:
-                pose = {j: angles[ch] for j, ch in leg_channels(leg).items() if angles[ch] is not None}
+                pose = {}
+                for j, ch in leg_channels(leg).items():
+                    if ch in explicit:
+                        pose[j] = explicit[ch]
+                        sources["dibujo"] += 1
+                    elif angles[ch] is not None:
+                        pose[j] = angles[ch]
+                        sources["sujeto"] += 1
+                    elif use_last and ch in last_known:
+                        pose[j] = last_known[ch]
+                        sources["memoria"] += 1
                 if pose:
                     poses.setdefault(leg, {})[name] = pose
                     saved[leg] = pose
             if not saved:
-                raise ValueError("las patas están sueltas: colócalas con los deslizadores antes de guardar")
+                raise ValueError("no hay ángulos que guardar: los servos están sueltos y no hay posición conocida")
             write_json(POSES_FILE, poses)
-            log(f"postura '{name}' guardada: {saved}")
+            log(f"postura '{name}' guardada ({sources}): {saved}")
         elif p == "/api/pose_go":
             name, pz = b["nombre"], pause_of(b)
             legs = LEGS if b.get("pata") == "todas" else [b["pata"]]
@@ -1218,6 +1337,7 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._send(404, {"error": "no existe"})
             return
+        save_last()  # memoria de posición en la SD (sobrevive a cortes)
         self._send(200, self.state())
 
 
@@ -1244,6 +1364,7 @@ def recover_angles():
 if __name__ == "__main__":
     signal.signal(signal.SIGTERM, on_sigterm)
     load_cal()
+    load_last()
     recover_angles()
     boot_check()
     threading.Thread(target=power_monitor, daemon=True).start()

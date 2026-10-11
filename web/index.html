@@ -73,6 +73,22 @@ pre#ayuda{white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-
 .pwrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:15px}
 .pwrow input[type=range]{width:min(360px,60vw);accent-color:var(--acc)}
 .pwrow b{font-size:20px;min-width:52px}
+.amp{display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 8px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.amp .g{display:grid;grid-template-columns:repeat(3,9px);grid-auto-rows:9px;gap:2px}
+.amp .s{border-radius:2px;border:1px solid var(--line);background:transparent}
+.amp .s.sujeto{background:#e0a53a;border-color:#c27c12}.amp .s.moviendo{background:#d94a3d;border-color:#a12a1f}
+.amp .bar{width:70px;height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.amp .bar i{display:block;height:100%;background:var(--ok)}
+.amp.hot .bar i{background:#e0a53a}.amp.over .bar i{background:#d94a3d}
+.amp b{font-variant-numeric:tabular-nums}
+#alerts{position:fixed;right:14px;bottom:14px;z-index:40;display:flex;flex-direction:column;gap:8px;width:min(330px,calc(100vw - 28px));pointer-events:none}
+#alerts .al{pointer-events:auto;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.4;box-shadow:0 6px 20px rgba(0,0,0,.18);border:1px solid var(--line);background:var(--card)}
+#alerts .al b{display:block;font-size:14px;margin-bottom:2px}
+#alerts .al.bad{background:var(--bad-bg);border-color:var(--bad)}#alerts .al.warn{background:var(--warn-bg);border-color:#c27c12}
+#alerts .al.info{background:var(--acc-bg)}
+#mapLive tr.bad td{background:var(--bad-bg)}#mapLive tr.warn td{background:var(--warn-bg)}#mapLive tr.ok td{background:var(--ok-bg)}
+#mapLive tr[data-tip]{cursor:help;position:relative}
+#mapTip{position:fixed;z-index:45;max-width:360px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.45;box-shadow:0 8px 24px rgba(0,0,0,.2);pointer-events:none}
 .pmsg{border-radius:8px;padding:8px 12px;font-size:14px;background:var(--warn-bg);border:1px solid var(--line)}
 .pmsg.ok{background:var(--ok-bg)}.pmsg.bad{background:var(--bad-bg)}
 .plist{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
@@ -127,12 +143,15 @@ html{scroll-behavior:smooth}
   <button class="stop" id="rtStop" hidden>Parar rutina</button>
   <span id="pw" class="tag" title="Alimentación de la Pi">alimentación…</span>
   <span id="netb" class="tag" title="Conexión de red">red…</span>
+  <div id="amp" class="amp" title="Consumo estimado de los servos (gris suelto · ámbar sujetando · rojo moviéndose)"></div>
   <span id="count" class="tag">0/12</span>
   <button class="stop" id="off">Soltar todo</button>
   <div id="stw"><button id="stBtn" class="tag" title="Cómo estás conectado, credenciales y rutas">● estado ▾</button>
     <div id="stPanel" class="stpanel" hidden></div></div>
   <div id="now" class="now" hidden></div>
 </header>
+<aside id="alerts" aria-live="polite"></aside>
+<div id="mapTip" hidden></div>
 <main>
   <section id="tvdash" class="tvdash" hidden>
     <div class="tvtiles">
@@ -160,6 +179,8 @@ html{scroll-behavior:smooth}
     <div class="pwrow"><span>Fuente de los servos:</span>
       <input type="range" id="pamp" min="2" max="30" step="1" value="5"><b id="pampv">5 A</b></div>
     <div class="pz" id="pinfo"></div>
+    <div class="pmsg bad" id="plow" hidden></div>
+    <label class="pz"><input type="checkbox" id="pallow"> Permitir mover aunque falte corriente en la Pi (puede apagarse)</label>
   </div>
   <details class="sys" id="sysd">
     <summary>Sistema: conexión, alimentación, pantalla HDMI y ayuda</summary>
@@ -284,6 +305,14 @@ html{scroll-behavior:smooth}
   <div class="legend">Así cree la Pi que está el robot <b>ahora mismo</b> (se actualiza solo). Compáralo con el robot de verdad y,
     en cada pata, contesta <b>¿Está así de verdad?</b>. Si no, marca qué articulación va al revés y la Pi lo corrige.
     Puedes <b>arrastrar</b> el punto de la rodilla (mueve el hombro) o la pezuña (mueve el codo). Robot en el aire.</div>
+  <div class="row" style="margin-bottom:8px;align-items:center">
+    <button id="vCopyBtn" title="Mueves el dibujo, no los servos">Copiar del robot (no mueve los servos)</button>
+    <input id="vCopyName" placeholder="nombre de la postura" hidden style="font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);width:180px">
+    <button class="pri" id="vCopySave" hidden>Guardar el dibujo como postura</button>
+    <button id="vCopyCancel" hidden>Salir sin guardar</button>
+  </div>
+  <div class="pmsg" id="vCopyHelp" hidden>Modo copiar: arrastra la rodilla y la pezuña de cada pata (o usa ±5) hasta que el dibujo se parezca al robot de verdad.
+    <b>Los servos no se mueven.</b> Luego pon un nombre y pulsa "Guardar el dibujo como postura".</div>
   <div class="card vivo-mapa" id="vivoMapa"></div>
   <div class="grid legs" id="vivoPatas" style="margin-top:10px"></div>
   <div class="pz" id="vivoMsg" style="margin-top:6px"></div>
@@ -361,9 +390,50 @@ async function act(path, body, text) {
   if (busy && path !== '/api/off') return;
   setBusy(true, text || 'moviendo…');
   try { st = await api(path, body); $('dot').classList.add('on'); $('msg').textContent = 'listo'; }
-  catch (e) { $('msg').textContent = 'Error: ' + e.message; }
+  catch (e) { $('msg').textContent = 'Error: ' + e.message; flashAlert(e.message); }
   setBusy(false); render();
 }
+
+// ---------- consumo en tiempo real (cabecera) y avisos (abajo a la derecha) ----------
+let cons = null, flash = null;
+const AMP_ROWS = ['A', 'B', 'C', 'D'];
+function flashAlert(msg) {
+  if (/moviendo|varios botones/i.test(msg)) flash = {t: Date.now(), cls: 'warn', title: 'Estás pulsando muchos botones a la vez', text: 'El robot hace una cosa cada vez: espera a que termine el movimiento. Las órdenes de más no se hacen.'};
+  else if (/FALTA DE CORRIENTE|falta de corriente/.test(msg)) flash = {t: Date.now(), cls: 'bad', title: 'Movimiento frenado: falta corriente', text: msg};
+  else flash = {t: Date.now(), cls: 'warn', title: 'No se pudo hacer', text: msg};
+  renderAlerts();
+}
+function renderAmp() {
+  const c = cons; if (!c) return;
+  const byLeg = {};
+  Object.entries(c.canales).forEach(([ch, x]) => { (byLeg[x.pata] = byLeg[x.pata] || {})[x.art] = {ch, ...x}; });
+  const cells = AMP_ROWS.map(L => JOINTS.map(j => {
+    const x = (byLeg[L] || {})[j];
+    return `<span class="s ${x ? x.estado : ''}" title="${L}${JOINTS.indexOf(j) + 1} ${j}${x ? ` · canal ${x.ch} · ${x.estado} · ≈${x.A} A` : ' · sin canal'}"></span>`;
+  }).join('')).join('');
+  const lim = c.limite_A || 5, pct = Math.min(100, c.total_A / lim * 100);
+  const el = $('amp');
+  el.className = 'amp' + (pct >= 100 ? ' over' : pct >= 75 ? ' hot' : '');
+  el.innerHTML = `<span class="g" aria-hidden="true">${cells}</span><span class="bar"><i style="width:${pct.toFixed(0)}%"></i></span>
+    <b>≈${c.total_A.toFixed(1)} / ${lim} A</b>`;
+  el.title = `Consumo estimado de los servos: ≈${c.total_A.toFixed(1)} A de ${lim} A. Filas A, B, C, D · columnas pectoral, hombro, codo. Gris suelto · ámbar sujetando (~0,3 A) · rojo moviéndose (~1,2 A).`;
+}
+function renderAlerts() {
+  const c = cons, out = [];
+  if (c && c.falta_corriente) out.push({cls: 'bad', title: '⚡ Falta corriente en la Pi',
+    text: c.permitir_sin_corriente ? 'Has permitido mover igualmente: puede apagarse. Cambia el cargador o el cable de la Pi.'
+      : 'Los movimientos están frenados para que no se apague. Cargador de 5,1 V 2,5 A con cable corto y GND de la clema apretado.'});
+  if (c && c.limitar && c.total_A >= 0.75 * c.limite_A) out.push({cls: c.total_A >= c.limite_A ? 'bad' : 'warn',
+    title: `Consumo alto: ≈${c.total_A.toFixed(1)} A de ${c.limite_A} A`, text: `No podemos pasar de ${c.limite_A} A. Suelta los servos que no uses (botón Soltar todo o "Soltar pata").`});
+  if (c && c.rechazadas_recientes) out.push({cls: 'warn', title: 'Estás usando muchos botones a la vez', text: 'El robot hace un movimiento cada vez; los demás se descartan. Espera a que termine.'});
+  if (c && c.rutina) out.push({cls: 'info', title: `▶ Rutina en marcha: ${c.rutina}`, text: 'Los botones de mover esperan a que termine (o pulsa Parar rutina).'});
+  if (flash && Date.now() - flash.t < 7000) out.push(flash);
+  $('alerts').innerHTML = out.map(a => `<div class="al ${a.cls}"><b>${esc(a.title)}</b>${esc(a.text)}</div>`).join('');
+}
+async function pollCons() {
+  try { cons = await api('/api/consumo'); renderAmp(); renderAlerts(); } catch {}
+}
+setInterval(pollCons, 1000);
 function label(m) {
   if (!m) return null;
   if (m.libre) return 'libre';
@@ -442,7 +512,12 @@ function renderPower() {
   const p = st.potencia; if (!p) return;
   if (document.activeElement !== $('pamp')) { $('pamp').value = p.amperios; $('pampv').textContent = p.amperios + ' A'; }
   $('plim').checked = p.limitar;
+  $('pallow').checked = !!p.permitir_sin_corriente;
   $('pwbar').classList.toggle('off', !p.limitar);
+  $('plow').hidden = !p.falta_corriente_ahora;
+  $('plow').innerHTML = p.permitir_sin_corriente
+    ? '<b>La Pi tiene falta de corriente AHORA</b> y has permitido mover igualmente: si se apaga, cambia el cargador o el cable de la Pi y revisa el GND de la clema.'
+    : '<b>La Pi tiene falta de corriente AHORA: los movimientos están frenados</b> para que no se apague (ya pasó 4 veces). Arréglalo: cargador de 5,1 V y 2,5 A con cable corto, y GND de la fuente de servos bien apretado en la clema. Si aun así quieres mover, marca la casilla de abajo.';
   const k = p.a_la_vez_12;
   $('pinfo').innerHTML = p.limitar
     ? `Con <b>${p.amperios} A</b>: hasta <b>${k}</b> servo${k > 1 ? 's' : ''} moviéndose a la vez (el resto espera su turno). Estimación: ~${p.estimacion.moviendo_A} A por servo moviéndose y ~${p.estimacion.sujetando_A} A sujetando.` +
@@ -451,15 +526,45 @@ function renderPower() {
 }
 function renderMapLive() {
   const names = {A: 'A · delantera izq.', B: 'B · delantera der.', C: 'C · trasera der.', D: 'D · trasera izq.'};
-  let h = '<tr><th>Canal</th><th>Pata</th><th>Articulación</th><th>Ajuste</th><th>Nota</th><th>Ahora</th></tr>';
+  let h = '<tr><th>Canal</th><th>Pata</th><th>Articulación</th><th>Ajuste</th><th>Estado</th><th>Ahora</th></tr>';
   for (let ch = 0; ch < 16; ch++) {
-    const m = st.map[ch] || {}, a = st.angles[ch];
-    h += `<tr><td>${ch}</td><td>${m.pata ? names[m.pata] : (m.libre ? 'libre' : 'sin mapear')}</td><td>${m.articulacion || '—'}</td>
+    const m = st.map[ch] || {}, a = st.angles[ch], d = mapDiag(ch, m);
+    h += `<tr class="${d.cls}" data-tip="${esc(d.tip)}"><td>${ch}</td><td>${m.pata ? names[m.pata] : (m.libre ? 'libre' : 'sin mapear')}</td><td>${m.articulacion || '—'}</td>
       <td>${m.offset || m.invertir ? `${m.offset > 0 ? '+' : ''}${m.offset || 0}°${m.invertir ? ' invertido' : ''}` : '—'}</td>
-      <td>${m.nota ? '⚠ ' + esc(m.nota) : ''}</td><td>${a == null ? 'suelto' : a + '°'}</td></tr>`;
+      <td>${esc(d.short)}</td><td>${a == null ? 'suelto' : a + '°'}</td></tr>`;
   }
   $('mapLive').innerHTML = h;
 }
+// diagnóstico de cada canal: color de la fila y detalle al pasar el ratón
+function mapDiag(ch, m) {
+  const ver = st.verificacion || {}, tag = m.pata ? m.pata + (JOINTS.indexOf(m.articulacion) + 1) : '';
+  if (ch === 0 && m.pata === 'A') return {cls: 'bad', short: '⚠ no responde', tip:
+    'Codo de A (A3) · NO RESPONDE. Comprobado: la placa sí saca la señal por el canal 0 (pulso de 1499 µs). ' +
+    'Por dónde falla: el propio servo (quemado o atascado), su cable o el conector (el marrón tiene que ir al lado GND). ' +
+    'Cómo comprobarlo: SIN corriente, pasa su conector al canal 7 (libre) y pulsa Probar en el 7. Si se mueve, fallaba el canal 0; si no, el servo o su cable.'};
+  if (ch === 6 && m.pata === 'B') return {cls: 'warn', short: '⚠ girado', tip:
+    'Codo de B (B3) · GIRADO. A 90° queda muy estirado mientras los demás quedan rectos: el horn está montado girado. ' +
+    'Arreglo: en Canales → canal 6 → Calibrar, muévelo hasta que quede como el de C o D y pulsa "Fijar aquí = 90°"; ' +
+    'o recoloca el horn un diente (unos 14°). Su conector se pasó del canal 1 al 6.'};
+  if (m.nota) return {cls: m.pata ? 'bad' : 'warn', short: '⚠ ' + m.nota, tip: (tag ? tag + ' · ' : 'Canal libre · ') + m.nota + '.'};
+  if (m.libre) return {cls: '', short: 'libre', tip: 'Canal libre: no hay nada conectado.'};
+  if (!m.pata) return {cls: '', short: 'sin mapear', tip: 'Canal sin asignar.'};
+  const v = ver[m.pata];
+  if (v) return v.ok ? {cls: 'ok', short: '✓ comprobada', tip: `${tag} · pata comprobada en "El robot en vivo": coincide con el dibujo.`}
+    : {cls: 'bad', short: '✗ no coincide', tip: `${tag} · en "El robot en vivo" se marcó que la pata ${m.pata} NO está como la dibuja la Pi: revisa qué articulación va al revés o qué cable está cruzado.`};
+  if (m.pata === 'A' || m.pata === 'B') return {cls: 'warn', short: 'por revisar', tip:
+    `${tag} · delantera: sus cables siguen otro orden que las traseras (A 4·2·0 y B 5·3·6, frente a C 10·12·14 y D 11·13·15). ` +
+    'Puede haber algún cable cruzado: pulsa Probar en este canal y mira que se mueve justo esta articulación.'};
+  return {cls: 'ok', short: 'bien', tip: `${tag} · trasera: probada, a 90° queda recta y coordinada.`};
+}
+document.addEventListener('mousemove', e => {
+  const tr = e.target.closest && e.target.closest('#mapLive tr[data-tip]'), tip = $('mapTip');
+  if (!tr) { tip.hidden = true; return; }
+  tip.textContent = tr.dataset.tip; tip.hidden = false;
+  const w = tip.offsetWidth, hgt = tip.offsetHeight;
+  tip.style.left = Math.min(e.clientX + 14, innerWidth - w - 8) + 'px';
+  tip.style.top = Math.min(e.clientY + 14, innerHeight - hgt - 8) + 'px';
+});
 function renderPoses() {
   const poses = st.poses || {}, names = [];
   Object.entries(poses).forEach(([leg, p]) => { if (LEGS[leg]) Object.keys(p).forEach(n => { if (!names.includes(n)) names.push(n); }); });
@@ -474,6 +579,20 @@ function renderPoses() {
         <button data-posedel="${esc(n)}" title="Borrar">✕</button></span></div>
       <div class="pmini"><div class="head">↑ cabeza</div>${cell('A', n)}${cell('B', n)}${cell('D', n)}${cell('C', n)}</div></div>`).join('')
     : '<span class="pz">Todavía no hay posturas guardadas.</span>';
+}
+function poseLoose() {
+  return Object.entries(st.map).filter(([ch, m]) => m.pata && st.angles[ch] == null)
+    .map(([ch, m]) => ({ch, tag: m.pata + (JOINTS.indexOf(m.articulacion) + 1)}));
+}
+async function savePose(name, extra) {
+  setBusy(true, `guardando la postura "${name}"…`);
+  try {
+    st = await api('/api/pose_save', Object.assign({pata: 'todas', nombre: name}, extra));
+    const n = Object.values(st.poses || {}).reduce((s, p) => s + Object.keys(p[name] || {}).length, 0);
+    poseMsg(`✓ Guardada la postura <b>${esc(name)}</b> con ${n} de 12 articulaciones${n < 12 ? ' (las que faltan no tenían posición conocida)' : ''}. Está en la lista de abajo.`, n < 12 ? '' : 'ok');
+    $('poseName').value = '';
+  } catch (err) { poseMsg('No se pudo guardar: ' + esc(err.message), 'bad'); }
+  setBusy(false); render();
 }
 function poseMsg(text, kind) {
   const m = $('poseMsg');
@@ -501,14 +620,25 @@ function vLogical(leg, art, g) {
   if (V_RIGHT.has(leg)) v = 180 - v;
   return Math.max(LIM.min, Math.min(LIM.max, Math.round(v)));
 }
+let vCopy = false;
 function vLegState(L) {
-  const chs = legChannels(L), out = {};
+  const chs = legChannels(L), out = {}, last = (st.ultima || {}).angulos || {};
   JOINTS.forEach(j => {
-    const ch = chs[j], key = L + j;
-    const a = vPreview[key] != null ? vPreview[key] : (ch !== undefined ? st.angles[ch] : null);
-    out[j] = {ch, logical: a, loose: a == null, g: a == null ? 90 : vGesture(L, j, a), note: ch !== undefined && st.map[ch] ? st.map[ch].nota : ''};
+    const ch = chs[j], key = L + j, held = ch !== undefined ? st.angles[ch] : null;
+    const prev = vPreview[key], mem = ch !== undefined ? last[ch] : null;
+    const a = prev != null ? prev : held != null ? held : mem;   // sujeto > dibujo > memoria
+    out[j] = {ch, logical: a, loose: held == null && prev == null, probable: held == null && prev == null && mem != null,
+              drawn: prev != null && vCopy, g: a == null ? 90 : vGesture(L, j, a), note: ch !== undefined && st.map[ch] ? st.map[ch].nota : ''};
   });
   return out;
+}
+function vAngleText(x) { return x.drawn ? `${x.logical}° (dibujo)` : x.loose ? (x.probable ? `≈${x.logical}° suelto` : 'suelto') : x.logical + '°'; }
+function vCopyMode(on) {
+  vCopy = on; if (!on) vPreview = {};
+  ['vCopyName', 'vCopySave', 'vCopyCancel', 'vCopyHelp'].forEach(id => $(id).hidden = !on);
+  $('vCopyBtn').hidden = on;
+  if (on && !$('vCopyName').value) $('vCopyName').value = $('poseName').value;
+  render();
 }
 function vGeom(s) {
   const c = vConv(), rad = d => d * Math.PI / 180;
@@ -531,13 +661,13 @@ function vLegSvg(L, s) {
     <circle cx="${V_HIP.x}" cy="${V_HIP.y}" r="9" fill="var(--card)" stroke="var(--ink)" stroke-width="2"/>
     <circle cx="${g.K.x}" cy="${g.K.y}" r="11" fill="var(--acc)" stroke="var(--card)" stroke-width="2" data-h="hombro" style="cursor:grab"/>
     <circle cx="${g.F.x}" cy="${g.F.y}" r="11" fill="#e8892a" stroke="var(--card)" stroke-width="2" data-h="codo" style="cursor:grab"/>
-    <text x="${V_HIP.x + 14}" y="${V_HIP.y + 18}" class="vt">hombro ${s.hombro.loose ? 'suelto' : s.hombro.logical + '°'}</text>
-    <text x="${g.K.x + 16}" y="${g.K.y + 4}" class="vt">codo ${s.codo.loose ? 'suelto' : s.codo.logical + '°'}</text>
+    <text x="${V_HIP.x + 14}" y="${V_HIP.y + 18}" class="vt">hombro ${vAngleText(s.hombro)}</text>
+    <text x="${g.K.x + 16}" y="${g.K.y + 4}" class="vt">codo ${vAngleText(s.codo)}</text>
     <g transform="translate(250 40)">
       <text x="0" y="-20" class="vtm" text-anchor="middle">pectoral (de frente)</text>
       <line x1="-22" y1="0" x2="22" y2="0" stroke="var(--line)" stroke-width="5"/>
       <line x1="0" y1="0" x2="${(40 * Math.sin(pd * Math.PI / 180)).toFixed(1)}" y2="${(40 * Math.cos(pd * Math.PI / 180)).toFixed(1)}" stroke="${col('pectoral')}" stroke-width="7" stroke-linecap="round" ${stc('pectoral')}/>
-      <text x="0" y="58" class="vt" text-anchor="middle">${s.pectoral.loose ? 'suelto' : s.pectoral.logical + '°'}</text>
+      <text x="0" y="58" class="vt" text-anchor="middle">${vAngleText(s.pectoral)}</text>
     </g>
   </svg>`;
 }
@@ -583,7 +713,7 @@ function renderVivo() {
     const rows = JOINTS.map((j, i) => {
       const x = s[j];
       return `<div class="jrow"><b>${i + 1} ${j}${j === 'codo' ? ' (rodilla)' : ''} · c${x.ch ?? '—'}</b>
-        <span class="pz">${x.loose ? 'suelto' : x.logical + '°'}${x.note ? ' ⚠ ' + esc(x.note) : ''}</span>
+        <span class="pz">${vAngleText(x)}${x.note ? ' ⚠ ' + esc(x.note) : ''}</span>
         ${x.ch === undefined ? '' : `<button data-vj="${L}|${j}|-5">−5</button><button data-vj="${L}|${j}|5">+5</button>
         <button data-vt="${x.ch}" title="Lo mueve ±8° y lo deja sujeto">probar</button>
         <button data-vz="${x.ch}" title="La posición actual pasa a ser su 90° (recta)">fijar 90°</button>`}</div>`;
@@ -619,6 +749,7 @@ document.addEventListener('pointerup', async () => {
   if (!vDrag) return;
   const {L, j} = vDrag, key = L + j, target = vPreview[key], ch = legChannels(L)[j];
   vDrag = null; dragging = false;
+  if (vCopy) { render(); return; }  // modo copiar: solo cambia el dibujo
   if (target == null || ch === undefined) { delete vPreview[key]; render(); return; }
   await act('/api/angle', {ch, angle: target, speed: speed()}, `pata ${L}: ${j} → ${target}°`);
   delete vPreview[key]; render();
@@ -626,9 +757,19 @@ document.addEventListener('pointerup', async () => {
 document.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   const d = b.dataset;
-  if (d.vj) {
-    const [L, j, delta] = d.vj.split('|'), ch = legChannels(L)[j], cur = st.angles[ch], c = vConv();
-    const g = (cur == null ? 90 : vGesture(L, j, cur)) + (+delta) * (j === 'pectoral' ? 1 : j === 'hombro' ? c.sh : c.sk);
+  if (b.id === 'vCopyBtn') vCopyMode(true);
+  else if (b.id === 'vCopyCancel') vCopyMode(false);
+  else if (b.id === 'vCopySave') {
+    const name = $('vCopyName').value.trim();
+    if (!name) { $('vivoMsg').textContent = 'Pon un nombre a la postura.'; $('vCopyName').focus(); return; }
+    const angulos = {};
+    Object.keys(V_TITLE).forEach(L => { const s = vLegState(L); JOINTS.forEach(j => { if (s[j].ch !== undefined) angulos[s[j].ch] = s[j].logical ?? 90; }); });
+    savePose(name, {angulos}).then(() => { vCopyMode(false); $('poseList').scrollIntoView({behavior: 'smooth', block: 'center'}); });
+  }
+  else if (d.vj) {
+    const [L, j, delta] = d.vj.split('|'), ch = legChannels(L)[j], s = vLegState(L), c = vConv();
+    const g = s[j].g + (+delta) * (j === 'pectoral' ? 1 : j === 'hombro' ? c.sh : c.sk);
+    if (vCopy) { vPreview[L + j] = vLogical(L, j, g); render(); return; }
     act('/api/angle', {ch, angle: vLogical(L, j, g), speed: speed()}, `pata ${L}: ${j} ${+delta > 0 ? '+' : ''}${delta}°`);
   }
   else if (d.vt) act('/api/test', {ch: +d.vt, delta: 8, center: Math.max(38, Math.min(142, st.angles[+d.vt] ?? 90)), speed: speed(), hold: true}, `probando canal ${d.vt}… mira el robot`);
@@ -1239,25 +1380,28 @@ document.addEventListener('click', e => {
   if (b.id === 'poseSave') {
     const name = $('poseName').value.trim();
     if (!name) { poseMsg('Escribe un nombre para la postura (por ejemplo "agachado").', 'bad'); $('poseName').focus(); return; }
-    const mapped = Object.entries(st.map).filter(([, m]) => m.pata).map(([ch, m]) => ({ch, m}));
-    const held = mapped.filter(x => st.angles[x.ch] != null);
-    if (!held.length) {
-      poseMsg(`<b>No se puede guardar: todos los servos están sueltos.</b> Los servos no le dicen a la Pi dónde están, así que una postura
-        hecha a mano (o con las patas caídas) no se puede leer. Haz esto: pulsa <b>Bloquear todo a mitad (90°)</b>, coloca el robot como
-        quieras con los grupos, los deslizadores o "El robot en vivo" (abajo del todo) y vuelve a pulsar <b>Guardar postura</b>.`, 'bad');
-      return;
-    }
-    const missing = mapped.filter(x => st.angles[x.ch] == null).map(x => x.m.pata + (JOINTS.indexOf(x.m.articulacion) + 1));
-    if (missing.length && !confirm(`Hay ${missing.length} servos sueltos (${missing.join(', ')}): esos no se guardan. ¿Guardar el resto?`)) return;
-    (async () => {
-      setBusy(true, `guardando la postura "${name}"…`);
-      try {
-        st = await api('/api/pose_save', {pata: 'todas', nombre: name});
-        poseMsg(`✓ Guardada la postura <b>${esc(name)}</b> con ${held.length} articulaciones${missing.length ? ` (sin ${missing.join(', ')}, que estaban sueltos)` : ''}. Está abajo, en la lista.`, 'ok');
-        $('poseName').value = '';
-      } catch (err) { poseMsg('No se pudo guardar: ' + esc(err.message), 'bad'); }
-      setBusy(false); render();
+    const loose = poseLoose();
+    if (!loose.length) { savePose(name, {}); return; }
+    const last = (st.ultima || {}).angulos || {}, known = loose.filter(x => last[x.ch] != null).length;
+    poseMsg(`<b>${loose.length} de 12 servos están sueltos</b> (${loose.map(x => x.tag).join(', ')}): la Pi no puede leer dónde están
+      (los MG996R no lo dicen). Elige cómo guardar <b>${esc(name)}</b>:
+      <div class="row" style="margin-top:8px">
+        ${known ? `<button class="pri" data-psave="ultima" title="No mueve nada">Guardar con la última posición conocida (${known}/${loose.length})</button>` : ''}
+        <button data-psave="sujetar" title="Los sujeta de uno en uno, según los amperios">${known ? 'Sujetarlos donde estaban' : 'Sujetarlos a 90°'} y guardar</button>
+        <button data-psave="dibujo" title="No mueve nada">Copiar del robot con el dibujo</button>
+      </div>
+      <div class="pz" style="margin-top:6px">La última posición conocida es lo último que la Pi les mandó${(st.ultima || {}).hora ? ' (' + esc(st.ultima.hora.replace('T', ' ')) + ')' : ''};
+        si después los moviste a mano, mejor "Copiar del robot con el dibujo".</div>`, '');
+  } else if (b.dataset.psave) {
+    const name = $('poseName').value.trim(); if (!name) { poseMsg('Escribe un nombre para la postura.', 'bad'); return; }
+    if (b.dataset.psave === 'ultima') savePose(name, {usar_ultima: true});
+    else if (b.dataset.psave === 'sujetar') (async () => {
+      setBusy(true, 'sujetando los sueltos de uno en uno…');
+      try { st = await api('/api/lock_loose', {a: 'ultima', speed: speed()}); setBusy(false); savePose(name, {}); }
+      catch (err) { setBusy(false); poseMsg('No se pudieron sujetar: ' + esc(err.message), 'bad'); }
     })();
+    else { vCopyMode(true); $('vivo').scrollIntoView({behavior: 'smooth'});
+      poseMsg('Modo copiar activado abajo, en <b>El robot en vivo</b>: arrastra las patas del dibujo hasta que se parezcan al robot (no se mueve nada) y pulsa <b>Guardar el dibujo como postura</b>.', ''); }
   } else if (b.dataset.posego) {
     act('/api/pose_go', {pata: 'todas', nombre: b.dataset.posego, speed: speed()}, `yendo a la postura "${b.dataset.posego}"… (respeta el límite de consumo)`);
   } else if (b.dataset.posedel) {
@@ -1265,13 +1409,13 @@ document.addEventListener('click', e => {
   }
 });
 async function setPower() {
-  const body = {limitar: $('plim').checked, amperios: +$('pamp').value};
+  const body = {limitar: $('plim').checked, amperios: +$('pamp').value, permitir_sin_corriente: $('pallow').checked};
   if (!body.limitar && !confirm('¿Quitar el límite de consumo? Solo con una fuente de 15-20 A: si no, la fuente puede cortarse.')) { $('plim').checked = true; return; }
   try { st = await api('/api/power', body); render(); $('msg').textContent = `límite: ${body.limitar ? body.amperios + ' A' : 'desactivado'}`; }
   catch (e) { $('msg').textContent = 'Error: ' + e.message; }
 }
 document.addEventListener('input', e => { if (e.target.id === 'pamp') $('pampv').textContent = e.target.value + ' A'; });
-document.addEventListener('change', e => { if (e.target.id === 'plim' || e.target.id === 'pamp') setPower(); });
+document.addEventListener('change', e => { if (e.target.id === 'plim' || e.target.id === 'pamp' || e.target.id === 'pallow') setPower(); });
 document.addEventListener('toggle', e => {
   if (e.target.id === 'blkd' && e.target.open) ensureBlockly().then(() => Blockly.svgResize(ws)).catch(() => {});
 }, true);

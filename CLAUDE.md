@@ -130,3 +130,12 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   `/api/leg_check` (config.json `verificacion`); "X al revés" → calibrate invert del canal. Referencias del usuario:
   render del SpotMicro (4 círculos delante = 2 HC-SR04) y fotos de un DOGZILLA Lite (parecido, no igual: servos de bus,
   246×145×170-195 mm de pie, ~99-125 mm plegado). El usuario a veces llama "rodilla" al codo (articulación 3).
+- 2026-10-11 16:00: 4.º y 5.º apagados de golpe moviendo servos (postura con codos a 30/150 = topes; grupo de codos).
+  Añadido: freno `power_guard()` (no mueve con throttled bit 0 salvo config `potencia.permitir_sin_corriente`);
+  órdenes de movimiento con `lock.acquire(timeout=1)` → 409 si ya se mueve (no se encolan); `/api/consumo` (estimado
+  por servo: suelto 0, sujeto 0,3 A, moviendo 1,2 A) para la cabecera y el panel de avisos; memoria de posición
+  `ultima_posicion.json` (`save_last` tras cada acción; `pose_save` con `usar_ultima` o `angulos` del dibujo;
+  `/api/lock_loose` a la última posición); modo "Copiar del robot" en El robot en vivo; tabla del mapa con diagnóstico.
+  Usuario compartirá la web con un compañero (Iván): todo pensado para que pulsar mucho no apague la Pi.
+  Leer la posición real de los servos NO es posible con MG996R: haría falta sacar el cable del potenciómetro a un ADC
+  (ADS1115) o cambiar a servos de bus con realimentación (como los del DOGZILLA).

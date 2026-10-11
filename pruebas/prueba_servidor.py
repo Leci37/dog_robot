@@ -65,6 +65,40 @@ check(con["via"] and con["ssh"]["usuario"], f"/api/conexion: entra {con['via']}"
 check("contrasena" in con["ssh"] and "luislecinana" not in con["ssh"]["contrasena"], "no muestra la contraseña en claro")
 check(b"AYUDA" in call("/ayuda"), "/ayuda responde")
 
+# --- freno por falta de corriente, consumo, órdenes simultáneas, memoria de posición ---
+cons = call("/api/consumo")
+check("total_A" in cons and len(cons["canales"]) == 12, f"/api/consumo: {cons['total_A']} A, {len(cons['canales'])} servos")
+call("/api/power", {"limitar": True, "amperios": 5, "permitir_sin_corriente": False})
+if cons["falta_corriente"]:
+    r = call("/api/angle", {"ch": 2, "angle": 95}, expect=400)
+    check("CORRIENTE" in str(r), "con falta de corriente real, el freno no deja mover")
+else:
+    print("      (la Pi no tiene falta de corriente ahora: el freno no se puede comprobar de verdad)")
+call("/api/power", {"limitar": True, "amperios": 5, "permitir_sin_corriente": True})  # el resto de pruebas, con permiso
+call("/api/off", {})
+call("/api/angle", {"ch": 2, "angle": 100})
+check(call("/api/consumo")["total_A"] > 0, "un servo sujeto ya cuenta en el consumo")
+import threading
+res = {}
+th = threading.Thread(target=lambda: res.update(a=call("/api/pose90", {"speed": "lento"})))
+th.start(); time.sleep(0.4)
+r = call("/api/angle", {"ch": 3, "angle": 100}, expect=409)
+check("moviendo" in str(r), "una segunda orden mientras se mueve se rechaza (409), no se encola")
+th.join()
+check(call("/api/consumo")["rechazadas_recientes"] >= 1, "el aviso de 'muchos botones a la vez' se activa")
+call("/api/angle", {"ch": 2, "angle": 110})
+call("/api/off", {})
+st = call("/api/state")
+check(st["ultima"]["angulos"].get("2") == 110, "memoria de posición: recuerda el último ángulo aunque esté suelto")
+st = call("/api/pose_save", {"pata": "todas", "nombre": "memo", "usar_ultima": True})
+check(st["poses"]["A"]["memo"]["hombro"] == 110, "guardar con la última posición conocida")
+st = call("/api/pose_save", {"pata": "todas", "nombre": "dibujo", "angulos": {"4": 95, "2": 120, "0": 70}})
+check(st["poses"]["A"]["dibujo"] == {"pectoral": 95, "hombro": 120, "codo": 70}, "guardar lo dibujado (copiar del robot)")
+st = call("/api/lock_loose", {"a": "ultima"})
+check(sum(1 for v in st["angles"].values() if v is not None) == 12 and st["angles"]["2"] == 110,
+      "sujetar los sueltos donde estaban (12 sujetos, A2 en 110)")
+call("/api/off", {})
+
 call("/api/convention_reset", {})
 rt = call("/api/routines")
 check(len([c for c in rt["candidatas"] if c["etapa"] == 1]) == 8 and not rt["convencion"], "etapa 1: 8 variantes de 'De pie'")
@@ -121,20 +155,20 @@ for n in ("prueba", "andar"):
 check(not call("/api/routines")["guardadas"], "borra rutinas")
 call("/api/convention_reset", {})
 
-st = call("/api/power", {"limitar": True, "amperios": 5})
+st = call("/api/power", {"limitar": True, "amperios": 5, "permitir_sin_corriente": True})
 check(st["potencia"]["a_la_vez_12"] == 1, f"límite 5 A: {st['potencia']['a_la_vez_12']} servo a la vez")
 call("/api/off", {})
 call("/api/pose90", {"speed": "rapido"})
 check(call("/api/state")["potencia"]["ultima_tanda"] == 1, "con 5 A 'todo a mitad' va en tandas de 1")
-st = call("/api/power", {"limitar": True, "amperios": 20})
+st = call("/api/power", {"limitar": True, "amperios": 20, "permitir_sin_corriente": True})
 check(st["potencia"]["a_la_vez_12"] == 12, f"límite 20 A: {st['potencia']['a_la_vez_12']} a la vez")
 call("/api/group", {"articulacion": "codo", "angle": 100, "speed": "rapido"})
 check(call("/api/state")["potencia"]["ultima_tanda"] == 4, "con 20 A el grupo de 4 codos va junto")
-call("/api/power", {"limitar": False, "amperios": 5})
+call("/api/power", {"limitar": False, "amperios": 5, "permitir_sin_corriente": True})
 call("/api/pose90", {"speed": "rapido"})
 check(call("/api/state")["potencia"]["ultima_tanda"] == 12, "sin límite: los 12 a la vez")
 call("/api/power", {"amperios": 0.5}, expect=400)
-call("/api/power", {"limitar": True, "amperios": 5})
+call("/api/power", {"limitar": True, "amperios": 5, "permitir_sin_corriente": True})
 
 st = call("/api/leg_check", {"pata": "C", "ok": True})
 check(st["verificacion"]["C"]["ok"] is True, "pata C marcada como 'coincide con el dibujo'")
