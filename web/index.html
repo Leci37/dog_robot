@@ -138,6 +138,7 @@ const JOINTS = ['hombro','rodilla','tobillo'];
 let st = {angles:{}, map:{}}, busy = false, askCh = null, askLeg = null, dragging = false;
 let hl = new Set(), seqRunning = false, seqStop = false;
 const RIGHT = new Set(['B', 'C']);
+const openCal = new Set();
 const mirror = {hombro: true, rodilla: true, tobillo: true};
 const GROUP_NAMES = {hombro: 'Todos los hombros', rodilla: 'Todas las rodillas (codos)', tobillo: 'Todos los tobillos'};
 const LEGS_SPOKEN = {A:'delantera izquierda', B:'delantera derecha', C:'trasera derecha', D:'trasera izquierda'};
@@ -251,6 +252,10 @@ function render() {
       <div class="row"><button class="pri" data-t="${ch}">Probar</button><button data-r="${ch}">Soltar</button></div>
       <div class="row">${[-15, -5, -1, 1, 5, 15].map(d => `<button data-n="${ch}" data-d="${d}">${d > 0 ? '+' + d : '−' + -d}</button>`).join('')}</div>
       <input type="range" min="${LIM.min}" max="${LIM.max}" step="1" value="${a ?? 90}" data-s="${ch}" title="Arrastra y suelta para ir a ese ángulo">
+      ${m && !m.libre ? `<details ${openCal.has(ch) ? 'open' : ''} data-cal="${ch}"><summary class="pz">Calibrar${m.offset || m.invertir ? ` · ajuste ${m.offset > 0 ? '+' : ''}${m.offset || 0}°${m.invertir ? ' · invertido' : ''}` : ''}</summary>
+        <div class="row" style="margin-top:6px"><button data-cz="${ch}" title="La posición actual pasa a ser su 90°">Fijar aquí = 90°</button>
+        <button data-ci="${ch}">Invertir</button><button data-cr="${ch}">Quitar ajuste</button></div>
+        ${Math.abs(m.offset || 0) > 40 ? '<div class="pz">Ajuste grande: mejor recolocar el horn del servo un diente.</div>' : ''}</details>` : ''}
     </div>`;
   }
   $('grid').innerHTML = html;
@@ -376,6 +381,9 @@ document.addEventListener('click', e => {
     if (confirm(`Bloquear los ${n} servos a 90°, poco a poco y alternando patas. ¿Robot en el aire?`)) act('/api/pose90', {speed: speed()}, 'bloqueando todo a mitad (90°)…');
   }
   else if (d.gj) { const ref = groupRef(d.gj) ?? 90; groupGo(d.gj, ref + +d.gd); }
+  else if (d.cz) act('/api/calibrate', {ch: +d.cz, action: 'zero'}, `canal ${d.cz}: esta posición es ahora su 90°`);
+  else if (d.ci) act('/api/calibrate', {ch: +d.ci, action: 'invert'}, `canal ${d.ci}: sentido invertido`);
+  else if (d.cr) act('/api/calibrate', {ch: +d.cr, action: 'reset'}, `canal ${d.cr}: ajuste quitado`);
   else if (d.pg) {
     if (d.pg !== 'todas' || confirm(`¿${d.pn === 'recogida' ? 'Recoger' : 'Estirar'} todas las patas, una tras otra? Robot en el aire.`))
       act('/api/pose_go', {pata: d.pg, nombre: d.pn, speed: speed()}, `${d.pn === 'recogida' ? 'recogiendo' : 'estirando'} ${d.pg === 'todas' ? 'todas las patas' : 'pata ' + d.pg}…`);
@@ -408,6 +416,10 @@ document.addEventListener('change', e => {
   dragging = false;
   act('/api/angle', {ch: +s, angle: +e.target.value, speed: speed()}, `canal ${s} → ${e.target.value}°`);
 });
+document.addEventListener('toggle', e => {
+  const c = e.target.dataset && e.target.dataset.cal; if (c === undefined) return;
+  e.target.open ? openCal.add(+c) : openCal.delete(+c);
+}, true);
 async function poll() {
   try { if (!busy && !dragging) { st = await api('/api/state'); render(); } $('dot').classList.add('on'); }
   catch { $('dot').classList.remove('on'); }

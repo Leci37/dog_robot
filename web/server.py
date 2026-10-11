@@ -20,7 +20,8 @@ LOG_FILE = WEB / "acciones.log"
 PORT = 8080
 
 MIN_US, MAX_US = 500, 2500   # MG996R aprox. 0-180 grados
-SAFE_MIN, SAFE_MAX = 30, 150
+SAFE_MIN, SAFE_MAX = 30, 150   # límites del ángulo lógico (el que ve el usuario)
+PHYS_MIN, PHYS_MAX = 5, 175    # límites del ángulo físico enviado al servo, tras calibrar
 MAX_DELTA = 45
 CENTER = 90
 SPEEDS = {"lento": 0.05, "normal": 0.03, "rapido": 0.012}  # segundos por grado
@@ -32,7 +33,8 @@ kit = ServoKit(channels=16)
 for _ch in range(16):
     kit.servo[_ch].set_pulse_width_range(MIN_US, MAX_US)
 lock = threading.Lock()
-angles = {ch: None for ch in range(16)}  # último ángulo mandado; None = suelto
+angles = {ch: None for ch in range(16)}  # último ángulo LÓGICO mandado; None = suelto
+CAL = {}  # canal -> (offset, invertir); se carga del mapa al arrancar
 
 
 def log(msg):
@@ -96,17 +98,17 @@ def move_many(targets, pause=0.03):
     targets = {ch: clamp(a) for ch, a in targets.items()}
     for ch, a in targets.items():  # sueltos: salto inevitable, escalonado
         if angles[ch] is None:
-            kit.servo[ch].angle = a
+            write(ch, a)
             angles[ch] = a
             time.sleep(0.25)
     start = {ch: angles[ch] for ch in targets}
     n = max((abs(targets[ch] - start[ch]) for ch in targets), default=0)
     for i in range(1, n + 1):
         for ch in targets:
-            kit.servo[ch].angle = round(start[ch] + (targets[ch] - start[ch]) * i / n)
+            write(ch, round(start[ch] + (targets[ch] - start[ch]) * i / n))
         time.sleep(pause)
     for ch, a in targets.items():
-        kit.servo[ch].angle = a
+        write(ch, a)
         angles[ch] = a
 
 
@@ -114,16 +116,33 @@ def clamp(a):
     return max(SAFE_MIN, min(SAFE_MAX, int(a)))
 
 
+def load_cal():
+    CAL.clear()
+    for k, m in load_map()["canales"].items():
+        if m.get("offset") or m.get("invertir"):
+            CAL[int(k)] = (int(m.get("offset", 0)), bool(m.get("invertir", False)))
+
+
+def physical(ch, a):
+    """Ángulo lógico -> físico: invertir (180 - a) y sumar el ajuste del servo."""
+    off, inv = CAL.get(ch, (0, False))
+    return max(PHYS_MIN, min(PHYS_MAX, (180 - a if inv else a) + off))
+
+
+def write(ch, a):
+    kit.servo[ch].angle = physical(ch, a)
+
+
 def move_to(ch, target, pause=0.03):
     target = clamp(target)
     cur = angles[ch]
     if cur is None:
-        kit.servo[ch].angle = target  # primer pulso: salto absoluto
+        write(ch, target)  # primer pulso: salto absoluto
         time.sleep(0.6)
     else:
         step = 1 if target >= cur else -1
         for a in range(cur, target + step, step):
-            kit.servo[ch].angle = a
+            write(ch, a)
             time.sleep(pause)
     angles[ch] = target
 
@@ -271,6 +290,31 @@ class Handler(BaseHTTPRequestHandler):
             for ch in leg_channels(leg).values():
                 release(ch)
             log(f"soltar pata {leg}")
+        elif p == "/api/calibrate":
+            ch, action = check_ch(b["ch"]), b["action"]
+            data = load_map()
+            m = data["canales"].get(str(ch))
+            if not m or m.get("libre"):
+                raise ValueError("solo se calibran canales mapeados")
+            off, inv = CAL.get(ch, (0, False))
+            if action != "reset" and angles[ch] is None:
+                raise ValueError("el servo está suelto: muévelo primero con su deslizador")
+            phys = physical(ch, angles[ch]) if angles[ch] is not None else None
+            if action == "zero":      # la posición actual pasa a ser el 90 lógico (sin moverse)
+                off, angles[ch] = phys - 90, 90
+            elif action == "invert":  # cambia el sentido sin moverse
+                inv = not inv
+                angles[ch] = (180 - (phys - off)) if inv else (phys - off)
+            elif action == "reset":   # quita el ajuste sin moverse
+                off, inv = 0, False
+                if phys is not None:
+                    angles[ch] = phys
+            else:
+                raise ValueError("acción no válida")
+            CAL[ch] = (off, inv)
+            m["offset"], m["invertir"] = off, inv
+            save_map(data)
+            log(f"calibrar canal {ch}: {action} -> ajuste {off:+d}, invertir={inv}, angulo logico {angles[ch]}")
         elif p == "/api/release":
             ch = check_ch(b["ch"])
             release(ch)
@@ -293,7 +337,12 @@ class Handler(BaseHTTPRequestHandler):
                 leg, joint = b["pata"], b["articulacion"]
                 if leg not in LEGS or joint not in JOINTS:
                     raise ValueError("pata o articulación no válida")
-                data["canales"][key] = {"pata": leg, "articulacion": joint}
+                old = data["canales"].get(key, {})
+                entry = {"pata": leg, "articulacion": joint}
+                for f in ("offset", "invertir", "nota"):  # conservar calibración al re-mapear
+                    if f in old:
+                        entry[f] = old[f]
+                data["canales"][key] = entry
                 log(f"mapa: canal {ch} = {leg}{JOINTS.index(joint) + 1} {joint}")
             save_map(data)
         else:
@@ -302,6 +351,26 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, self.state())
 
 
+def recover_angles():
+    """Al arrancar, deduce de los registros de la PCA9685 dónde están los servos que siguen sujetos,
+    para que un reinicio del servidor no los haga saltar ni los dé por sueltos."""
+    for ch in range(16):
+        try:
+            duty = kit._pca.channels[ch].duty_cycle
+        except Exception:  # noqa: BLE001
+            continue
+        if duty in (0, 0xFFFF):
+            continue
+        us = duty * 1_000_000 / kit._pca.frequency / 0xFFFF
+        phys = round((us - MIN_US) * 180 / (MAX_US - MIN_US))
+        off, inv = CAL.get(ch, (0, False))
+        a = phys - off
+        angles[ch] = 180 - a if inv else a
+
+
 if __name__ == "__main__":
-    log(f"servidor arrancado en puerto {PORT}")
+    load_cal()
+    recover_angles()
+    log(f"angulos recuperados de la PCA: { {c: a for c, a in angles.items() if a is not None} }")
+    log(f"servidor arrancado en puerto {PORT}; calibración {CAL}")
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
