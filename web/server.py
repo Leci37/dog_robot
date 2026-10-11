@@ -70,10 +70,33 @@ lock = threading.Lock()
 # Nitro (aparte, opcional y con tiempo): refresco a 200 Hz en vez de 50. Un MG996R analógico empuja el motor en cada
 # pulso: más fuerza y respuesta, pero se calienta y puede quemarse en minutos; por eso se apaga solo a los NITRO_S.
 TORETO_HZ, NORMAL_HZ = 200, 50
-TORETO_PATADA = 6            # grados de más al arrancar cada movimiento
-TORETO_S_POR_GRADO = 0.003   # lo que tarda el servo (MG996R ~0,17 s/60° a 5 V): espera tras el salto
+HZ_MIN, HZ_MAX = 50, 200     # barra de Hz (12-10): 50-60 normal · 70-100 fuerte · 110-200 nitro
+TORETO_PATADA = 3            # grados de más como máximo (12-10: con 6 en cada paso de las marchas "le daba epilepsia")
+TORETO_S_POR_GRADO = 0.004   # lo que tarda el servo con carga (MG996R ~0,17 s/60° en vacío): espera tras el salto
 NITRO_S = 120
-toreto = {"on": False, "nitro": False, "hz": NORMAL_HZ, "nitro_hasta": 0.0}
+# Protección contra quemar los servos a más de 60 Hz: "calor" estimado 0-100 % que sube mientras sujetan (llega al
+# 100 % en hz_limit_s segundos con los 12 sujetos) y baja a 50-60 Hz (de 100 a 0 en 5 min). Al 100 %: vuelta a 50 Hz
+# y no deja subir hasta que baje del 30 %. Tampoco sube los Hz con la Pi en falta de corriente.
+toreto = {"on": False, "nitro": False, "hz": NORMAL_HZ, "nitro_hasta": 0.0, "patada": TORETO_PATADA, "calor": 0.0,
+          "enfriando": False}
+
+
+def hz_limit_s(hz):
+    """Segundos seguidos que aguantan los 12 sujetos a esa frecuencia (None = sin límite)."""
+    return None if hz <= 60 else 600 if hz <= 100 else 240 if hz <= 150 else 120
+
+
+def hz_zona(hz):
+    return "normal" if hz <= 60 else "fuerte" if hz <= 100 else "nitro"
+
+
+def pwm_info():
+    hz, held = toreto["hz"], sum(1 for a in angles.values() if a is not None)
+    lim = hz_limit_s(hz)
+    quedan = round((100 - toreto["calor"]) * lim / 100 / max(0.25, held / 12)) if lim else 0
+    return {"hz": hz, "zona": hz_zona(hz), "calor": round(toreto["calor"]), "enfriando": toreto["enfriando"],
+            "limite_s": lim, "quedan_s": quedan, "min": HZ_MIN, "max": HZ_MAX, "patada": toreto["patada"],
+            "toreto": toreto["on"]}
 angles = {ch: None for ch in range(16)}  # último ángulo LÓGICO mandado; None = suelto
 CAL = {}  # canal -> (offset, invertir); se carga del mapa al arrancar
 
@@ -1328,7 +1351,7 @@ def routines_info():
             "valoraciones": {k: v["estrellas"] for k, v in cfg.get("valoraciones", {}).items()},
             "home": home_id(cands, cfg), "populares": popular_ids(cands, cfg), "codigo_de_pie": CODIGO_DE_PIE,
             "toreto": toreto["on"], "nitro": toreto["nitro"], "toreto_hz": toreto["hz"],
-            "nitro_quedan_s": max(0, round(toreto["nitro_hasta"] - time.time())) if toreto["nitro"] else 0}
+            "nitro_quedan_s": pwm_info()["quedan_s"] if toreto["nitro"] else 0, "pwm": pwm_info()}
 
 
 # ---------- pestaña de estado: cómo me estoy conectando ----------
@@ -1598,7 +1621,8 @@ def consumption():
             "falta_corriente": low_power_now(), "permitir_sin_corriente": pc["permitir_sin_corriente"],
             "rutina": routine["nombre"] if routine["running"] else "",
             "progreso": {k: routine[k] for k in ("running", "nombre", "paso", "total", "detalle", "lista", "fin", "error")},
-            "rechazadas_recientes": traffic["rechazadas"] if time.time() - traffic["ultima_rechazada"] < 8 else 0}
+            "rechazadas_recientes": traffic["rechazadas"] if time.time() - traffic["ultima_rechazada"] < 8 else 0,
+            "pwm": pwm_info()}
 
 
 def _move_together(targets, pause):
@@ -1636,8 +1660,11 @@ def _move_toreto(targets):
     dmax = max((abs(d) for d in delta.values()), default=0)
     for ch, a in targets.items():
         d = delta[ch]
-        write(ch, clamp(a + (TORETO_PATADA if d > 0 else -TORETO_PATADA)) if d else a)
-    time.sleep(max(0.03, (dmax + TORETO_PATADA) * TORETO_S_POR_GRADO))
+        # patada solo en movimientos de 4° o más y nunca mayor que la mitad del movimiento: en los pasitos de las
+        # marchas (3-6°) una patada de 6° era ir y volver en cada paso (temblaba y perdía la fuerza)
+        kick = 0 if abs(d) < 4 else min(toreto["patada"], abs(d) // 2)
+        write(ch, clamp(a + (kick if d > 0 else -kick)))
+    time.sleep(max(0.04, dmax * TORETO_S_POR_GRADO + 0.02))
     for ch, a in targets.items():
         write(ch, a)
         angles[ch] = a
@@ -1645,31 +1672,54 @@ def _move_toreto(targets):
 
 def set_toreto(on):
     """Modo Toreto sí/no (salto con patada y todo a la vez). Al quitarlo se quita también el Nitro."""
-    toreto["on"] = bool(on)
-    if not on and toreto["nitro"]:
-        set_nitro(False)
+    toreto["on"] = bool(on)  # los Hz van aparte (barra de Hz): quitar Toreto no los cambia
 
 
-def set_nitro(on):
-    """Nitro: cambia el refresco de la PCA9685 (200 Hz / 50 Hz), recalcula el pulso de los 16 canales (la librería
-    calcula el ancho de pulso con la frecuencia al configurar el rango) y vuelve a mandar los que sujetan."""
-    kit._pca.frequency = TORETO_HZ if on else NORMAL_HZ
+def set_hz(hz, check=True):
+    """Cambia el refresco de la PCA9685 (barra de Hz), recalcula el pulso de los 16 canales (la librería calcula el
+    ancho de pulso con la frecuencia al configurar el rango) y vuelve a mandar los que sujetan. Con `check`, no sube
+    de 60 Hz si los servos se están enfriando o la Pi tiene falta de corriente."""
+    hz = max(HZ_MIN, min(HZ_MAX, int(round(float(hz) / 10) * 10)))
+    if check and hz > 60:
+        if toreto["enfriando"]:
+            raise ValueError(f"los servos se están enfriando (calor {toreto['calor']:.0f} %): espera a que baje del 30 %")
+        if low_power_now():
+            raise ValueError("la Pi tiene falta de corriente ahora: no subo los Hz")
+    kit._pca.frequency = hz
     for ch in range(16):
         kit.servo[ch].set_pulse_width_range(MIN_US, MAX_US)
     for ch, a in angles.items():
         if a is not None:
             write(ch, a)
-    toreto.update(nitro=bool(on), hz=round(kit._pca.frequency), nitro_hasta=time.time() + NITRO_S if on else 0.0)
+    real = round(kit._pca.frequency)
+    toreto.update(hz=real, nitro=real > 60, nitro_hasta=time.time() + pwm_info()["quedan_s"] if real > 60 else 0.0)
+
+
+def set_nitro(on):
+    """Compatibilidad (/api/toreto {nitro}): Nitro = 200 Hz; sin Nitro = 50 Hz."""
+    set_hz(TORETO_HZ if on else NORMAL_HZ, check=on)
 
 
 def nitro_watch():
-    """El Nitro se apaga solo a los NITRO_S segundos (los MG996R analógicos se calientan a 200 Hz)."""
+    """Cada segundo: calor estimado de los servos según los Hz y cuántos sujetan; al 100 %, vuelta a 50 Hz."""
     while True:
-        time.sleep(2)
-        if toreto["nitro"] and time.time() > toreto["nitro_hasta"]:
-            with lock:
-                set_nitro(False)
-            log(f"Nitro apagado solo tras {NITRO_S} s (vuelta a {NORMAL_HZ} Hz)")
+        time.sleep(1)
+        lim, held = hz_limit_s(toreto["hz"]), sum(1 for a in angles.values() if a is not None)
+        if lim:
+            toreto["calor"] = min(100.0, toreto["calor"] + (100.0 / lim) * (max(0.25, held / 12) if held else 0))
+        else:
+            toreto["calor"] = max(0.0, toreto["calor"] - 100.0 / 300)
+        if toreto["enfriando"] and toreto["calor"] < 30:
+            toreto["enfriando"] = False
+            log("servos enfriados (calor < 30 %): ya se pueden subir los Hz")
+        if lim:
+            toreto["nitro_hasta"] = time.time() + pwm_info()["quedan_s"]
+            if toreto["calor"] >= 100:
+                hz = toreto["hz"]
+                with lock:
+                    set_hz(NORMAL_HZ, check=False)
+                toreto["enfriando"] = True
+                log(f"PROTECCIÓN: {hz} Hz demasiado tiempo (calor 100 %): vuelta a {NORMAL_HZ} Hz hasta que se enfríen")
 
 
 def clamp(a):
@@ -1759,7 +1809,7 @@ class Handler(BaseHTTPRequestHandler):
                 "potencia": potencia, "convencion": cfg.get("convencion"), "verificacion": cfg.get("verificacion", {}),
                 "ultima": {"angulos": {str(k): v for k, v in last_known.items()}, "hora": last_info["hora"]},
                 "toreto": toreto["on"], "nitro": toreto["nitro"], "toreto_hz": toreto["hz"],
-                "nitro_quedan_s": max(0, round(toreto["nitro_hasta"] - time.time())) if toreto["nitro"] else 0,
+                "nitro_quedan_s": pwm_info()["quedan_s"] if toreto["nitro"] else 0, "pwm": pwm_info(),
                 "led_placa": led_cfg(), "led_patron": {"pasos": LED_PATTERN, "periodo": LED_PERIOD, "hora_pi": time.time()},
                 "limits": {"min": SAFE_MIN, "max": SAFE_MAX, "max_delta": MAX_DELTA}}
 
@@ -1848,18 +1898,31 @@ class Handler(BaseHTTPRequestHandler):
                 log(f"pata {leg}: el dibujo {'COINCIDE' if body.get('ok') else 'NO coincide' if body.get('ok') is not None else 'sin comprobar'} con el robot")
                 self._send(200, self.state())
                 return
-            if path == "/api/toreto":  # Toreto sí/no (se guarda) y Nitro sí/no (200 Hz, no se guarda, se apaga solo)
+            if path in ("/api/toreto", "/api/hz"):  # Toreto sí/no y patada (se guardan); Hz / Nitro (no se guardan)
                 on = bool(body.get("activo", toreto["on"]))
-                nitro = bool(body.get("nitro", toreto["nitro"])) and on
+                if "patada" in body:
+                    pk = int(body["patada"])
+                    if not 0 <= pk <= 10:
+                        raise ValueError("la patada va de 0 a 10 grados")
+                    toreto["patada"] = pk
+                hz = body.get("hz")
+                if hz is None and "nitro" in body:
+                    hz = TORETO_HZ if body["nitro"] else NORMAL_HZ
+                if hz is not None and not HZ_MIN <= float(hz) <= HZ_MAX:
+                    raise ValueError(f"los Hz van de {HZ_MIN} a {HZ_MAX}")
                 with lock:
                     set_toreto(on)
-                    if nitro != toreto["nitro"]:
-                        set_nitro(nitro)
+                    if hz is not None and round(float(hz)) != toreto["hz"]:
+                        old = toreto["hz"]
+                        set_hz(hz)
+                        log(f"Hz de los servos: {old} -> {toreto['hz']} ({hz_zona(toreto['hz'])}"
+                            + (f", aguanta ~{pwm_info()['quedan_s']} s" if hz_limit_s(toreto['hz']) else "") + ")")
                 cfg = load_config()
                 cfg["toreto"] = on
+                cfg["toreto_patada"] = toreto["patada"]
                 write_json(CONFIG_FILE, cfg)
-                log(f"MODO TORETO {'ACTIVADO (salto con patada de ' + str(TORETO_PATADA) + '° y todo a la vez)' if on else 'desactivado'}"
-                    + (f" · NITRO {TORETO_HZ} Hz durante {NITRO_S} s" if toreto["nitro"] else f" · {toreto['hz']} Hz"))
+                log(f"MODO TORETO {'ACTIVADO (salto con patada de hasta ' + str(toreto['patada']) + '° y todo a la vez)' if on else 'desactivado'}"
+                    + f" · {toreto['hz']} Hz")
                 self._send(200, self.state())
                 return
             if path == "/api/power":
@@ -2297,8 +2360,9 @@ if __name__ == "__main__":
     load_cal()
     load_last()
     recover_angles()
+    toreto["patada"] = int(load_config().get("toreto_patada", TORETO_PATADA))
     if load_config().get("toreto"):
-        set_toreto(True)  # el Nitro (200 Hz) nunca se enciende solo al arrancar
+        set_toreto(True)  # los Hz altos nunca se encienden solos al arrancar (siempre 50 Hz)
         log("modo Toreto activo desde el arranque (sin Nitro)")
     threading.Thread(target=nitro_watch, daemon=True).start()
     boot_check()

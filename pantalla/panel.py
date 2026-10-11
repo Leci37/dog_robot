@@ -34,7 +34,7 @@ BROWSER_LOG = Path("/tmp/spotmicro-kiosko.log")
 HELP = ROOT / "AYUDA.md"
 LOOP_FILE = SCREEN_DIR / "repetir"   # "1" = las rutinas lanzadas desde el panel se repiten sin parar
 ACTIONS_LOG = ROOT / "web" / "acciones.log"
-API = "http://127.0.0.1:8080"
+API = "http://127.0.0.1:8095"
 # 10x20 da 128x36 caracteres en 1280x720; los Uni2 tienen █ ░ ─ │ ● ▲ ▼ (comprobado el 11-10-2026)
 FONTS = ["Uni2-TerminusBold20x10", "Lat15-TerminusBold20x10", "Uni2-TerminusBold24x12", "Lat15-TerminusBold24x12"]
 MENU_SECONDS = 15
@@ -246,9 +246,13 @@ class Panel:
         self.put(0, 34, "● VIVO" if alive else "● SIN WEB", (G if alive else R) | B | (0 if beat else DIM))
         self.put(0, 44, "LED · · —", H)
         stt = d.state or {}
-        if stt.get("toreto"):  # modo Toreto (máxima potencia) y Nitro (200 Hz, se apaga solo)
-            tor = "TORETO" + (f" · NITRO {stt.get('toreto_hz', 200)} Hz {stt.get('nitro_quedan_s', 0)} s" if stt.get("nitro") else "")
-            self.put(0, 56, f" {tor} ", R | B | REV | (0 if beat or not stt.get("nitro") else DIM))
+        pwm = stt.get("pwm") or {}
+        if stt.get("toreto") or pwm.get("hz", 50) > 50 or pwm.get("calor"):  # Toreto, Hz y calor de los servos
+            hz = pwm.get("hz", stt.get("toreto_hz", 50))
+            tor = (("TORETO · " if stt.get("toreto") else "") + f"{hz} Hz · calor {pwm.get('calor', 0)} %"
+                   + (" · ENFRIANDO" if pwm.get("enfriando") else f" · {pwm.get('quedan_s', 0)} s" if pwm.get("limite_s") else ""))
+            hot = hz > 60 or pwm.get("enfriando")
+            self.put(0, 56, f" {tor} ", ((R | REV) if hot else (Y | REV)) | B | (0 if beat or not hot else DIM))
         up = (d.sys or {}).get("uptime_s", 0) // 60
         self.put(0, max(56, w - 36), f"encendida {up // 60} h {up % 60:02d} min   {datetime.now():%H:%M:%S}", H | B)
         lw = 66
@@ -424,10 +428,12 @@ class Panel:
     def draw_footer(self, h, w):
         C, Y, B = curses.color_pair(4), curses.color_pair(2), curses.A_BOLD
         self.put(h - 4, 1, "P DE PIE  0/Intro rutinas por código  +/- velocidad  S soltar todo  X parar  M mitad  R recoger  E estirar  1-9 mis rutinas", C | B)
-        self.put(h - 3, 1, "F TORETO  N nitro  U probar salida  L soltar salida  H ayuda  W web en la tele  C consola  T consola aparte  A apagar  B reiniciar", C)
+        self.put(h - 3, 1, "F TORETO  N nitro  , . Hz  U probar salida  L soltar salida  H ayuda  W web en la tele  C consola  T consola aparte  A apagar  B reiniciar", C)
         if self.confirm and time.time() < self.confirm[1]:
-            if self.confirm[0] == "n":
-                self.put(h - 2, 1, "¿NITRO? 200 Hz durante 2 minutos: más fuerza, pero los MG996R se calientan y pueden quemarse. Pulsa N otra vez.", Y | B)
+            if self.confirm[0] == "hz":
+                self.put(h - 2, 1, "¿Subir de 60 Hz? Más fuerza, pero los servos se calientan (vuelve solo a 50 Hz si se calientan). Pulsa . otra vez.", Y | B)
+            elif self.confirm[0] == "n":
+                self.put(h - 2, 1, "¿NITRO? 200 Hz: más fuerza, pero los MG996R se calientan (vuelve solo a 50 Hz si se calientan). Pulsa N otra vez.", Y | B)
             else:
                 what = "APAGAR" if self.confirm[0] == "a" else "REINICIAR"
                 self.put(h - 2, 1, f"¿Seguro que quieres {what} la Pi? Pulsa {self.confirm[0].upper()} otra vez.", Y | B)
@@ -489,15 +495,22 @@ class Panel:
             else:
                 self.confirm = (c, time.time() + 5)
             return None
+        if c in (",", "."):  # Hz de los servos de 10 en 10; pasar de 60 pide pulsar otra vez
+            hz = ((st.get("pwm") or {}).get("hz") or 50) + (10 if c == "." else -10)
+            if c == "." and hz > 60 and not (self.confirm and self.confirm[0] == "hz" and time.time() < self.confirm[1]):
+                self.confirm = ("hz", time.time() + 5)
+                return None
+            if 50 <= hz <= 200:
+                self.confirm = ("hz", time.time() + 5) if c == "." and hz > 60 else None
+                self.action(f"Servos a {hz} Hz", "/api/hz", {"hz": hz}, timeout=10)
+            return None
         if c == "n":  # Nitro: hay que pulsar N dos veces para encenderlo; una para apagarlo
             if st.get("nitro"):
                 self.confirm = None
                 self.action("Nitro apagado (50 Hz)", "/api/toreto", {"nitro": False}, timeout=10)
-            elif not st.get("toreto"):
-                self.say("El Nitro va con el modo Toreto: pulsa F primero.")
             elif self.confirm and self.confirm[0] == "n" and time.time() < self.confirm[1]:
                 self.confirm = None
-                self.action("NITRO: 200 Hz durante 2 minutos", "/api/toreto", {"nitro": True}, timeout=10)
+                self.action("NITRO: 200 Hz (vuelve solo a 50 Hz si se calientan)", "/api/toreto", {"nitro": True}, timeout=10)
             else:
                 self.confirm = ("n", time.time() + 5)
             return None

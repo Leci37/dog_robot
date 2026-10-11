@@ -330,3 +330,12 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   **velocidad** con +/- (panel y /lite), "vuelta N" en la rutina en marcha, y las **de oro** (grupo propio y color).
   Probar el panel sin tele: copia en /tmp con la API apuntando a un servidor de prueba y pruebas/ver_selector.py.
 - 2026-10-12 (17): HDMI del modo Toreto (de la otra sesión): panel con aviso TORETO/NITRO y segundos en la cabecera, teclas F (Toreto) y N (Nitro, dos veces), recordatorio 74-79; /lite con botones TORETO y NITRO (confirmación), fila roja 74-79 y borde rojo, teclas F y N. .gitignore pasado a LF.
+- 2026-10-12 (18): **barra de Hz** (pedida por el usuario a esta sesión): `set_hz(hz)` 50-200 Hz (PCA9685 + set_pulse_width_range
+  de los 16 + reescribe los sujetos), `POST /api/hz {hz}` (y `/api/toreto {hz|nitro|patada|activo}`), bloque `pwm` en /api/state,
+  /api/consumo y /api/routines. **Protección**: calor estimado 0-100 % que sube a más de 60 Hz mientras sujetan (100 % en 10 min
+  a 70-100 Hz, 4 min a 110-150, 2 min a 160-200 con los 12 sujetos) y baja a 50-60 Hz en 5 min; al 100 % vuelve sola a 50 Hz y
+  no deja subir hasta bajar del 30 %; no sube con la Pi en falta de corriente. Los Hz ya no dependen de Toreto. **Toreto sin
+  "epilepsia"**: la patada de 6° en cada pasito de las marchas era ir y volver en cada tick; ahora patada de hasta
+  `toreto["patada"]` (3 por defecto, 0-10, config `toreto_patada`), nunca más de la mitad del movimiento y nada en movimientos
+  de menos de 4°; espera 0,004 s/° + 0,02. Web: barra #hzbar en la cabecera (Hz, zona, calor, tiempo, patada). HDMI: panel con
+  Hz y calor en la cabecera y teclas , . (pasar de 60 pide pulsar otra vez); /lite con deslizador de Hz y teclas , .

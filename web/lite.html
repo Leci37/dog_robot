@@ -51,6 +51,8 @@ button.tor.on{background:linear-gradient(180deg,#ef5350,#b71c1c);border-color:#7
 button.rojo{background:linear-gradient(180deg,#ef5350,#b71c1c);border-color:#7f0000;color:#fff;font-weight:700}
 body.toreto-on{box-shadow:inset 0 0 0 6px #e53935}
 #torrow{display:none;background:#2a0707;border-radius:10px;padding:6px 8px}body.toreto-on #torrow{display:flex}
+.hzlite{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:10px;border:2px solid #555}
+.hzlite.fuerte{border-color:#e0a000}.hzlite.nitro{border-color:#e53935;background:#2a0707;color:#fff}
 button.oro{background:linear-gradient(180deg,#fff3c4,#e0b13a);border-color:#b8891c;color:#3a2a00}
 .loop{display:inline-flex;align-items:center;gap:4px;cursor:pointer}
 .keys{font-size:14px;color:var(--mut)}
@@ -75,7 +77,9 @@ button.oro{background:linear-gradient(180deg,#fff3c4,#e0b13a);border-color:#b889
   <div class="row big">
     <button class="home" id="home" title="Tecla P: para lo que esté en marcha y se pone de pie (la elegida)">▲ DE PIE (P)</button>
     <button class="tor" id="torBtn" title="Tecla F: máxima potencia (salto directo con patada, todo a la vez)">🔥 TORETO (F)</button>
-    <button class="tor" id="nitroBtn" title="Tecla N: 200 Hz durante 2 minutos (solo con Toreto)">NITRO (N)</button>
+    <button class="tor" id="nitroBtn" title="Tecla N: 200 Hz (vuelve solo a 50 Hz si se calientan)">NITRO (N)</button>
+    <span class="hzlite" title="Hz de los servos (teclas , y .): 50-60 normal, 70-100 fuerte, 110-200 nitro. Se protege sola.">
+      Hz <input type="range" id="hzSlide" min="50" max="200" step="10" value="50"> <b id="hzVal">50</b> · calor <b id="hzHeat">0 %</b></span>
     <button class="stop" data-a="off">Soltar todo</button>
     <button class="pri" data-a="sujetar">Bloquear todo (donde estaba)</button>
     <button class="pri" data-a="mitad">Todo a mitad</button>
@@ -95,7 +99,7 @@ button.oro{background:linear-gradient(180deg,#fff3c4,#e0b13a);border-color:#b889
     </div>
     <div class="row" id="pop" style="margin:4px 0"></div>
     <div class="row" id="torrow" style="margin:4px 0"></div>
-    <div class="keys">Teclado: <b>P</b> de pie · escribe el <b>número</b> y <b>Intro</b> · <b>R</b> repetir sin parar sí/no · <b>F</b> Toreto · <b>N</b> Nitro · <b>+ −</b> velocidad · <b>X</b> parar · <b>S</b> soltar todo · <b>Esc</b> borrar</div>
+    <div class="keys">Teclado: <b>P</b> de pie · escribe el <b>número</b> y <b>Intro</b> · <b>R</b> repetir sin parar sí/no · <b>F</b> Toreto · <b>N</b> Nitro · <b>, .</b> Hz · <b>+ −</b> velocidad · <b>X</b> parar · <b>S</b> soltar todo · <b>Esc</b> borrar</div>
   </div>
   <div class="box">
     <div class="row" style="margin:2px 0">
@@ -232,21 +236,29 @@ function drawRoutines() {
   const g = $('gear');
   if (document.activeElement !== g) g.innerHTML = Object.entries(rts.marchas || {}).map(([n, t]) => `<option value="${n}" ${+n === rts.marcha ? 'selected' : ''}>${t}</option>`).join('');
 }
+let hzDrag = false;
+function setHz(hz) {
+  hz = Math.max(50, Math.min(200, hz));
+  if (hz > 60 && !confirm(`Servos a ${hz} Hz: más fuerza, pero se calientan (vuelve solo a 50 Hz si se calientan). ¿Seguro?`)) { hzDrag = false; return; }
+  busy = false; act('/api/hz', {hz}, `servos a ${hz} Hz…`); hzDrag = false;
+}
 function torState() { return {on: !!(st && st.toreto), nitro: !!(st && st.nitro), quedan: (st && st.nitro_quedan_s) || 0}; }
 function toggleToreto() { const on = !torState().on; busy = false; act('/api/toreto', {activo: on}, on ? 'MODO TORETO activado' : 'modo Toreto desactivado'); }
 function toggleNitro() {
   const t = torState();
   if (t.nitro) { act('/api/toreto', {nitro: false}, 'Nitro apagado (50 Hz)'); return; }
-  if (!t.on) { $('msg').textContent = 'el Nitro va con el modo Toreto: pulsa F primero'; return; }
-  if (!confirm('NITRO: los servos a 200 Hz durante 2 minutos. Más fuerza, pero los MG996R se calientan y pueden quemarse. ¿Seguro?')) return;
-  act('/api/toreto', {nitro: true}, 'NITRO: 200 Hz durante 2 minutos');
+  if (!confirm('NITRO: los servos a 200 Hz. Más fuerza, pero los MG996R se calientan (vuelve solo a 50 Hz si se calientan). ¿Seguro?')) return;
+  act('/api/toreto', {nitro: true}, 'NITRO: 200 Hz');
 }
 function drawToreto() {
   const t = torState();
   document.body.classList.toggle('toreto-on', t.on);
   $('torBtn').classList.toggle('on', t.on); $('torBtn').textContent = t.on ? '🔥 TORETO ON (F)' : '🔥 TORETO (F)';
-  $('nitroBtn').classList.toggle('on', t.nitro); $('nitroBtn').disabled = !t.on;
-  $('nitroBtn').textContent = t.nitro ? `NITRO ${t.quedan} s (N)` : 'NITRO (N)';
+  $('nitroBtn').classList.toggle('on', t.nitro);
+  const p = (st && st.pwm) || {}; const hz = $('hzSlide').closest('.hzlite'); hz.className = 'hzlite ' + (p.zona || '');
+  if (!hzDrag && p.hz) { $('hzSlide').value = p.hz; $('hzVal').textContent = p.hz; }
+  $('hzHeat').textContent = (p.calor || 0) + ' %' + (p.enfriando ? ' (enfriando)' : '');
+  $('nitroBtn').textContent = t.nitro ? `NITRO ${p.hz || ''} Hz ${t.quedan} s (N)` : 'NITRO (N)';
 }
 function runCode(code) {
   code = String(code || '').trim();
@@ -319,6 +331,7 @@ document.addEventListener('keydown', e => {
   if (l === 'p') { e.preventDefault(); busy = false; act('/api/home', {}, 'poniéndose de pie…'); }
   else if (l === 'f') { e.preventDefault(); toggleToreto(); }
   else if (l === 'n') { e.preventDefault(); toggleNitro(); }
+  else if (k === ',' || k === '.') { e.preventDefault(); setHz((((st && st.pwm) || {}).hz || 50) + (k === '.' ? 10 : -10)); }
   else if (l === 'r') { e.preventDefault(); $('loop').checked = !$('loop').checked; saveLoop();
     $('msg').textContent = $('loop').checked ? 'repetir sin parar: SÍ' : 'repetir sin parar: no'; }
   else if ((e.key === '+' || e.key === '-') && rts) { e.preventDefault();
@@ -339,6 +352,8 @@ setInterval(draw, 700);
 setInterval(drawToreto, 700);
 $('torBtn').addEventListener('click', toggleToreto);
 $('nitroBtn').addEventListener('click', toggleNitro);
+$('hzSlide').addEventListener('input', e => { hzDrag = true; $('hzVal').textContent = e.target.value; });
+$('hzSlide').addEventListener('change', e => setHz(+e.target.value));
 try { $('loop').checked = localStorage.getItem('liteRepetir') === '1'; } catch {}
 $('loop').addEventListener('change', saveLoop);
 </script>

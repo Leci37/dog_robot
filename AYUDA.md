@@ -139,6 +139,8 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
   Lo que más fuerza da de verdad es subir la fuente de servos a 6-6,8 V si tiene tornillo de ajuste (V.ADJ).
 - En la tele (panel y /lite): R = repetir sin parar sí/no (en el selector de rutinas), + y - = velocidad.
   F = modo Toreto sí/no; N = Nitro (200 Hz, 2 min; en el panel, N dos veces). Con Toreto, fila roja 74-79 en /lite.
+- Barra de Hz arriba (50-200): más Hz = más fuerza y más calor. La Pi estima el calor de los servos y, si llega al
+  100 %, vuelve sola a 50 Hz y no deja subir hasta que se enfríen. Patada de Toreto ajustable (0-10°). En la tele: , y .
 - Velocidad de las rutinas: marchas 1ª muy lenta, 2ª lenta, 3ª normal, 4ª rápida, 5ª muy rápida. Botones en
   "Rutinas para probar" y, con una rutina en marcha, al lado de "Parar rutina": se nota en el paso siguiente.
 - Web > "Programar con bloques": como Scratch. Bloques de mover (pata/articulación/grados, relativo,

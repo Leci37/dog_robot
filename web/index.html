@@ -190,6 +190,12 @@ button.plata{background:linear-gradient(180deg,#f3f4f6,#b9c0c8);border-color:#8d
 button.plata:hover{background:linear-gradient(180deg,#ffffff,#c9cfd6)}
 button.azul{background:#2f6fd6;border-color:#2f6fd6;color:#fff}button.azul:hover{background:#245cb5}
 .card.plata{border-color:#8d949c;box-shadow:inset 4px 0 0 #8d949c}.card.azul{border-color:#2f6fd6;box-shadow:inset 4px 0 0 #2f6fd6}
+#hzbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:6px 10px;border-radius:12px;border:2px solid var(--line);
+  background:var(--card);font-size:13px}
+#hzbar input[type=range]{width:150px}#hzbar b.hz{min-width:56px;font-size:15px}
+#hzbar.fuerte{border-color:#e0a000}#hzbar.nitro{border-color:#e53935;background:#2a0707;color:#fff}
+#hzbar .heat{width:80px;height:8px;border-radius:4px;background:var(--line);overflow:hidden;display:inline-block;vertical-align:middle}
+#hzbar .heat i{display:block;height:100%;background:linear-gradient(90deg,#43a047,#e0a000,#e53935)}
 button.nueva{background:#1e9e4a;border-color:#1e9e4a;color:#fff}button.nueva:hover{background:#178a3f}
 .card.nueva{border-color:#1e9e4a;box-shadow:inset 4px 0 0 #1e9e4a}
 .tvrt button{font-size:19px;padding:12px 20px;border-radius:12px}
@@ -207,6 +213,13 @@ button.nueva{background:#1e9e4a;border-color:#1e9e4a;color:#fff}button.nueva:hov
   <div id="amp" class="amp" title="Consumo estimado de los servos (gris suelto · ámbar sujetando · rojo moviéndose)"></div>
   <span id="count" class="tag">0/12</span>
   <label class="torchk" title="Modo Toreto: máxima potencia (salto directo con patada, todo a la vez)"><input type="checkbox" id="torHdr"> TORETO</label>
+  <div id="hzbar" title="Frecuencia de los servos. 50-60 Hz: normal. 70-100: más fuerza, vigila el calor. 110-200: nitro, poco tiempo. Se protege sola: si se calientan, vuelve a 50 Hz.">
+    <span>Hz servos</span><input type="range" id="hzSlide" min="50" max="200" step="10" value="50"><b class="hz" id="hzVal">50 Hz</b>
+    <span id="hzZona" class="pz">normal</span>
+    <span title="Calor estimado de los servos: sube a más de 60 Hz mientras sujetan, baja a 50 Hz">calor <span class="heat"><i id="hzHeat" style="width:0%"></i></span> <b id="hzHeatTxt">0 %</b></span>
+    <span id="hzLeft" class="pz"></span>
+    <span title="Toreto: grados de más en cada salto (0 = sin patada). Con mucha, tiembla.">patada <input type="range" id="kickSlide" min="0" max="10" step="1" value="3" style="width:80px"> <b id="kickVal">3°</b></span>
+  </div>
   <button class="home" id="homeBtn" title="Vuelve a la de pie elegida (✓): recoge las 4 patas y se levanta con las 4 a la vez">▲ De pie</button>
   <button class="stop" id="off">Soltar todo</button>
   <div id="stw"><button id="stBtn" class="tag" title="Cómo estás conectado, credenciales y rutas">● estado ▾</button>
@@ -522,8 +535,36 @@ function renderAlerts() {
   if (flash && Date.now() - flash.t < 7000) out.push(flash);
   $('alerts').innerHTML = out.map(a => `<div class="al ${a.cls}"><b>${esc(a.title)}</b>${esc(a.text)}</div>`).join('');
 }
+// barra de Hz (12-10): frecuencia de los servos con protección de calor; se pinta con /api/consumo cada segundo
+let hzDragging = false, kickDragging = false;
+function renderHz(p) {
+  if (!p) return;
+  const bar = $('hzbar'); bar.className = p.zona;
+  if (!hzDragging) { $('hzSlide').value = p.hz; $('hzVal').textContent = p.hz + ' Hz'; }
+  if (!kickDragging) { $('kickSlide').value = p.patada; $('kickVal').textContent = p.patada + '°'; }
+  $('hzZona').textContent = {normal: 'normal', fuerte: 'FUERTE · vigila el calor', nitro: 'NITRO · poco tiempo'}[p.zona] || p.zona;
+  $('hzHeat').style.width = p.calor + '%'; $('hzHeatTxt').textContent = p.calor + ' %';
+  const mm = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  $('hzLeft').textContent = p.enfriando ? 'ENFRIANDO: no se puede subir hasta bajar del 30 %'
+    : p.limite_s ? `vuelve solo a 50 Hz en ~${mm(p.quedan_s)}` : '';
+}
+document.addEventListener('input', e => {
+  if (e.target.id === 'hzSlide') { hzDragging = true; $('hzVal').textContent = e.target.value + ' Hz'; }
+  if (e.target.id === 'kickSlide') { kickDragging = true; $('kickVal').textContent = e.target.value + '°'; }
+});
+document.addEventListener('change', async e => {
+  if (e.target.id === 'hzSlide') {
+    const hz = +e.target.value;
+    if (hz > 60 && !confirm(`Subir los servos a ${hz} Hz: más fuerza, pero los MG996R se calientan. La Pi vigila el calor y vuelve sola a 50 Hz. ¿Seguro?`)) { hzDragging = false; return; }
+    try { const r = await api('/api/hz', {hz}); $('msg').textContent = `servos a ${r.pwm.hz} Hz`; } catch (err) { $('msg').textContent = 'Error: ' + err.message; flashAlert(err.message); }
+    hzDragging = false;
+  } else if (e.target.id === 'kickSlide') {
+    try { await api('/api/toreto', {patada: +e.target.value}); $('msg').textContent = `patada de Toreto: ${e.target.value}°`; } catch (err) { $('msg').textContent = 'Error: ' + err.message; }
+    kickDragging = false;
+  }
+});
 async function pollCons() {
-  try { cons = await api('/api/consumo'); renderAmp(); renderAlerts(); renderLock(cons.progreso); } catch {}
+  try { cons = await api('/api/consumo'); renderAmp(); renderAlerts(); renderLock(cons.progreso); renderHz(cons.pwm); } catch {}
   if (cons && cons.progreso && cons.progreso.running && /^Bloquear todo/.test(cons.progreso.nombre)) lockLoop();
 }
 // ---------- "Bloquear todo donde está": uno a uno con barra de progreso (o todos a la vez si da la corriente) ----------
@@ -548,7 +589,7 @@ async function lockAll(saveName) {
 function lockLoop() {
   if (lockTimer) return;
   const tick = async () => {
-    try { cons = await api('/api/consumo'); renderAmp(); renderAlerts(); renderLock(cons.progreso); } catch {}
+    try { cons = await api('/api/consumo'); renderAmp(); renderAlerts(); renderLock(cons.progreso); renderHz(cons.pwm); } catch {}
     const p = cons && cons.progreso;
     if (p && p.running) { lockTimer = setTimeout(tick, 300); return; }
     lockTimer = null; lockDone(p);
@@ -1447,10 +1488,11 @@ function renderRt() {
   const fuertes = rts.candidatas.filter(c => c.grupo === 'fuerte');
   let torLoop = false; try { torLoop = localStorage.getItem('toretoRepetir') === '1'; } catch {}
   const tor = fuertes.length ? `<h3>🔥 MODO TORETO · máxima potencia</h3>
-    <div class="pz">Toreto: cada movimiento va de un salto con una patada de 6° de más (el servo mete toda su fuerza) y todo a la vez.
-      Nitro: los servos a 200 Hz en vez de 50 (más fuerza y más calor: los MG996R pueden quemarse), se apaga solo a los 2 min.</div>
+    <div class="pz">Toreto: cada movimiento va de un salto, todo a la vez, con una patada de hasta ${(rts.pwm || {}).patada ?? 3}° de más en los
+      movimientos grandes (los pasitos van sin patada para que no tiemble; ajústala en la barra de arriba).
+      Nitro = 200 Hz (la barra de Hz de arriba deja elegir de 50 a 200): más fuerza y más calor; si se calientan, vuelve sola a 50 Hz.</div>
     <div class="row"><label><input type="checkbox" data-tor="1" ${rts.toreto ? 'checked' : ''}> Toreto</label>
-      <label><input type="checkbox" data-nitro="1" ${rts.nitro ? 'checked' : ''} ${rts.toreto ? '' : 'disabled'}> Nitro 200 Hz${rts.nitro ? ` (quedan ${rts.nitro_quedan_s} s)` : ''}</label>
+      <label><input type="checkbox" data-nitro="1" ${rts.nitro ? 'checked' : ''}> Nitro${rts.nitro ? ` ${rts.toreto_hz} Hz (calor ${(rts.pwm || {}).calor ?? 0} %)` : ' 200 Hz'}</label>
       <label><input type="checkbox" id="torLoop" ${torLoop ? 'checked' : ''}> Repetir sin parar</label>
       <button class="stop" data-qstop="1">■ Parar</button></div>
     <div class="row">${fuertes.map(c => wrap(c, `<button class="rojo" data-tortry="${esc(c.id)}" title="${c.codigo ? 'código ' + c.codigo + ' · ' : ''}${esc(c.desc)}">${c.codigo ? c.codigo + ' · ' : ''}${esc(c.nombre.replace('Galope fuerte · ', 'Galope fuerte '))}</button>`)).join('')}</div>` : '';
