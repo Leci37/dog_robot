@@ -161,3 +161,14 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   probando a la vez chocaron en el puerto 8099 → `BASE` en prueba_servidor.py. Cable suelto enchufado por el usuario
   "en el pin 1" (¿codo de A?): pendiente de probar con "Probar" en el canal 0 y en el 1 y corregir el mapa.
 - 2026-10-11 16:45: el freno bloqueaba todo (0x50005 continuo). Por petición del usuario, potencia.permitir_sin_corriente por defecto True (aviso, no bloqueo). Revisión final antes de llevar el robot a la otra casa (cable directo + HDMI): servicios, 169.254.42.1, IPv6, web, /lite, panel, LED, PCA 0x40: todo bien; solo falla la alimentación de la Pi. Sin posturas guardadas (el usuario borró las suyas).
+- 2026-10-11 20:35: intento de WiFi (PENDIENTE para el compañero). ESP-12 suelto descartado (sin resistencias de
+  arranque no responde). Plan: NodeMCU (ESP8266) por el puerto serie de la Pi con firmware esp_slip_router (red SLIP:
+  lento, vale para /lite). Cableado propuesto, todo desde la Pi y SIN el V+ de la clema: NodeMCU VIN -> pin 4 (5 V),
+  RX -> pin 8 (TXD), TX -> pin 10 (RXD), GND -> pin 14. A las 20:35 los pines 8/10 no tenían nada conectado (prueba con
+  pull-down: leen 0) y por el serie no llegó ningún byte. Para usarlo: quitar `console=serial0,115200` de cmdline.txt
+  y deshabilitar serial-getty@ttyAMA0; instalar esptool; grabar con FLASH+RST. Alternativa más sencilla: USB WiFi en
+  modo punto de acceso (NetworkManager). Hacia las 20:28, al alimentar el NodeMCU desde el V+ de la clema, hubo un
+  cortocircuito con algo de humo en la parte de potencia de los servos: revisar condensador de la PCA, cables y fuente
+  antes de volver a enchufarla. La Pi y la PCA (0x40, lado lógico) siguen bien. 9 apagados de golpe en total (dos más
+  al enchufar/desenchufar cables en caliente).
+
