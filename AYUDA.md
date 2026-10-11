@@ -55,6 +55,10 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
 - Servos: fuente aparte de 5-6 V y 10 A o más, en la clema V+/GND de la PCA9685. NUNCA el cable Schuko.
 - No cambies conectores de servos con todo encendido: un cortocircuito puede apagar el cargador
   de la Pi y dejarla apagada hasta que lo desenchufes.
+- LÍMITE DE CONSUMO (arriba del todo en la web): casilla "Limitar el consumo" + amperios de la fuente de
+  los servos (ahora 5 A). El robot reparte los movimientos en tandas para no pasar de esa corriente
+  (~1,2 A por servo moviéndose, ~0,3 A sujetando): con 5 A se mueven de uno en uno; con 15-20 A, todos a la
+  vez. Cuando tengas una fuente grande, sube el deslizador. Quitar el límite solo con fuente grande.
 - Antes de desenchufar: botón "Apagar la Pi" (web o tecla A en la pantalla) y espera unos 20 s,
   hasta que el LED verde deje de parpadear.
 - Indicador de alimentación (web y pantalla):

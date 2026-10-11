@@ -1,0 +1,6 @@
+{
+  "potencia": {
+    "limitar": true,
+    "amperios": 5
+  }
+}

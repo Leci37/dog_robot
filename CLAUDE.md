@@ -61,6 +61,9 @@ en `.gitignore`, **nunca** subirlo).
   credenciales (sin mostrar la contraseña), rutas (URLs, SSH, API, carpeta) y estado de la Pi.
 - **Sistema**: conexión, alimentación + `energia.log`, pantalla HDMI (panel/web/consola, opción de arranque,
   instalar navegador), Apagar/Reiniciar, **Informe para la mudanza** (`/api/informe`) y Ayuda.
+- **Límite de consumo** (barra arriba): `config.json` → `potencia {limitar, amperios}` (por defecto 5 A).
+  `move_many` reparte en tandas: k = (A − sujetos·0,3) / (1,2 − 0,3), mínimo 1 (I_MOVE 1,2 A, I_HOLD 0,3 A).
+  Con 5 A → 1 servo moviéndose a la vez; con 20 A → los 12. POST `/api/power`. Lo respetan grupos, rutinas y bloques.
 - Grupos (todos los pectorales/hombros/codos, espejo 180−a en B y C), Bloquear todo a mitad, Recoger/Estirar.
 - **Rutinas para probar** (`candidate_routines` en server.py): etapa 1 = 8 variantes de "De pie" (signo de hombro,
   de codo y delanteras igual/invertidas). Al marcar ✓ una, se guarda la convención en `config.json` y las posturas
@@ -110,3 +113,4 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   bloques Blockly; informe para la mudanza; pestaña de estado; LED corto-corto-largo; consola aparte en el HDMI;
   pruebas con simulador (todo bien); credenciales fuera de los documentos; copia para GitHub en el PC.
 - 2026-10-11 14:11: tercer apagado de golpe, en el mismo segundo en que se movía el canal 4. Desde las 14:05 los servos no se movían aunque la PCA sacaba bien el PWM → sospecha: GND de la fuente de servos con mal contacto en la clema; la corriente de los servos volvía por la Pi (pin 6) y el cable micro USB, que se quemó (el usuario lo cambió y la Pi revivió). Tras cambiar el cable seguía con falta de corriente (throttled=0x50005 continuo): revisar cargador/cable de la Pi y el GND de la clema ANTES de mover servos. Fuente de servos actual: 5 A (insuficiente para los 12 de pie). Añadido el vigilante (spotmicro-vigilante.timer).
+- 2026-10-11 15:30: límite de consumo de los servos (barra arriba, 5 A por defecto: movimientos en tandas); instalación del navegador relanzada (4G a ~470 KB/s).

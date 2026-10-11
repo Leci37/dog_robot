@@ -728,11 +728,42 @@ def interleaved(per_leg):
     return [(leg, j, per_leg[leg][j]) for j in JOINTS for leg in LEGS if j in per_leg.get(leg, {})]
 
 
+# ---------- límite de consumo de la fuente de los servos ----------
+I_MOVE, I_HOLD = 1.2, 0.3   # amperios estimados por servo MG996R moviéndose / sujetando
+power_info = {"ultima_tanda": None}
+
+
+def power_cfg():
+    p = load_json(CONFIG_FILE, {}).get("potencia") or {}
+    return {"limitar": p.get("limitar", True), "amperios": float(p.get("amperios", 5))}
+
+
+def max_movers(n_targets, n_held_others):
+    """Cuántos servos pueden moverse a la vez sin pasar de los amperios de la fuente."""
+    cfg = power_cfg()
+    if not cfg["limitar"]:
+        return n_targets
+    k = (cfg["amperios"] - (n_held_others + n_targets) * I_HOLD) / (I_MOVE - I_HOLD)
+    return max(1, min(n_targets, int(k)))
+
+
 def move_many(targets, pause=0.03):
     """Mueve varios canales a la vez, 1 grado por servo en cada paso (alternando entre ellos),
-    para que todas las patas vayan juntas y suaves. El orden de `targets` decide el orden de los
-    saltos iniciales de los servos sueltos (cuyo ángulo real no conocemos)."""
+    para que todas las patas vayan juntas y suaves. Con el límite de consumo activado, los reparte
+    en tandas para no pasar de los amperios de la fuente."""
     targets = {ch: clamp(a) for ch, a in targets.items()}
+    held_others = sum(1 for ch, a in angles.items() if a is not None and ch not in targets)
+    k = max_movers(len(targets), held_others)
+    power_info["ultima_tanda"] = k
+    if k < len(targets):
+        items = list(targets.items())
+        for i in range(0, len(items), k):
+            _move_together(dict(items[i:i + k]), pause)
+        return
+    _move_together(targets, pause)
+
+
+def _move_together(targets, pause):
     for ch, a in targets.items():  # sueltos: salto inevitable, escalonado
         if angles[ch] is None:
             write(ch, a)
@@ -817,7 +848,11 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def state(self):
+        pc = power_cfg()
+        potencia = dict(pc, a_la_vez_12=max_movers(12, 0), estimacion={"moviendo_A": I_MOVE, "sujetando_A": I_HOLD},
+                        ultima_tanda=power_info["ultima_tanda"])
         return {"angles": angles, "map": load_map()["canales"], "poses": load_poses(), "rutina": dict(routine),
+                "potencia": potencia,
                 "limits": {"min": SAFE_MIN, "max": SAFE_MAX, "max_delta": MAX_DELTA}}
 
     STATIC_TYPES = {".js": "application/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png",
@@ -865,6 +900,17 @@ class Handler(BaseHTTPRequestHandler):
             n = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(n) or b"{}")
             path = urlsplit(self.path).path
+            if path == "/api/power":
+                amps = float(body.get("amperios", 5))
+                if not 1 <= amps <= 60:
+                    raise ValueError("amperios entre 1 y 60")
+                cfg = load_config()
+                cfg["potencia"] = {"limitar": bool(body.get("limitar", True)), "amperios": amps}
+                write_json(CONFIG_FILE, cfg)
+                log(f"límite de consumo: {'activado' if cfg['potencia']['limitar'] else 'DESACTIVADO'} · fuente {amps:g} A "
+                    f"· {max_movers(12, 0)} servos a la vez")
+                self._send(200, self.state())
+                return
             if path in ("/api/screen", "/api/screen_boot", "/api/system_action"):
                 self.route_system(body)  # no tocan servos: sin esperar al cerrojo de movimiento
                 return

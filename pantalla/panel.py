@@ -175,6 +175,12 @@ class Panel:
             if rt.get("running"):
                 self.put(y, 42, f"RUTINA: {rt['nombre']} (paso {rt['paso']}/{rt['total']})  X = parar", Y | B)
             y += 1
+            pw = (self.state or {}).get("potencia") or {}
+            if pw:
+                self.put(y, 1, "CONSUMO", B)
+                self.put(y, 15, f"límite {pw['amperios']:g} A · {pw['a_la_vez_12']} servo(s) a la vez" if pw.get("limitar")
+                         else "SIN LÍMITE (solo con fuente de 15-20 A)", 0 if pw.get("limitar") else Y | B)
+                y += 1
             names = list(((self.rts or {}).get("guardadas") or {}).keys())[:9]
             self.put(y, 1, "RUTINAS", B)
             self.put(y, 15, "   ".join(f"{i + 1} {n}" for i, n in enumerate(names)) if names

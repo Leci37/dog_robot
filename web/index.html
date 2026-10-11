@@ -66,6 +66,13 @@ details.sys>summary{cursor:pointer;font-size:16px;font-weight:600;margin:6px 0 1
 .kv code,.mono{font-family:ui-monospace,Consolas,monospace;font-size:13px}
 .ev{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--mut);max-height:160px;overflow:auto;white-space:pre-wrap}
 pre#ayuda{white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-size:13px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:8px 0 0}
+.pwbar{margin-bottom:14px;border-width:2px;border-color:var(--acc);gap:6px}
+.pwbar.off{border-color:var(--bad);background:var(--bad-bg)}
+.pwchk{display:flex;align-items:center;gap:12px;font-size:18px;font-weight:600;cursor:pointer}
+.pwchk input{width:26px;height:26px;accent-color:var(--acc);cursor:pointer}
+.pwrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:15px}
+.pwrow input[type=range]{width:min(360px,60vw);accent-color:var(--acc)}
+.pwrow b{font-size:20px;min-width:52px}
 #stw{position:relative}
 #stBtn{cursor:pointer;border:1px solid transparent;font:inherit;font-size:13px}
 .stpanel{position:absolute;right:0;top:calc(100% + 8px);width:min(460px,92vw);max-height:78vh;overflow:auto;background:var(--card);
@@ -90,6 +97,12 @@ body.tv .row button{font-size:17px;padding:8px 12px}
   <div id="now" class="now" hidden></div>
 </header>
 <main>
+  <div class="card pwbar" id="pwbar">
+    <label class="pwchk"><input type="checkbox" id="plim"> <span>Limitar el consumo de los servos a la fuente</span></label>
+    <div class="pwrow"><span>Fuente de los servos:</span>
+      <input type="range" id="pamp" min="2" max="30" step="1" value="5"><b id="pampv">5 A</b></div>
+    <div class="pz" id="pinfo"></div>
+  </div>
   <details class="sys" id="sysd">
     <summary>Sistema: conexión, alimentación, pantalla HDMI y ayuda</summary>
     <div class="grid sysg">
@@ -306,8 +319,20 @@ function dupKeys() {
   }
   return d;
 }
+function renderPower() {
+  const p = st.potencia; if (!p) return;
+  if (document.activeElement !== $('pamp')) { $('pamp').value = p.amperios; $('pampv').textContent = p.amperios + ' A'; }
+  $('plim').checked = p.limitar;
+  $('pwbar').classList.toggle('off', !p.limitar);
+  const k = p.a_la_vez_12;
+  $('pinfo').innerHTML = p.limitar
+    ? `Con <b>${p.amperios} A</b>: hasta <b>${k}</b> servo${k > 1 ? 's' : ''} moviéndose a la vez (el resto espera su turno). Estimación: ~${p.estimacion.moviendo_A} A por servo moviéndose y ~${p.estimacion.sujetando_A} A sujetando.` +
+      (p.amperios < 10 ? ' <b>Con menos de 10 A, ponerse de pie o andar puede cortar la fuente: pruébalo en el aire.</b>' : '')
+    : '<b>Límite DESACTIVADO:</b> todos los servos se mueven a la vez. Solo con una fuente grande (15-20 A).';
+}
 function render() {
   renderRunning(st.rutina);
+  renderPower();
   const dups = dupKeys();
   let html = '';
   for (let ch = 0; ch < 16; ch++) {
@@ -846,6 +871,14 @@ document.addEventListener('click', async e => {
   else if (b.id === 'blkNew') { await ensureBlockly(); ws.clear(); Blockly.serialization.workspaces.load(SAMPLE, ws); $('blkName').value = ''; }
 });
 document.addEventListener('change', e => { if (e.target.id === 'blkLoad' && e.target.value) openInBlocks(e.target.value); });
+async function setPower() {
+  const body = {limitar: $('plim').checked, amperios: +$('pamp').value};
+  if (!body.limitar && !confirm('¿Quitar el límite de consumo? Solo con una fuente de 15-20 A: si no, la fuente puede cortarse.')) { $('plim').checked = true; return; }
+  try { st = await api('/api/power', body); render(); $('msg').textContent = `límite: ${body.limitar ? body.amperios + ' A' : 'desactivado'}`; }
+  catch (e) { $('msg').textContent = 'Error: ' + e.message; }
+}
+document.addEventListener('input', e => { if (e.target.id === 'pamp') $('pampv').textContent = e.target.value + ' A'; });
+document.addEventListener('change', e => { if (e.target.id === 'plim' || e.target.id === 'pamp') setPower(); });
 document.addEventListener('toggle', e => {
   if (e.target.id === 'blkd' && e.target.open) ensureBlockly().then(() => Blockly.svgResize(ws)).catch(() => {});
 }, true);

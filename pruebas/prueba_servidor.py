@@ -121,6 +121,21 @@ for n in ("prueba", "andar"):
 check(not call("/api/routines")["guardadas"], "borra rutinas")
 call("/api/convention_reset", {})
 
+st = call("/api/power", {"limitar": True, "amperios": 5})
+check(st["potencia"]["a_la_vez_12"] == 1, f"límite 5 A: {st['potencia']['a_la_vez_12']} servo a la vez")
+call("/api/off", {})
+call("/api/pose90", {"speed": "rapido"})
+check(call("/api/state")["potencia"]["ultima_tanda"] == 1, "con 5 A 'todo a mitad' va en tandas de 1")
+st = call("/api/power", {"limitar": True, "amperios": 20})
+check(st["potencia"]["a_la_vez_12"] == 12, f"límite 20 A: {st['potencia']['a_la_vez_12']} a la vez")
+call("/api/group", {"articulacion": "codo", "angle": 100, "speed": "rapido"})
+check(call("/api/state")["potencia"]["ultima_tanda"] == 4, "con 20 A el grupo de 4 codos va junto")
+call("/api/power", {"limitar": False, "amperios": 5})
+call("/api/pose90", {"speed": "rapido"})
+check(call("/api/state")["potencia"]["ultima_tanda"] == 12, "sin límite: los 12 a la vez")
+call("/api/power", {"amperios": 0.5}, expect=400)
+call("/api/power", {"limitar": True, "amperios": 5})
+
 rep = call("/api/informe")
 check(rep["resumen"]["ok"] > 5, f"informe: {rep['resumen']}")
 for it in rep["items"]:
