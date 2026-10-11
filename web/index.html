@@ -1364,7 +1364,7 @@ function renderRt() {
   const chosen = id => pr[id] && pr[id].mark === 'bien';
   const val = rts.valoraciones || {};
   const stars = id => `<span class="stars" title="Valórala de 0 a 6 (pulsa otra vez la misma para quitar)">${[1, 2, 3, 4, 5, 6].map(n =>
-    `<button data-rate="${esc(id)}" data-n="${n}" class="${(val[id] || 0) >= n ? 'on' : ''}" aria-label="${n} estrellas">★</button>`).join('')}</span>`;
+    `<button data-rate="${esc(id)}" data-estrellas="${n}" class="${(val[id] || 0) >= n ? 'on' : ''}" aria-label="${n} estrellas">★</button>`).join('')}</span>`;
   const wrap = (c, btn) => c.etapa === 2 || c.ayuda ? `<span class="qitem">${btn}${c.ayuda ? '' : stars(c.id)}</span>` : btn;
   const qb = (c, label) => wrap(c, `<button data-try="${esc(c.id)}" title="${esc(c.desc)}" class="${chosen(c.id) ? 'pri' : ''}">${esc(label)}${chosen(c.id) ? ' ✓' : ''}</button>`);
   const favs = rts.candidatas.filter(c => c.favorita).sort((a, b) => a.favorita - b.favorita);
@@ -1584,7 +1584,7 @@ document.addEventListener('click', async e => {
   else if (d.del) { if (confirm(`¿Borrar la rutina "${d.del}"?`)) rtPost('/api/routine_delete', {nombre: d.del}, 'borrando…'); }
   else if (d.edit) openInBlocks(d.edit);
   else if (d.convreset) { if (confirm('¿Olvidar la de pie elegida y volver a probar la 6 y sus variantes?')) rtPost('/api/convention_reset', {}, 'volviendo al paso 1…'); }
-  else if (d.rate) { const n = +d.n === ((rts.valoraciones || {})[d.rate] || 0) ? 0 : +d.n;
+  else if (d.rate) { const n = +d.estrellas === ((rts.valoraciones || {})[d.rate] || 0) ? 0 : +d.estrellas;  // no data-n: es el de los canales
     rtPost('/api/routine_rate', {id: d.rate, estrellas: n}, `valorando: ${n}/6 estrellas…`); }
   else if (d.gear) rtPost('/api/routine_speed', {marcha: +d.gear}, 'cambiando la velocidad…');
   else if (d.nudge) { await act('/api/calibrate', {ch: +d.nudge, action: 'nudge', delta: +d.d}, `canal ${d.nudge}: ajuste ${+d.d > 0 ? '+' : ''}${d.d}°`); renderRt(); }

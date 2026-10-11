@@ -261,3 +261,7 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   bajo cada botón de la barra de arriba y en cada tarjeta (pulsar la misma estrella otra vez = 0). Para leerlas:
   `python3 -c "import json; print(json.load(open('config.json'))['valoraciones'])"` en ~/spotmicro.
   "Más rápido aún": marcha **6ª turbo** (×0,18) y **Galope turbo** (galope alto, apoyo 40 %, 8 ticks).
+- 2026-10-12 (10): fallo de las estrellas: llevaban `data-n` y el manejador de los ±5 de los canales usa `d.n` como canal
+  → al pulsar la estrella 5 mandaba `/api/angle {ch: 5, angle: null}` (500) y no valoraba. Ahora `data-estrellas`, y
+  `/api/angle` rechaza un ángulo que no sea número (400, "no se mueve nada"). OJO con los nombres de `data-*`: varios
+  manejadores de clic de la página miran el mismo `dataset`.

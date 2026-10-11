@@ -1800,6 +1800,8 @@ class Handler(BaseHTTPRequestHandler):
             log(f"probar a la vez canales {chs} centro {c} +/-{d}")
         elif p == "/api/angle":
             ch = check_ch(b["ch"])
+            if not isinstance(b.get("angle"), (int, float)):  # p. ej. un botón que no es de canal (pasó con las estrellas)
+                raise ValueError("ángulo no válido: no se mueve nada")
             move_to(ch, b["angle"], pause_of(b))
             log(f"canal {ch} -> {angles[ch]}")
         elif p == "/api/lock_loose":  # sujetar los sueltos donde estaban (memoria) o a 90°, sin tocar los demás
