@@ -34,7 +34,7 @@ proyecto. **Lee esto entero antes de mover nada** y añade al final del registro
 - `servo_test.py`: mueve **un** canal ±delta grados alrededor de un centro y lo suelta.
   `./servo_test.py 0` · `./servo_test.py 0 --delta 5` · `./servo_test.py --off` (suelta todos).
 - `servo_map.json`: canal por pata y articulación. Patas: **A** delantera izquierda, **B** delantera derecha,
-  **C** trasera derecha, **D** trasera izquierda. Articulaciones: hombro, muslo, rodilla.
+  asignan al final (el usuario aún no lo ha decidido). Articulaciones: hombro, muslo, rodilla.
 
 ## Acceso
 - Red: cable al router 4G Huawei (192.168.8.1). La Pi suele estar en **192.168.8.104** (DHCP).
@@ -47,3 +47,4 @@ proyecto. **Lee esto entero antes de mover nada** y añade al final del registro
   los cables responde en 0x40 (MODE1=0x11, PRESCALE=0x1E, valores de fábrica).
 - 2026-10-11: creado `~/robot` con servokit; creada esta carpeta con `servo_test.py` y `servo_map.json`.
   Pendiente: fuente de servos y mapeo de canales.
+- 2026-10-11: sin fuente en V+ todavía (el usuario no sabe qué hay en la clema). Robot dentro de su caja.

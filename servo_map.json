@@ -1,7 +1,8 @@
 {
-  "_nota": "Canal de la PCA9685 (0-15) por articulación. null = sin averiguar. Patas: A=delantera izquierda, B=delantera derecha, C=trasera derecha, D=trasera izquierda (D sin confirmar). Articulaciones: hombro (abre/cierra la pata hacia fuera), muslo (adelante/atrás), rodilla.",
-  "A": {"hombro": null, "muslo": null, "rodilla": null},
-  "B": {"hombro": null, "muslo": null, "rodilla": null},
-  "C": {"hombro": null, "muslo": null, "rodilla": null},
-  "D": {"hombro": null, "muslo": null, "rodilla": null}
+  "_nota": "Canal de la PCA9685 (0-15) por articulación. null = sin averiguar. Patas por posición física mirando el robot desde arriba con la cabeza hacia delante; las letras A-D se asignarán al final. Articulaciones: hombro (abre/cierra la pata hacia fuera), muslo (adelante/atrás), rodilla.",
+  "letras": {"delantera_izquierda": null, "delantera_derecha": null, "trasera_derecha": null, "trasera_izquierda": null},
+  "delantera_izquierda": {"hombro": null, "muslo": null, "rodilla": null},
+  "delantera_derecha":   {"hombro": null, "muslo": null, "rodilla": null},
+  "trasera_derecha":     {"hombro": null, "muslo": null, "rodilla": null},
+  "trasera_izquierda":   {"hombro": null, "muslo": null, "rodilla": null}
 }
