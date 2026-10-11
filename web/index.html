@@ -76,8 +76,19 @@ h2.sec{font-size:16px;font-weight:600;margin:22px 0 8px}
       <select id="speed"><option value="lento">lenta</option><option value="normal" selected>normal</option><option value="rapido">rápida</option></select>
     </label>
     <label><input type="checkbox" id="hold"> Dejar sujeto tras probar</label>
-    <button id="pose90" title="Lleva uno a uno todos los canales mapeados a 90°">Todos los mapeados a 90°</button>
   </div>
+  <h2 class="sec">Todas las patas a la vez</h2>
+  <div class="legend">Todo se mueve junto y poco a poco, alternando patas (1° por servo en cada paso). Robot en el aire.
+    Para enseñar posturas: <b>Bloquear todo a mitad</b> → mueve los grupos hasta recoger las patas →
+    <b>Guardar como recogida (todas)</b>; igual para estirada.</div>
+  <div class="row" style="margin-bottom:10px">
+    <button class="pri" id="pose90">Bloquear todo a mitad (90°)</button>
+    <button class="pri" data-pg="todas" data-pn="recogida" id="recAll">Recoger todas</button>
+    <button class="pri" data-pg="todas" data-pn="estirada" id="estAll">Estirar todas</button>
+    <button data-ps="todas" data-pn="recogida">Guardar como recogida (todas)</button>
+    <button data-ps="todas" data-pn="estirada">Guardar como estirada (todas)</button>
+  </div>
+  <div class="grid legs" id="groups"></div>
   <div class="legend">
     Vista desde arriba, cabeza delante: <b>A</b> delantera izq · <b>B</b> delantera der · <b>C</b> trasera der · <b>D</b> trasera izq.
     &nbsp;Articulación, del cuerpo al suelo: <b>1</b> hombro (abre/cierra al lado) · <b>2</b> rodilla (pata adelante/atrás) · <b>3</b> tobillo (dobla la parte de abajo).
@@ -106,11 +117,6 @@ h2.sec{font-size:16px;font-weight:600;margin:22px 0 8px}
   <h2 class="sec">Patas</h2>
   <div class="legend">Coloca la pata con los deslizadores y pulsa <b>Guardar como recogida</b> / <b>estirada</b>.
     Después <b>Recoger</b> y <b>Estirar</b> mueven las 3 articulaciones a la vez. Robot en el aire.</div>
-  <div class="row" style="margin-bottom:10px">
-    <span style="align-self:center;color:var(--mut);font-size:14px">Todas las patas (una tras otra):</span>
-    <button class="pri" data-pg="todas" data-pn="recogida">Recoger todas</button>
-    <button class="pri" data-pg="todas" data-pn="estirada">Estirar todas</button>
-  </div>
   <div class="grid legs" id="legs"></div>
   <h2 class="sec">Canales</h2>
   <div class="grid" id="grid"></div>
@@ -131,6 +137,9 @@ const LEGS = {A:'delantera izq.', B:'delantera der.', C:'trasera der.', D:'trase
 const JOINTS = ['hombro','rodilla','tobillo'];
 let st = {angles:{}, map:{}}, busy = false, askCh = null, askLeg = null, dragging = false;
 let hl = new Set(), seqRunning = false, seqStop = false;
+const RIGHT = new Set(['B', 'C']);
+const mirror = {hombro: true, rodilla: true, tobillo: true};
+const GROUP_NAMES = {hombro: 'Todos los hombros', rodilla: 'Todas las rodillas (codos)', tobillo: 'Todos los tobillos'};
 const LEGS_SPOKEN = {A:'delantera izquierda', B:'delantera derecha', C:'trasera derecha', D:'trasera izquierda'};
 const NUMS = ['uno', 'dos', 'tres'];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -168,7 +177,38 @@ function legChannels(L) {
   });
   return out;
 }
+function groupRef(j) {
+  // ángulo de referencia del grupo = el de la primera pata izquierda con canal y ángulo conocido
+  for (const L of ['A', 'D', 'B', 'C']) {
+    const ch = legChannels(L)[j];
+    if (ch === undefined || st.angles[ch] == null) continue;
+    const a = st.angles[ch];
+    return mirror[j] && RIGHT.has(L) ? 180 - a : a;
+  }
+  return null;
+}
+function renderGroups() {
+  let html = '';
+  JOINTS.forEach((j, i) => {
+    const ref = groupRef(j);
+    const members = Object.keys(LEGS).map(L => { const ch = legChannels(L)[j]; return ch === undefined ? null : `${L}${i + 1}=c${ch}`; }).filter(Boolean).join(' ');
+    html += `<div class="card"><div class="top"><span class="ch">${GROUP_NAMES[j]}</span><span class="ang" data-gv="${j}">${ref == null ? 'suelto' : ref + '°'}</span></div>
+      <div class="pz">${members}</div>
+      <input type="range" min="${LIM.min}" max="${LIM.max}" step="1" value="${ref ?? 90}" data-g="${j}">
+      <div class="row">${[-10, -5, 5, 10].map(d => `<button data-gj="${j}" data-gd="${d}">${d > 0 ? '+' + d : '−' + -d}</button>`).join('')}</div>
+      <label class="pz"><input type="checkbox" data-gm="${j}" ${mirror[j] ? 'checked' : ''}> espejo en las derechas (B, C reciben 180 − ángulo)</label></div>`;
+  });
+  $('groups').innerHTML = html;
+  const has = n => Object.values(st.poses || {}).some(p => p[n]);
+  $('recAll').disabled = busy || !has('recogida');
+  $('estAll').disabled = busy || !has('estirada');
+}
+function groupGo(j, a) {
+  a = Math.max(LIM.min, Math.min(LIM.max, a));
+  act('/api/group', {articulacion: j, angle: a, mirror: mirror[j], speed: speed()}, `${GROUP_NAMES[j].toLowerCase()} → ${a}°…`);
+}
 function renderLegs() {
+  renderGroups();
   const poses = st.poses || {};
   let html = '';
   for (const L of Object.keys(LEGS)) {
@@ -333,8 +373,9 @@ document.addEventListener('click', e => {
   else if (d.seq) runSeq(d.seq);
   else if (b.id === 'pose90') {
     const n = Object.values(st.map).filter(m => !m.libre).length;
-    if (confirm(`Llevar ${n} servos mapeados a 90°, uno a uno. ¿Robot en el aire?`)) act('/api/pose90', {speed: speed()}, 'postura 90°…');
+    if (confirm(`Bloquear los ${n} servos a 90°, poco a poco y alternando patas. ¿Robot en el aire?`)) act('/api/pose90', {speed: speed()}, 'bloqueando todo a mitad (90°)…');
   }
+  else if (d.gj) { const ref = groupRef(d.gj) ?? 90; groupGo(d.gj, ref + +d.gd); }
   else if (d.pg) {
     if (d.pg !== 'todas' || confirm(`¿${d.pn === 'recogida' ? 'Recoger' : 'Estirar'} todas las patas, una tras otra? Robot en el aire.`))
       act('/api/pose_go', {pata: d.pg, nombre: d.pn, speed: speed()}, `${d.pn === 'recogida' ? 'recogiendo' : 'estirando'} ${d.pg === 'todas' ? 'todas las patas' : 'pata ' + d.pg}…`);
@@ -353,12 +394,17 @@ document.addEventListener('click', e => {
   else if (b.id === 'cancel') closeAsk();
 });
 document.addEventListener('input', e => {
+  const g = e.target.dataset.g;
+  if (g) { dragging = true; document.querySelector(`[data-gv="${g}"]`).textContent = 'ir a ' + e.target.value + '°'; return; }
   const s = e.target.dataset.s; if (s === undefined) return;
   dragging = true;
   (e.target.closest('.jw') || e.target.closest('.card')).querySelector('.ang').textContent = 'ir a ' + e.target.value + '°';
 });
 document.addEventListener('change', e => {
-  const s = e.target.dataset.s; if (s === undefined) return;
+  const t = e.target.dataset;
+  if (t.gm) { mirror[t.gm] = e.target.checked; render(); return; }
+  if (t.g) { dragging = false; groupGo(t.g, +e.target.value); return; }
+  const s = t.s; if (s === undefined) return;
   dragging = false;
   act('/api/angle', {ch: +s, angle: +e.target.value, speed: speed()}, `canal ${s} → ${e.target.value}°`);
 });

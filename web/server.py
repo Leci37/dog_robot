@@ -25,6 +25,7 @@ MAX_DELTA = 45
 CENTER = 90
 SPEEDS = {"lento": 0.05, "normal": 0.03, "rapido": 0.012}  # segundos por grado
 LEGS = ["A", "B", "C", "D"]
+RIGHT = {"B", "C"}  # patas derechas: servos en espejo respecto a las izquierdas
 JOINTS = ["hombro", "rodilla", "tobillo"]  # nombres del usuario, del cuerpo hacia el suelo
 
 kit = ServoKit(channels=16)
@@ -83,14 +84,21 @@ def leg_channels(leg):
     return out
 
 
+def interleaved(per_leg):
+    """{pata: {art: x}} -> lista [(pata, art, x)] alternando patas: A1 B1 C1 D1 A2 B2 ..."""
+    return [(leg, j, per_leg[leg][j]) for j in JOINTS for leg in LEGS if j in per_leg.get(leg, {})]
+
+
 def move_many(targets, pause=0.03):
-    """Mueve varios canales a la vez, interpolando, para que la pata vaya suave y coordinada."""
+    """Mueve varios canales a la vez, 1 grado por servo en cada paso (alternando entre ellos),
+    para que todas las patas vayan juntas y suaves. El orden de `targets` decide el orden de los
+    saltos iniciales de los servos sueltos (cuyo ángulo real no conocemos)."""
     targets = {ch: clamp(a) for ch, a in targets.items()}
-    for ch, a in targets.items():  # los sueltos no tienen ángulo conocido: salto escalonado
+    for ch, a in targets.items():  # sueltos: salto inevitable, escalonado
         if angles[ch] is None:
             kit.servo[ch].angle = a
             angles[ch] = a
-            time.sleep(0.4)
+            time.sleep(0.25)
     start = {ch: angles[ch] for ch in targets}
     n = max((abs(targets[ch] - start[ch]) for ch in targets), default=0)
     for i in range(1, n + 1):
@@ -215,38 +223,49 @@ class Handler(BaseHTTPRequestHandler):
             move_to(ch, b["angle"], pause_of(b))
             log(f"canal {ch} -> {angles[ch]}")
         elif p == "/api/pose90":
-            chs = sorted(int(k) for k, m in load_map()["canales"].items() if not m.get("libre"))
-            for ch in chs:
-                move_to(ch, CENTER, pause_of(b))
-                time.sleep(0.3)
-            log(f"postura 90 en canales {chs}")
+            order = interleaved({leg: leg_channels(leg) for leg in LEGS})
+            move_many({ch: CENTER for _, _, ch in order}, pause_of(b))
+            log(f"bloquear todo a 90 (alternando): {[f'{l}{JOINTS.index(j) + 1}' for l, j, _ in order]}")
+        elif p == "/api/group":
+            joint = b["articulacion"]
+            if joint not in JOINTS:
+                raise ValueError("articulación no válida")
+            a, mirror = clamp(b["angle"]), bool(b.get("mirror", True))
+            targets = {}
+            for leg in LEGS:
+                ch = leg_channels(leg).get(joint)
+                if ch is not None:
+                    targets[ch] = 180 - a if mirror and leg in RIGHT else a
+            move_many(targets, pause_of(b))
+            log(f"grupo {joint}: {a} (espejo der={mirror}) -> {targets}")
         elif p == "/api/pose_save":
-            leg, name = b["pata"], b["nombre"]
-            if leg not in LEGS or not name:
+            name = b["nombre"]
+            legs = LEGS if b.get("pata") == "todas" else [b["pata"]]
+            if not name or any(leg not in LEGS for leg in legs):
                 raise ValueError("pata o nombre no válido")
-            chs = leg_channels(leg)
-            pose = {j: angles[ch] for j, ch in chs.items() if angles[ch] is not None}
-            if not pose:
-                raise ValueError(f"la pata {leg} está suelta: colócala con los deslizadores antes de guardar")
-            poses = load_poses()
-            poses.setdefault(leg, {})[name] = pose
+            poses, saved = load_poses(), {}
+            for leg in legs:
+                pose = {j: angles[ch] for j, ch in leg_channels(leg).items() if angles[ch] is not None}
+                if pose:
+                    poses.setdefault(leg, {})[name] = pose
+                    saved[leg] = pose
+            if not saved:
+                raise ValueError("las patas están sueltas: colócalas con los deslizadores antes de guardar")
             write_json(POSES_FILE, poses)
-            log(f"postura '{name}' de {leg} guardada: {pose}")
+            log(f"postura '{name}' guardada: {saved}")
         elif p == "/api/pose_go":
             name, pz = b["nombre"], pause_of(b)
             legs = LEGS if b.get("pata") == "todas" else [b["pata"]]
-            poses, done = load_poses(), []
-            for leg in legs:  # pata a pata, nunca las 4 a la vez
-                pose = poses.get(leg, {}).get(name)
-                if not pose:
-                    continue
-                chs = leg_channels(leg)
-                move_many({chs[j]: a for j, a in pose.items() if j in chs}, pz)
-                done.append(leg)
-                time.sleep(0.3)
-            if not done:
+            poses, per_leg = load_poses(), {}
+            for leg in legs:
+                pose, chs = poses.get(leg, {}).get(name), leg_channels(leg)
+                if pose:
+                    per_leg[leg] = {j: (chs[j], a) for j, a in pose.items() if j in chs}
+            if not per_leg:
                 raise ValueError(f"no hay postura '{name}' guardada para {', '.join(legs)}")
-            log(f"postura '{name}' en patas {done}")
+            # todas las patas juntas, poco a poco y alternando
+            move_many({ch: a for _, _, (ch, a) in interleaved(per_leg)}, pz)
+            log(f"postura '{name}' a la vez en patas {list(per_leg)}")
         elif p == "/api/leg_release":
             leg = b["pata"]
             for ch in leg_channels(leg).values():
