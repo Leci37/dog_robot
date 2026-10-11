@@ -1,6 +1,7 @@
 {
   "potencia": {
     "limitar": true,
-    "amperios": 4.0
+    "amperios": 5.0,
+    "permitir_sin_corriente": true
   }
 }

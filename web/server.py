@@ -847,7 +847,7 @@ power_info = {"ultima_tanda": None}
 def power_cfg():
     p = load_json(CONFIG_FILE, {}).get("potencia") or {}
     return {"limitar": p.get("limitar", True), "amperios": float(p.get("amperios", 5)),
-            "permitir_sin_corriente": bool(p.get("permitir_sin_corriente", False))}
+            "permitir_sin_corriente": bool(p.get("permitir_sin_corriente", True))}
 
 
 # ---------- LED de vida en la placa (un LED en un canal libre de la PCA9685) ----------
@@ -1189,7 +1189,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("amperios entre 1 y 60")
                 cfg = load_config()
                 cfg["potencia"] = {"limitar": bool(body.get("limitar", True)), "amperios": amps,
-                                   "permitir_sin_corriente": bool(body.get("permitir_sin_corriente", False))}
+                                   "permitir_sin_corriente": bool(body.get("permitir_sin_corriente", True))}
                 write_json(CONFIG_FILE, cfg)
                 log(f"límite de consumo: {'activado' if cfg['potencia']['limitar'] else 'DESACTIVADO'} · fuente {amps:g} A "
                     f"· {max_movers(12, 0)} servos a la vez")
