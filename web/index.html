@@ -53,6 +53,9 @@ h2.sec{font-size:16px;font-weight:600;margin:22px 0 8px}
 .jw{display:flex;flex-direction:column;gap:2px}
 .jl{display:flex;justify-content:space-between;font-size:13px}
 .pz{font-size:12px;color:var(--mut)}
+.now{flex-basis:100%;font-size:24px;font-weight:600;padding:10px 14px;border-radius:12px;background:var(--acc-bg);color:var(--acc)}
+.jw.hl{background:var(--acc-bg);border-radius:6px;outline:2px solid var(--acc)}
+.card.hl{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-bg)}
 .sp{height:200px}
 </style>
 </head>
@@ -61,6 +64,7 @@ h2.sec{font-size:16px;font-weight:600;margin:22px 0 8px}
   <h1><span id="dot" class="dot"></span>SpotMicro · mapeo de servos</h1>
   <span id="count" class="tag">0/12</span>
   <button class="stop" id="off">Soltar todo</button>
+  <div id="now" class="now" hidden></div>
 </header>
 <main>
   <div class="bar">
@@ -78,6 +82,26 @@ h2.sec{font-size:16px;font-weight:600;margin:22px 0 8px}
     Vista desde arriba, cabeza delante: <b>A</b> delantera izq · <b>B</b> delantera der · <b>C</b> trasera der · <b>D</b> trasera izq.
     &nbsp;Articulación, del cuerpo al suelo: <b>1</b> hombro (abre/cierra al lado) · <b>2</b> rodilla (pata adelante/atrás) · <b>3</b> tobillo (dobla la parte de abajo).
     Robot siempre en el aire. Límites 30–150°.
+  </div>
+  <h2 class="sec">Secuencias</h2>
+  <div class="row" style="margin-bottom:8px">
+    <button class="pri" data-seq="hombro">Todos los hombros</button>
+    <button class="pri" data-seq="rodilla">Todas las rodillas</button>
+    <button class="pri" data-seq="tobillo">Todos los tobillos</button>
+    <button class="pri" data-seq="todo">Todo, pata a pata</button>
+    <button class="stop" id="stopseq">Parar</button>
+  </div>
+  <div class="bar">
+    <label>Modo
+      <select id="mode"><option value="una">una tras otra, con nombre</option><option value="juntas">a la vez</option></select>
+    </label>
+    <label>Repeticiones
+      <select id="reps"><option>1</option><option>2</option><option>3</option><option value="inf">sin fin</option></select>
+    </label>
+    <label>Pausa
+      <select id="gap"><option value="0.3">0,3 s</option><option value="1" selected>1 s</option><option value="2">2 s</option></select>
+    </label>
+    <label><input type="checkbox" id="voice" checked> Voz</label>
   </div>
   <h2 class="sec">Patas</h2>
   <div class="legend">Coloca la pata con los deslizadores y pulsa <b>Guardar como recogida</b> / <b>estirada</b>.
@@ -106,6 +130,10 @@ h2.sec{font-size:16px;font-weight:600;margin:22px 0 8px}
 const LEGS = {A:'delantera izq.', B:'delantera der.', C:'trasera der.', D:'trasera izq.'};
 const JOINTS = ['hombro','rodilla','tobillo'];
 let st = {angles:{}, map:{}}, busy = false, askCh = null, askLeg = null, dragging = false;
+let hl = new Set(), seqRunning = false, seqStop = false;
+const LEGS_SPOKEN = {A:'delantera izquierda', B:'delantera derecha', C:'trasera derecha', D:'trasera izquierda'};
+const NUMS = ['uno', 'dos', 'tres'];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 const LIM = {min: 30, max: 150};
 const speed = () => $('speed').value;
 const $ = id => document.getElementById(id);
@@ -118,7 +146,7 @@ async function api(path, body) {
 }
 function setBusy(b, text) {
   busy = b;
-  document.querySelectorAll('button').forEach(x => { if (x.id !== 'off') x.disabled = b; });
+  document.querySelectorAll('button').forEach(x => { if (x.id !== 'off' && x.id !== 'stopseq') x.disabled = b || (seqRunning && !!x.dataset.seq); });
   if (text !== undefined) $('msg').textContent = text;
 }
 async function act(path, body, text) {
@@ -151,7 +179,7 @@ function renderLegs() {
       const ch = chs[j];
       if (ch === undefined) { html += `<div class="jl"><span>${i + 1} ${j}</span><span class="ang">sin canal</span></div>`; return; }
       const a = st.angles[ch], m = st.map[ch];
-      html += `<div class="jw"><div class="jl"><span>${i + 1} ${j} · canal ${ch}${m && m.nota ? ' ⚠' : ''}</span><span class="ang">${a == null ? 'suelto' : a + '°'}</span></div>
+      html += `<div class="jw ${hl.has(ch) ? 'hl' : ''}"><div class="jl"><span>${i + 1} ${j} · canal ${ch}${m && m.nota ? ' ⚠' : ''}</span><span class="ang">${a == null ? 'suelto' : a + '°'}</span></div>
         <input type="range" min="${LIM.min}" max="${LIM.max}" step="1" value="${a ?? 90}" data-s="${ch}"></div>`;
     });
     html += `<div class="row"><button class="pri" data-pg="${L}" data-pn="recogida" ${p.recogida ? '' : 'disabled'}>Recoger</button>
@@ -177,7 +205,7 @@ function render() {
   for (let ch = 0; ch < 16; ch++) {
     const m = st.map[ch], a = st.angles[ch], l = label(m);
     const cls = !m ? 'tag' : m.libre ? 'tag l' : dups.has(String(ch)) ? 'tag dup' : 'tag m';
-    html += `<div class="card ${askCh === ch ? 'sel' : ''}">
+    html += `<div class="card ${askCh === ch ? 'sel' : ''} ${hl.has(ch) ? 'hl' : ''}">
       <div class="top"><span class="ch">Canal ${ch}</span><span class="ang">${a == null ? 'suelto' : a + '° sujeto'}</span></div>
       <div><span class="${cls}">${l || 'sin mapear'}</span></div>
       <div class="row"><button class="pri" data-t="${ch}">Probar</button><button data-r="${ch}">Soltar</button></div>
@@ -235,10 +263,74 @@ async function test(ch) {
   ask(ch);
 }
 
+function showNow(text, chs) {
+  hl = new Set(chs);
+  $('now').hidden = !text; $('now').textContent = text || '';
+  render();
+}
+function say(text) {
+  if (!$('voice').checked || !window.speechSynthesis) return Promise.resolve();
+  return new Promise(res => {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'es-ES'; u.rate = 1.05; u.onend = res; u.onerror = res;
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+    setTimeout(res, 5000);
+  });
+}
+function seqTargets(group) {
+  const pairs = [];
+  for (const L of Object.keys(LEGS)) (group === 'todo' ? JOINTS : [group]).forEach(j => pairs.push([L, j]));
+  return pairs.map(([L, j]) => ({L, j, n: JOINTS.indexOf(j) + 1, ch: legChannels(L)[j]})).filter(t => t.ch !== undefined);
+}
+const tag = t => `${t.L}${t.n}`;
+async function runSeq(group) {
+  if (seqRunning) return;
+  const ts = seqTargets(group);
+  const delta = +$('delta').value, center = +$('center').value;
+  if (!ts.length) { $('msg').textContent = 'No hay canales mapeados para esa secuencia.'; return; }
+  if (center - delta < LIM.min || center + delta > LIM.max) {
+    $('msg').textContent = `Centro ${center} ± ${delta} se sale de ${LIM.min}–${LIM.max}°.`; return;
+  }
+  const reps = $('reps').value === 'inf' ? Infinity : +$('reps').value;
+  const gap = +$('gap').value * 1000, hold = $('hold').checked;
+  const plural = {hombro: 'hombros', rodilla: 'rodillas', tobillo: 'tobillos', todo: 'patas'}[group];
+  seqRunning = true; seqStop = false;
+  try {
+    for (let r = 0; r < reps && !seqStop; r++) {
+      if ($('mode').value === 'juntas') {
+        const batches = group === 'todo' ? Object.keys(LEGS).map(L => ts.filter(t => t.L === L)).filter(x => x.length) : [ts];
+        for (const bt of batches) {
+          if (seqStop) break;
+          showNow(`A la vez: ${bt.map(tag).join(' · ')}`, bt.map(t => t.ch));
+          await say(group === 'todo' ? `Pata ${bt[0].L}, ${LEGS_SPOKEN[bt[0].L]}` : `Todos los ${plural}`);
+          await act('/api/test_many', {chs: bt.map(t => t.ch), delta, center, speed: speed(), hold}, `moviendo ${bt.map(tag).join(', ')}…`);
+          await sleep(gap);
+        }
+      } else {
+        for (const t of ts) {
+          if (seqStop) break;
+          const m = st.map[t.ch];
+          showNow(`${tag(t)} · ${t.j} · ${LEGS[t.L]} · canal ${t.ch}${m && m.nota ? ' ⚠ ' + m.nota : ''}`, [t.ch]);
+          await say(`${t.L} ${NUMS[t.n - 1]}. ${t.j}, ${LEGS_SPOKEN[t.L]}`);
+          await act('/api/test', {ch: t.ch, delta, center, speed: speed(), hold}, `moviendo ${tag(t)}…`);
+          await sleep(gap);
+        }
+      }
+    }
+  } finally {
+    seqRunning = false;
+    showNow(seqStop ? 'Secuencia parada' : 'Secuencia terminada', []);
+    setTimeout(() => { if (!seqRunning) showNow('', []); }, 2500);
+    setBusy(false);
+  }
+}
+
 document.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   const d = b.dataset;
-  if (b.id === 'off') act('/api/off', {}, 'soltando todo…');
+  if (b.id === 'off') { seqStop = true; if (window.speechSynthesis) speechSynthesis.cancel(); act('/api/off', {}, 'soltando todo…'); }
+  else if (b.id === 'stopseq') { seqStop = true; if (window.speechSynthesis) speechSynthesis.cancel(); $('msg').textContent = 'parando tras el movimiento actual…'; }
+  else if (d.seq) runSeq(d.seq);
   else if (b.id === 'pose90') {
     const n = Object.values(st.map).filter(m => !m.libre).length;
     if (confirm(`Llevar ${n} servos mapeados a 90°, uno a uno. ¿Robot en el aire?`)) act('/api/pose90', {speed: speed()}, 'postura 90°…');

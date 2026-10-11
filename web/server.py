@@ -192,6 +192,24 @@ class Handler(BaseHTTPRequestHandler):
             if not b.get("hold", True):
                 release(ch)
             log(f"probar canal {ch} centro {c} +/-{d} {b.get('speed', 'normal')} hold={b.get('hold', True)}")
+        elif p == "/api/test_many":
+            chs = [check_ch(c) for c in b["chs"]]
+            if not chs or len(chs) > 4:
+                raise ValueError("entre 1 y 4 canales a la vez")
+            d = min(abs(int(b.get("delta", 10))), MAX_DELTA)
+            c = int(b.get("center", CENTER))
+            if c - d < SAFE_MIN or c + d > SAFE_MAX:
+                raise ValueError(f"centro {c} ± {d} se sale de {SAFE_MIN}-{SAFE_MAX}")
+            pz = pause_of(b)
+            move_many({ch: c for ch in chs}, pz)
+            time.sleep(0.4)
+            for a in (c + d, c - d, c):
+                move_many({ch: a for ch in chs}, pz)
+                time.sleep(0.25)
+            if not b.get("hold", True):
+                for ch in chs:
+                    release(ch)
+            log(f"probar a la vez canales {chs} centro {c} +/-{d}")
         elif p == "/api/angle":
             ch = check_ch(b["ch"])
             move_to(ch, b["angle"], pause_of(b))
