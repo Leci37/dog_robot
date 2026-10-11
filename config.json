@@ -1,7 +1,7 @@
 {
   "potencia": {
-    "limitar": false,
-    "amperios": 5.0,
+    "limitar": true,
+    "amperios": 20.0,
     "permitir_sin_corriente": true
   },
   "verificacion": {
@@ -123,7 +123,15 @@
     },
     "fuerte-ritmo": {
       "estrellas": 5,
-      "hora": "2026-10-12T01:08:25"
+      "hora": "2026-10-12T01:08:29"
+    },
+    "fuerte-aire": {
+      "estrellas": 2,
+      "hora": "2026-10-12T01:08:31"
+    },
+    "fuerte-recto": {
+      "estrellas": 3,
+      "hora": "2026-10-12T01:08:44"
     }
   }
 }
