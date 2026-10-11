@@ -107,6 +107,8 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
 - Rutinas verdes (fila "Nuevas" arriba): variantes del galope y del camello (las que avanzaron), caballo de
   tiro, de lado, balanceo potente, dar la pata estable, pis, desperezarse, menear y baile. "Creativas": aires
   del caballo (paso, tölt, ambladura, trote elíptico, piaffe, passage, galopes, brinco, bote).
+- De pie suaves (fila amarilla arriba): escalones, ayudando a la D, en dos tiempos, y "De pie de Iván" (rosa:
+  delanteras y traseras a ratos, nunca las 4 a la vez). Todas acaban con un toquecito a la pata D.
 - Velocidad de las rutinas: marchas 1ª muy lenta, 2ª lenta, 3ª normal, 4ª rápida, 5ª muy rápida. Botones en
   "Rutinas para probar" y, con una rutina en marcha, al lado de "Parar rutina": se nota en el paso siguiente.
 - Web > "Programar con bloques": como Scratch. Bloques de mover (pata/articulación/grados, relativo,

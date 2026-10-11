@@ -251,3 +251,8 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   los servos (fuente de 5 A en protección o apagada, cable/clema V+-GND suelta, o el camino de V+ de la placa quemado como
   la primera PCA). Antes, 23:57, la Pi se reinició de golpe con caída de tensión al arrancar; el límite de consumo
   estaba DESACTIVADO (todas las rutinas moviendo 8-12 servos a la vez con 5 A).
+- 2026-10-12 (8): "muy poca potencia, la pata D siempre se queda abajo y hay que darle un toquecito" → `amarillas_routines`
+  (candidatas `suave`, `color`): De pie suave (escalones de 3° con descanso), De pie ayudando a la D (cuerpo apartado,
+  D 6° por delante), De pie en dos tiempos (traseras y luego delanteras) — amarillas — y **De pie de Iván** (rosa, idea
+  del usuario: delanteras un poco, traseras un poco, alternando, nunca las 4 a la vez). Todas acaban con un toquecito
+  a D (la estira 8° de golpe y vuelve). Fila "De pie suave" en la barra de arriba.

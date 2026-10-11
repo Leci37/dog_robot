@@ -156,6 +156,9 @@ html{scroll-behavior:smooth}
 .quick .lbl{min-width:76px;font-weight:600}
 button.home{background:#1e9e4a;border-color:#1e9e4a;color:#fff;font-weight:700;font-size:18px;padding:10px 22px;border-radius:12px}
 button.home:hover{background:#178a3f}
+button.amarillo{background:#f2c200;border-color:#f2c200;color:#222}button.amarillo:hover{background:#dbaf00}
+button.rosa{background:#e8559a;border-color:#e8559a;color:#fff}button.rosa:hover{background:#d13f84}
+.card.amarillo{border-color:#f2c200;box-shadow:inset 4px 0 0 #f2c200}.card.rosa{border-color:#e8559a;box-shadow:inset 4px 0 0 #e8559a}
 button.nueva{background:#1e9e4a;border-color:#1e9e4a;color:#fff}button.nueva:hover{background:#178a3f}
 .card.nueva{border-color:#1e9e4a;box-shadow:inset 4px 0 0 #1e9e4a}
 .tvrt button{font-size:19px;padding:12px 20px;border-radius:12px}
@@ -1359,8 +1362,11 @@ function renderRt() {
   const favs = rts.candidatas.filter(c => c.favorita).sort((a, b) => a.favorita - b.favorita);
   const bajar = rts.candidatas.find(c => c.id === 'bajar'), walks = rts.candidatas.filter(c => c.andar);
   const creat = rts.candidatas.filter(c => c.creativa), nuevas = rts.candidatas.filter(c => c.nueva);
+  const suaves = rts.candidatas.filter(c => c.suave);
+  const qc = c => `<button class="${c.color}" data-try="${esc(c.id)}" title="${esc(c.desc)}">${esc(c.nombre)}</button>`;
   const qg = c => `<button class="nueva" data-try="${esc(c.id)}" title="${esc(c.desc)}">${esc(c.nombre)}</button>`;
   const quick = `<div class="row"><span class="lbl">De pie</span>${favs.map(c => qb(c, c.nombre.replace('De pie ', ''))).join('')}${bajar ? qb(bajar, 'Bajar despacio') : ''}</div>
+    ${suaves.length ? `<div class="row"><span class="lbl">De pie suave</span>${suaves.map(qc).join('')}</div>` : ''}
     ${nuevas.length ? `<div class="row"><span class="lbl">Nuevas</span>${nuevas.map(qg).join('')}</div>` : ''}
     ${walks.length ? `<div class="row"><span class="lbl">Andar</span>${walks.map(c => qb(c, c.nombre.replace('Andar · ', ''))).join('')}</div>` : ''}
     ${creat.length ? `<div class="row"><span class="lbl">Creativas</span>${creat.map(c => qb(c, c.nombre)).join('')}</div>` : ''}
@@ -1370,15 +1376,16 @@ function renderRt() {
   if (home) { $('homeBtn').dataset.try = home.id; $('homeBtn').textContent = '▲ ' + home.nombre.split(' · ')[0]; }
   if (quick !== lastQuick) { $('quick').innerHTML = quick; lastQuick = quick; }
   $('quick').hidden = TV;
-  const list = stage === 1 ? rts.candidatas : [...rts.candidatas.filter(c => c.nueva), ...rts.candidatas.filter(c => c.etapa === 2 && !c.nueva),
+  const list = stage === 1 ? rts.candidatas : [...rts.candidatas.filter(c => c.suave), ...rts.candidatas.filter(c => c.nueva),
+    ...rts.candidatas.filter(c => c.etapa === 2 && !c.nueva && !c.suave),
     ...rts.candidatas.filter(c => c.etapa === 1)];
   const firstStand = list.find(c => c.etapa === 1);
   $('tries').innerHTML = list.map(c => {
     const sep = stage === 2 && c === firstStand ? '<div class="pz" style="grid-column:1/-1;margin-top:6px"><b>De pie</b>: la marcada con ✓ es la que usan las rutinas de arriba; marca otra para cambiarla.</div>' : '';
     const mk = pr[c.id] && pr[c.id].mark;
-    return `${sep}<div class="card ${mk === 'bien' ? 'hl' : ''} ${c.nueva ? 'nueva' : ''}"><div class="top"><span class="ch">${esc(c.nombre)}</span>${mk ? `<span class="tag ${mk === 'bien' ? 'ok' : 'bad'}">${mk === 'bien' ? '✓ funciona' : '✗ no'}</span>` : ''}</div>
+    return `${sep}<div class="card ${mk === 'bien' ? 'hl' : ''} ${c.nueva ? 'nueva' : ''} ${c.color || ''}"><div class="top"><span class="ch">${esc(c.nombre)}</span>${mk ? `<span class="tag ${mk === 'bien' ? 'ok' : 'bad'}">${mk === 'bien' ? '✓ funciona' : '✗ no'}</span>` : ''}</div>
       <div class="pz">${esc(c.desc)} · ${c.pasos} pasos</div>
-      <div class="row"><button class="${c.nueva ? 'nueva' : 'pri'}" data-try="${esc(c.id)}">▶ Probar</button>${c.ayuda ? '' : `<button data-mark="${esc(c.id)}" data-mk="bien">✓ Funciona</button>
+      <div class="row"><button class="${c.color || (c.nueva ? 'nueva' : 'pri')}" data-try="${esc(c.id)}">▶ Probar</button>${c.ayuda ? '' : `<button data-mark="${esc(c.id)}" data-mk="bien">✓ Funciona</button>
         <button data-mark="${esc(c.id)}" data-mk="mal">✗ No</button>${mk ? `<button data-mark="${esc(c.id)}" data-mk="">borrar marca</button>` : ''}`}
         <button data-viewtry="${esc(c.id)}" title="Abrirla en el editor de bloques">bloques</button></div>
       ${mk === 'bien' && c.etapa === 2 ? `<div class="row"><button data-savetry="${esc(c.id)}" data-name="${esc(c.nombre.toLowerCase())}">Guardar en mis rutinas</button></div>` : ''}</div>`;

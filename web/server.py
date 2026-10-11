@@ -914,6 +914,52 @@ def nuevas_routines(c):
     ]
 
 
+def amarillas_routines(c):
+    """3 'de pie' suaves (12-10: muy poca potencia y la pata D siempre se queda abajo y hay que darle un toquecito).
+    Todas acaban con el toquecito a D: la estira de golpe 8° más y la devuelve."""
+    k0, h0, hom, cod = _gait(c)
+    p0 = c.get("pectoral", 0)
+    pec = lambda L, s: {"pata": L, "art": "pectoral", "angulo": dev_angle(L, "pectoral", p0 + (s if L in ("A", "D") else -s), c)}  # noqa: E731
+    f, r = c.get("delanteras", 40), c.get("traseras", 40)
+    tuck = min(55, max(f, r) + 12)
+    at = lambda fb, rb, legs=None: no_pec(base_stance(c | {"delanteras": fb, "traseras": rb}, legs))  # noqa: E731
+    toque_d = [{"op": "velocidad", "v": "rapido"}, S([cod("D", k0["D"] - 8), hom("D", h0["D"] - 4)], juntos=True),
+               {"op": "esperar", "s": 0.3}, {"op": "velocidad", "v": "lento"}, S(base_stance(c, ["D"]), juntos=True)]
+    pecs = S([o for o in base_stance(c) if o["art"] == "pectoral"])
+    recoger = [{"op": "velocidad", "v": "lento"}, pecs, S(at(tuck, tuck), juntos=True), {"op": "esperar", "s": 1}]
+
+    escalera = []  # subir a escalones de ~3° con descanso: los servos recuperan entre escalón y escalón
+    n = max(1, round((tuck - min(f, r)) / 3))
+    for i in range(1, n + 1):
+        escalera += [S(at(tuck - (tuck - f) * i / n, tuck - (tuck - r) * i / n), juntos=True), {"op": "esperar", "s": 0.4}]
+
+    # ayudando a D: el cuerpo se aparta de D (pectorales a la derecha) y D va 6° más estirada que las demás al subir
+    ayuda = [S([pec(L, 6) for L in LEGS], juntos=True)]
+    for i in range(1, 6):
+        fb, rb = tuck - (tuck - f) * i / 5, tuck - (tuck - r) * i / 5
+        ayuda += [S(at(fb, rb, ["A", "B", "C"]) + at(f, max(r, rb - 6), ["D"]), juntos=True), {"op": "esperar", "s": 0.3}]
+    ayuda += [S(base_stance(c), juntos=True)]
+
+    # "de Iván" (idea del usuario): delanteras un poco, traseras un poco, alternando hasta arriba: solo 4 servos cada vez
+    ivan, n = [], max(1, round((tuck - min(f, r)) / 4))
+    for i in range(1, n + 1):
+        ivan += [S(at(tuck - (tuck - f) * i / n, r, ["A", "B"]), juntos=True), {"op": "esperar", "s": 0.3},
+                 S(at(f, tuck - (tuck - r) * i / n, ["C", "D"]), juntos=True), {"op": "esperar", "s": 0.3}]
+
+    dos_tiempos = [S(at(tuck, r, ["C", "D"]) + at(tuck, tuck, ["A", "B"]), juntos=True), {"op": "esperar", "s": 0.8},
+                   S(at(f, r), juntos=True)]
+    return [
+        ("pie-suave", "De pie suave (escalones)", "Recoge y sube a escalones de 3° descansando entre ellos; al final, toquecito a D",
+         recoger + [{"op": "velocidad", "v": "suave"}] + escalera + toque_d),
+        ("pie-ayuda-d", "De pie ayudando a la D", "Aparta el cuerpo de D (adelante-derecha) y D sube por delante de las demás; "
+         "luego toquecito a D", recoger + [{"op": "velocidad", "v": "suave"}] + ayuda + toque_d),
+        ("pie-dos-tiempos", "De pie en dos tiempos", "Primero las traseras (morro abajo), descansa, luego las delanteras; "
+         "toquecito a D", recoger + [{"op": "velocidad", "v": "suave"}] + dos_tiempos + toque_d),
+        ("pie-ivan", "De pie de Iván", "Delanteras un poco, traseras un poco, alternando hasta arriba: nunca suben las 4 a la vez; "
+         "toquecito a D", recoger + [{"op": "velocidad", "v": "suave"}] + ivan + toque_d),
+    ]
+
+
 def crab_program(conv, step=8, cycles=3, lift=16):
     """De lado (cangrejo): paso a paso, pero cada pie se mueve de lado con el pectoral y luego el cuerpo se desplaza
     con los 4 pectorales. Hacia la izquierda si pectoral + abre la pata (sin confirmar; si no, va a la derecha)."""
@@ -1030,6 +1076,9 @@ def candidate_routines(conv_saved):
                       "programa": phase_gait(c, **kw)})
     for rid, name, desc, prog in nuevas_routines(c):  # las verdes
         cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "nueva": True, "programa": prog})
+    for rid, name, desc, prog in amarillas_routines(c):  # de pie suaves: amarillas; la de Iván, rosa
+        cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "suave": True, "programa": prog,
+                      "color": "rosa" if rid == "pie-ivan" else "amarillo"})
     return cands
 
 
