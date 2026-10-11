@@ -173,3 +173,13 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   al enchufar/desenchufar cables en caliente).
 
 - 2026-10-11 20:45: la PCA9685 quedó quemada en la parte de potencia (los servos no reciben V+; la lógica 0x40 sí respondía). El usuario la cambia por la de repuesto: mismos canales y dirección 0x40. Pi apagada con poweroff.
+- 2026-10-11 21:40: WiFi con NodeMCU por el puerto serie (pines 4/14 alimentación, 8/10 datos): instalado esptool 5.5 en
+  ~/robot y descargado esp_slip_router (martin-ger) en ~/esp-firmware (0x00000.bin, 0x10000.bin). Los pines 8 y 10 leen
+  alto con pull-down (hay algo conectado), pero el ESP no manda ni un byte (ni el mensaje de arranque a 74880 baudios) y
+  esptool no conecta con FLASH+RST: probablemente TX/RX al revés (rótulos de la placa cruzados) o el pulsado fuera de
+  tiempo. Comando para grabar (con la consola serie parada: sudo systemctl stop serial-getty@ttyAMA0):
+  sudo ~/robot/bin/python -m esptool --port /dev/ttyAMA0 --baud 115200 --before no-reset --after no-reset
+  --connect-attempts 100 write-flash --erase-all -fm dio -fs detect 0x00000 0x00000.bin 0x10000 0x10000.bin
+  Lo más fácil: un cable micro USB de DATOS al NodeMCU -> /dev/ttyUSB0 y esptool lo pone solo en modo grabación.
+  Después: slattach -L -p slip -s 115200 <puerto>; sl0 192.168.240.2 pointopoint 192.168.240.1; consola del ESP por
+  telnet 192.168.240.1 7777 (set ap_ssid / ap_password, save, reset); el portátil en la WiFi del ESP abre http://192.168.240.2/lite.
