@@ -245,3 +245,9 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   desperezarse, menear el culete y baile.
 - 2026-10-12 (7): botón grande "▲ De pie" en la cabecera (`#homeBtn`): lanza la de pie marcada ✓ (si no, la 6.7) y,
   si hay una rutina en marcha, la para antes.
+- 2026-10-12 00:20: el usuario: "Galope alto" es la que más le gusta. Después el robot "no tiene potencia, no menea".
+  Diagnóstico desde la Pi: Pi viva, PCA9685 en 0x40, MODE1=0x20 (despierta), PRESCALE 0x79 (50 Hz) y los pulsos de
+  cada canal correctos (p. ej. B3 2387 us = 170°, A3 996 us = 45°): la lógica y el PWM van bien → falla la potencia de
+  los servos (fuente de 5 A en protección o apagada, cable/clema V+-GND suelta, o el camino de V+ de la placa quemado como
+  la primera PCA). Antes, 23:57, la Pi se reinició de golpe con caída de tensión al arrancar; el límite de consumo
+  estaba DESACTIVADO (todas las rutinas moviendo 8-12 servos a la vez con 5 A).
