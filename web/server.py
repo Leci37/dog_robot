@@ -918,6 +918,11 @@ def nuevas_routines(c):
 
 
 CURIOSAS = {"balanceo-potente", "baile", "menear", "pis", "desperezarse"}  # azules, sin estrellas (12-10)
+# quitadas de la lista el 12-10 (el usuario: "las 20 % menos bonitas" y "quita las viejas" de dar la pata): las de 1-2
+# estrellas, las dar la pata de pie (se caían hacia delante) y variantes viejas de andar que no avanzaban. El código sigue.
+RETIRADAS = {"galope-turbo", "galope-otra-mano", "caballo-tiro", "galope-izq", "pie-ayuda-d",
+             "pata-b", "pata-a", "saludar-b",
+             "andar-alto-rapido", "andar-pasitos", "andar-largo", "trote-alto", "bote-gacela"}
 
 
 def plata_routines(c):
@@ -930,14 +935,52 @@ def plata_routines(c):
     pec = lambda L, s: {"pata": L, "art": "pectoral", "angulo": dev_angle(L, "pectoral", p0 + (s if L in ("A", "D") else -s), c)}  # noqa: E731
     alta = c | {"delanteras": ALTA, "traseras": ALTA}
     g = lambda **kw: phase_gait(alta, **({"fases": GALOPE, "duty": 0.45, "step": 14, "press": 3, "v": "rapido", "cycles": 5} | kw))  # noqa: E731
-    sentado = S(no_pec(stance(c, 52, ["C", "D"])) + no_pec(stance(c, 18, ["A", "B"])), juntos=True)
-    pata_sentado = [{"op": "velocidad", "v": "lento"}, S(base_stance(c), juntos=True), sentado, {"op": "esperar", "s": 0.8},
-                    S([pec(L, -6) for L in LEGS], juntos=True),  # el cuerpo un poco a la izquierda, lejos de B
-                    S([hom("B", 50), cod("B", 15)], juntos=True),
-                    {"op": "repetir", "n": 3, "pasos": [S([pec("B", -12)]), S([pec("B", 12)])]},
-                    S(no_pec(stance(c, 18, ["B"])), juntos=True), S([pec(L, 0) for L in LEGS], juntos=True),
-                    {"op": "esperar", "s": 0.5}, S(base_stance(c), juntos=True)]
-    return [
+    def pata_sentado(leg, culo=52, del_=18, alto=50, codo=15, atras=0, lado=6):
+        """Dar la pata sentado (el éxito del 12-10). `culo`: agachado de las traseras (más = culo más abajo y el peso
+        más atrás); `del_`: el de las delanteras; `alto`/`codo`: hombro y codo de la pata que da (más hombro = más arriba
+        y adelante, menos codo = más estirada); `atras`: pies delanteros adelante (cuerpo atrás); `lado`: cuerpo hacia el
+        lado contrario de la pata."""
+        other = "A" if leg == "B" else "B"
+        side = -lado if leg in RIGHT else lado                      # el cuerpo, lejos de la pata que da
+        wave = 12 if leg in ("A", "D") else -12
+        sit = no_pec(stance(c, culo, ["C", "D"])) + no_pec(stance(c, del_, ["A", "B"]))
+        if atras:
+            sit = [o for o in sit if not (o["pata"] in FRONT and o["art"] == "hombro")] + \
+                  [hom(L, del_ / 2 + atras) for L in FRONT]
+        return [{"op": "velocidad", "v": "lento"}, S(base_stance(c), juntos=True), S(sit, juntos=True),
+                {"op": "esperar", "s": 0.8}, S([pec(L, side) for L in LEGS], juntos=True),
+                S([hom(other, del_ / 2 + atras + 4)], juntos=True),  # la otra delantera, un poco adelante: apoyo
+                S([hom(leg, min(60, alto)), cod(leg, codo)], juntos=True),
+                {"op": "repetir", "n": 3, "pasos": [S([pec(leg, side + wave)]), S([pec(leg, side - wave)])]},
+                S([o for o in sit if o["pata"] == leg], juntos=True), S([pec(L, 0) for L in LEGS], juntos=True),
+                {"op": "esperar", "s": 0.5}, S(base_stance(c), juntos=True)]
+
+    PATAS = [  # (versión, descripción, parámetros): la 1 es la que funcionó; las demás, más arriba y adelante
+        ("1", "la original (la que funcionó)", {}),
+        ("2", "pata más arriba y adelante (hombro 58, casi estirada)", {"alto": 58, "codo": 8}),
+        ("3", "culo más abajo (58) y pata arriba", {"culo": 58, "del_": 14, "alto": 58, "codo": 8}),
+        ("4", "culo abajo, cuerpo atrás y la pata lo más arriba posible", {"culo": 58, "del_": 14, "alto": 60, "codo": 2,
+                                                                          "atras": 8, "lado": 9}),
+    ]
+    patas = []
+    for leg in ("B", "A"):
+        for v, desc, kw in PATAS:
+            rid = "plata-pata-sentado" if (leg, v) == ("B", "1") else f"pata-{leg.lower()}-sentado-{v}"  # conserva su estrella
+            patas.append((rid, f"Dar la pata {leg} sentado · {v}", f"Sentado: {desc}", pata_sentado(leg, **kw), "pata"))
+
+    # 6 agresivas del galope plata a la derecha (la mejor, 12-10): "que ande, fuerte"
+    F = [  # (id, nombre, desc, parámetros de phase_gait)
+        ("zancada", "zancada", "zancadas más largas (izq 22, der 10) y pie más alto", {"step": {"A": 22, "D": 22, "B": 10, "C": 10}, "lift": 18, "press": 4}),
+        ("aire", "más aire", "más tiempo en el aire (apoyo 38 %) y pie a 20", {"duty": 0.38, "step": {"A": 20, "D": 20, "B": 8, "C": 8}, "lift": 20}),
+        ("ritmo", "ritmo", "más pasos por segundo (9 por ciclo) y pisada fuerte", {"ticks": 9, "press": 5, "cycles": 7}),
+        ("recto", "más recto", "menos giro (izq 20, der 14): para que avance más que gire", {"step": {"A": 20, "D": 20, "B": 14, "C": 14}, "lift": 18, "press": 4}),
+        ("pisoton", "pisotón", "pisada muy firme (7): empuja contra el suelo para no resbalar", {"step": {"A": 20, "D": 20, "B": 10, "C": 10}, "press": 7}),
+        ("todo", "a tope", "todo junto: zancada 24/12, pie a 22, mucho aire y ritmo. Gasta mucha corriente",
+         {"step": {"A": 24, "D": 24, "B": 12, "C": 12}, "lift": 22, "duty": 0.38, "press": 6, "ticks": 10, "cycles": 6}),
+    ]
+    fuertes = [(f"fuerte-{k}", f"Galope fuerte · {n}", f"Galope plata a la derecha, {d}",
+                g(**({"step": {"A": 18, "D": 18, "B": 6, "C": 6}} | kw)), "fuerte") for k, n, d, kw in F]
+    return fuertes + patas + [(rid, n, d, p, "ganadora") for rid, n, d, p in [
         ("plata-galope", "Galope plata", "Galope alto (4★) con pisada firme y las derechas un poco más largas para no torcerse",
          g(step={"A": 13, "D": 13, "B": 15, "C": 15})),
         ("plata-galope-der", "Galope plata a la derecha", "Cruce de las dos mejores: galope a la derecha (5★) a la altura del galope alto (4★)",
@@ -948,9 +991,7 @@ def plata_routines(c):
          g(fases={"C": 0, "D": 0, "A": 0.45, "B": 0.45}, duty=0.4, step={"A": 10, "D": 10, "B": 16, "C": 16}, lift=14)),
         ("plata-camello", "Camello plata", "El camello al revés (3★) a la altura alta y con pisada firme",
          phase_gait(alta, fases=CAMELLO, duty=0.55, step=-12, press=3, cycles=4)),
-        ("plata-pata-sentado", "Dar la pata sentado", "Se sienta (peso atrás, como un perro) y da la B: de pie se caía hacia delante",
-         pata_sentado),
-    ]
+    ]]
 
 
 def amarillas_routines(c):
@@ -1051,6 +1092,10 @@ CODIGOS = {
     "balanceo-potente": 80, "baile": 81, "menear": 82, "pis": 83, "desperezarse": 84, "pata-b": 85, "pata-a": 86,
     "saludar-b": 87, "balanceo": 88, "reverencia": 89,
     "de-pie-alto": 90, "de-pie-bajo": 91, "tumbarse": 92, "levantarse": 93, "sentarse": 94, "flexiones": 95,
+    # 12-10: galope fuerte (6 agresivas del galope plata a la derecha) y dar la pata sentado (A 96-99; B 16 y 47-49)
+    "fuerte-zancada": 74, "fuerte-aire": 75, "fuerte-ritmo": 76, "fuerte-recto": 77, "fuerte-pisoton": 78, "fuerte-todo": 79,
+    "pata-a-sentado-1": 96, "pata-a-sentado-2": 97, "pata-a-sentado-3": 98, "pata-a-sentado-4": 99,
+    "pata-b-sentado-2": 47, "pata-b-sentado-3": 48, "pata-b-sentado-4": 49,
 }
 CODIGO_DE_PIE = 10
 
@@ -1180,12 +1225,13 @@ def _candidate_routines(conv_saved):
     for rid, name, desc, prog in nuevas_routines(c):  # las verdes (las curiosas, azules y sin estrellas)
         kind = {"curiosa": True, "color": "azul"} if rid in CURIOSAS else {"nueva": True}
         cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "programa": prog} | kind)
-    for rid, name, desc, prog in plata_routines(c):  # las 6 ganadoras
-        cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "plata": True, "color": "plata", "programa": prog})
+    for rid, name, desc, prog, grupo in plata_routines(c):  # caja de plata: ganadoras, galope fuerte, dar la pata sentado
+        cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "plata": True, "color": "plata", "grupo": grupo,
+                      "programa": prog})
     for rid, name, desc, prog in amarillas_routines(c):  # de pie suaves: amarillas; la de Iván, rosa
         cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "suave": True, "programa": prog,
                       "color": "rosa" if rid == "pie-ivan" else "amarillo"})
-    return cands
+    return [x for x in cands if x["id"] not in RETIRADAS]
 
 
 def save_convention(conv):

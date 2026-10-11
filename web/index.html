@@ -168,6 +168,7 @@ button.rosa{background:#e8559a;border-color:#e8559a;color:#fff}button.rosa:hover
 .silverbox h3{margin:0 0 6px;font-size:16px}.silverbox .pz{color:#4a525c}
 .silverbox .stars button{color:#a3aab2}.silverbox .stars button.on{color:#e09800}
 .silverbox .row{align-items:flex-start;margin-top:6px}
+.silverbox .lbl{min-width:110px;font-weight:600;padding-top:6px}
 .silverbox details{margin-top:8px}.silverbox summary{cursor:pointer;font-size:13px}
 .rank{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:2px 14px;font-size:13px;margin-top:6px}
 .rank span b{color:#e09800;letter-spacing:1px}
@@ -1402,10 +1403,14 @@ function renderRt() {
   $('quick').hidden = TV;
   const rtName = Object.fromEntries(rts.candidatas.map(c => [c.id, c.nombre]));
   const ranked = Object.entries(val).filter(([id]) => rtName[id]).sort((a, b) => b[1] - a[1]);
-  const silver = platas.length ? `<h3>Las 6 ganadoras</h3>
-    <div class="pz">Sacadas de tus estrellas (galope a la derecha 5★, galope alto 4★, canguro y camello 3★…) cruzando las mejores,
-      con la pisada firme de spot_mini_mini. Valóralas igual.</div>
-    <div class="row">${platas.map(c => wrap(c, `<button class="plata" data-try="${esc(c.id)}" title="${c.codigo ? 'código ' + c.codigo + ' · ' : ''}${esc(c.desc)}">${c.codigo ? c.codigo + ' · ' : ''}${esc(c.nombre)}</button>`)).join('')}</div>
+  const pbtn = (c, label) => wrap(c, `<button class="plata" data-try="${esc(c.id)}" title="${c.codigo ? 'código ' + c.codigo + ' · ' : ''}${esc(c.desc)}">${c.codigo ? c.codigo + ' · ' : ''}${esc(label || c.nombre)}</button>`);
+  const pg = g => platas.filter(c => c.grupo === g);
+  const silver = platas.length ? `<h3>Ganadoras</h3>
+    <div class="pz">Hechas con tus estrellas. <b>Galope fuerte</b>: 6 versiones agresivas del galope plata a la derecha (el que mejor fue).
+      <b>Dar la pata</b>: sentado, 4 versiones con cada pata (la 1 es la que funcionó; las otras, más arriba y adelante). Valóralas igual.</div>
+    <div class="row"><span class="lbl">Galope fuerte</span>${pg('fuerte').map(c => pbtn(c, c.nombre.replace('Galope fuerte · ', ''))).join('')}</div>
+    <div class="row"><span class="lbl">Dar la pata</span>${pg('pata').map(c => pbtn(c, c.nombre.replace('Dar la pata ', ''))).join('')}</div>
+    <div class="row"><span class="lbl">Ganadoras</span>${pg('ganadora').map(c => pbtn(c)).join('')}</div>
     <details ${rankOpen ? 'open' : ''} id="rankBox"><summary>Tus estrellas: ${ranked.length} rutinas valoradas, de mejor a peor</summary>
       <div class="rank">${ranked.map(([id, n]) => `<span><b>${'★'.repeat(n)}${'☆'.repeat(6 - n)}</b> ${esc(rtName[id])}</span>`).join('') || '<span class="pz">todavía ninguna</span>'}</div></details>` : '';
   if (silver !== lastSilver) { $('silver').innerHTML = silver; lastSilver = silver; }

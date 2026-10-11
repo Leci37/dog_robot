@@ -100,6 +100,22 @@
     "pie-ayuda-d": {
       "estrellas": 2,
       "hora": "2026-10-12T00:42:39"
+    },
+    "plata-galope": {
+      "estrellas": 4,
+      "hora": "2026-10-12T00:51:24"
+    },
+    "plata-galope-der": {
+      "estrellas": 5,
+      "hora": "2026-10-12T00:51:38"
+    },
+    "plata-canguro": {
+      "estrellas": 4,
+      "hora": "2026-10-12T00:52:19"
+    },
+    "plata-camello": {
+      "estrellas": 3,
+      "hora": "2026-10-12T00:52:33"
     }
   }
 }

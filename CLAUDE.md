@@ -292,3 +292,10 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   Todo a LF + `.gitattributes`. OJO: dos sesiones de Claude editaron a la vez la carpeta compartida del PC
   (Gith/spotmicro) y una pisó a la otra en server.py; esta trabajó en un clon aparte (Gith/spotmicro-tele) y la otra
   integra con `git fetch` de la Pi antes de desplegar.
+- 2026-10-12 (13): "Dar la pata sentado" fue un éxito y "Galope plata a la derecha" lo que mejor anduvo. Caja de plata
+  por grupos (candidatas `grupo`): **Galope fuerte** (6 agresivas de la plata a la derecha: zancada, más aire, ritmo,
+  más recto, pisotón, a tope; códigos 74-79) y **Dar la pata sentado** A y B × 4 versiones (`pata_sentado`: 1 la
+  original; 2 pata más arriba y adelante; 3 culo más abajo; 4 culo abajo, cuerpo atrás y pata lo más arriba; A 96-99,
+  B 16 y 47-49). **RETIRADAS** (filtro en `_candidate_routines`, el código sigue): las de 1-2 estrellas (galope turbo,
+  otra mano, izquierda, caballo de tiro, ayudando a la D), las dar la pata de pie (estables y saludar con B) y andar
+  alto y rápido, pasitos, paso largo, trote alto y bote de gacela. Fusionado a mano con b2596e6 (tele) con git merge-file.

@@ -206,13 +206,22 @@ check(rt["pruebas"].get("de-pie-6.2", {}).get("mark") == "bien" and "de-pie-6" n
 stage2 = [c for c in rt["candidatas"] if c["etapa"] == 2]
 check(len(stage2) >= 12, f"etapa 2: {len(stage2)} rutinas")
 walks = [c["id"] for c in stage2 if c.get("andar")]
-check(len(walks) >= 12 and stage2[0]["id"] == "andar" and {"andar-rapido", "andar-alto", "trote-rapido", "andar-lado"} <= set(walks),
+check(len(walks) >= 10 and stage2[0]["id"] == "andar" and {"andar-rapido", "andar-alto", "trote-rapido", "andar-lado"} <= set(walks),
       f"rutinas de andar (van primero): {len(walks)}")
-check(len([c for c in stage2 if c.get("creativa")]) == 10, "10 marchas creativas (caballo y compañía)")
-check(len([c for c in stage2 if c.get("nueva")]) == 16, "16 rutinas nuevas (verdes)")
+check(len([c for c in stage2 if c.get("creativa")]) == 9, "9 marchas creativas (caballo y compañía; el bote, retirado)")
+check(len([c for c in stage2 if c.get("nueva")]) == 10, "10 rutinas nuevas (verdes; las de 1-2 estrellas, retiradas)")
+check(not {"galope-turbo", "caballo-tiro", "pata-b", "pata-a", "saludar-b"} & {c["id"] for c in rt["candidatas"]},
+      "retiradas las de 1-2 estrellas y las dar la pata viejas")
 check(len([c for c in stage2 if c.get("curiosa")]) == 5, "5 cosas curiosas (azules, sin estrellas)")
-check([c["id"] for c in stage2 if c.get("plata")][:1] == ["plata-galope"] and len([c for c in stage2 if c.get("plata")]) == 6,
-      "6 ganadoras de plata")
+grupos = {}
+for c in stage2:
+    if c.get("plata"):
+        grupos[c["grupo"]] = grupos.get(c["grupo"], 0) + 1
+check(grupos == {"fuerte": 6, "pata": 8, "ganadora": 5}, f"caja de plata: {grupos} (6 galope fuerte, 8 dar la pata, 5 ganadoras)")
+check("plata-pata-sentado" in {c["id"] for c in stage2}, "la dar la pata sentado original conserva su id (y su estrella)")
+cod = {c["id"]: c.get("codigo") for c in rt["candidatas"]}
+check(cod.get("fuerte-zancada") == 74 and cod.get("pata-a-sentado-1") == 96 and cod.get("plata-pata-sentado") == 16,
+      "códigos fijos: galope fuerte 74-79, dar la pata A 96-99 y B 16/47-49")
 codes = [c["codigo"] for c in rt["candidatas"]]
 check(len(codes) == len(set(codes)) and all(isinstance(x, int) for x in codes), f"cada rutina con su código, sin repetir ({len(codes)})")
 check({c["id"]: c["codigo"] for c in rt["candidatas"]}.get("plata-galope") == 11 and rt["home"] and "plata-galope" in rt["populares"],
@@ -234,7 +243,7 @@ lite = call("/lite")
 check(b'id="code"' in lite and b"/api/home" in lite and b"populares" in lite, "la web de la tele tiene De pie (P), código y populares")
 rt = call("/api/routine_rate", {"id": "plata-galope", "estrellas": 4})
 check(rt["valoraciones"].get("plata-galope") == 4, "las de plata también se valoran")
-check([c["id"] for c in stage2 if c.get("suave")] == ["pie-suave", "pie-ayuda-d", "pie-dos-tiempos", "pie-ivan"], "de pie suaves (amarillas) y la de Iván (rosa)")
+check([c["id"] for c in stage2 if c.get("suave")] == ["pie-suave", "pie-dos-tiempos", "pie-ivan"], "de pie suaves (amarillas) y la de Iván (rosa)")
 rt = call("/api/routine_rate", {"id": "galope-alto", "estrellas": 6})
 check(rt["valoraciones"].get("galope-alto") == 6, "valorar una rutina con 6 estrellas")
 call("/api/routine_rate", {"id": "galope-alto", "estrellas": 7}, expect=400)
