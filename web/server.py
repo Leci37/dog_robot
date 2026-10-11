@@ -1120,12 +1120,18 @@ def home_id(cands, cfg=None):
                 "de-pie-6.7")
 
 
+# 12-10, Luis: "las dos primeras de dar la pata nuevas van muy bien, y el galope fuerte también: dentro del HDMI".
+FIJAS_TELE = ["plata-pata-sentado", "pata-b-sentado-2", "fuerte-ritmo"]  # códigos 16, 47 y 76
+
+
 def popular_ids(cands, cfg):
-    """Populares: las de plata y luego las de 3 estrellas o más, de mejor a peor (para la tele)."""
+    """Populares para la tele (panel HDMI y /lite): primero las fijas (las que mejor van), luego por estrellas de mayor
+    a menor (3 o más) y al final las de plata aún sin valorar. Hasta 16."""
     known = {c["id"] for c in cands}
-    ids = [c["id"] for c in cands if c.get("plata")]
     val = {k: v.get("estrellas", 0) for k, v in cfg.get("valoraciones", {}).items()}
+    ids = [i for i in FIJAS_TELE if i in known]
     ids += [k for k, n in sorted(val.items(), key=lambda kv: -kv[1]) if n >= 3 and k in known and k not in ids]
+    ids += [c["id"] for c in cands if c.get("plata") and c["id"] not in val and c["id"] not in ids]
     return ids[:16]
 
 

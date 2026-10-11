@@ -224,7 +224,7 @@ check(cod.get("fuerte-zancada") == 74 and cod.get("pata-a-sentado-1") == 96 and 
       "códigos fijos: galope fuerte 74-79, dar la pata A 96-99 y B 16/47-49")
 codes = [c["codigo"] for c in rt["candidatas"]]
 check(len(codes) == len(set(codes)) and all(isinstance(x, int) for x in codes), f"cada rutina con su código, sin repetir ({len(codes)})")
-check({c["id"]: c["codigo"] for c in rt["candidatas"]}.get("plata-galope") == 11 and rt["home"] and "plata-galope" in rt["populares"],
+check({c["id"]: c["codigo"] for c in rt["candidatas"]}.get("plata-galope") == 11 and rt["home"] and rt["populares"][:3] == ["plata-pata-sentado", "pata-b-sentado-2", "fuerte-ritmo"],
       "códigos fijos (plata 11-16), de pie elegida y populares")
 call("/api/routine_run", {"codigo": "31"})
 fin = wait_routine()

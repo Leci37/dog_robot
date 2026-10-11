@@ -40,7 +40,8 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
 - El panel muestra cómo conectarse, la alimentación, las rutinas populares y estas teclas (teclado USB):
     P DE PIE (para lo que esté en marcha y se pone en la de pie elegida, la ✓; ahora la 6.7)
     0 o Intro  RUTINAS POR CÓDIGO: escribe el número y Intro, o elige con las flechas e Intro
-               (primero las populares: las de plata y las de 3 estrellas o más). Esc vuelve.
+               (primero las populares: 16 dar la pata B sentado 1, 47 la 2 y 76 galope fuerte ritmo,
+               luego las de más estrellas). Esc vuelve.
     S soltar todo   X parar rutina   M bloquear a mitad (90°)   R recoger   E estirar   1-9 mis rutinas
     U probar la salida elegida (antes era la P)   L soltar la salida elegida
     W web en la pantalla   C consola normal (en vez del panel)   T consola aparte (Alt+F1 vuelve al panel)

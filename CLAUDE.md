@@ -303,3 +303,6 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   junto al deslizador de la barra de consumo (`data-psrc`; cambiar de fuente ya no pregunta lo de quitar el límite,
   solo desmarcar la casilla). Puesto 20 A con el límite activado: con 20 A `max_movers` deja mover los 12 a la vez, así
   que no frena; solo avisa. El medidor de arriba escala con `limite_A`.
+- 2026-10-12 (13, sesión "fork"): Luis: "dar la pata sentado 1 y 2 van muy bien, y el galope fuerte también: en el HDMI".
+  `FIJAS_TELE` (plata-pata-sentado 16, pata-b-sentado-2 47, fuerte-ritmo 76) van siempre primero en `popular_ids`;
+  luego por estrellas (≥3) y al final la plata sin valorar (antes salía la plata en su orden y las de 2★ primero).
