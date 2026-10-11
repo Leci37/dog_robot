@@ -33,8 +33,16 @@ proyecto. **Lee esto entero antes de mover nada** y añade al final del registro
 - `CLAUDE.md` / `AGENTS.md`: este documento.
 - `servo_test.py`: mueve **un** canal ±delta grados alrededor de un centro y lo suelta.
   `./servo_test.py 0` · `./servo_test.py 0 --delta 5` · `./servo_test.py --off` (suelta todos).
-- `servo_map.json`: canal por pata y articulación, por posición física (delantera_izquierda, etc.). Las letras
-  A-D se asignan al final (el usuario aún no lo ha decidido). Articulaciones: hombro, muslo, rodilla.
+- `servo_map.json`: mapa canal → pata y articulación, en `"canales": {"<canal>": {"pata": "B", "articulacion":
+  "rodilla"} | {"libre": true}}`. Lo escribe la web.
+  **Nombres** (vista desde arriba, cabeza delante): **A** delantera izq, **B** delantera der, **C** trasera der,
+  **D** trasera izq. Articulación **1** hombro (abre/cierra al lado), **2** muslo (adelante/atrás), **3** rodilla.
+  Ej.: B3 = rodilla delantera derecha.
+- `web/`: **web de mapeo** en `http://192.168.8.104:8080`, servicio systemd `spotmicro-web` (arranca solo).
+  `server.py` (stdlib + servokit, límites 30–150°, ±20° máx.) e `index.html`. Por canal: Probar (90° → ±delta
+  → 90°, sujeto o suelto), Soltar, ajuste ±1/±5°. Tras probar, pregunta pata A-D / "no se ha movido" y
+  articulación. Botón "Soltar todo" = parada. Log de acciones en `web/acciones.log` (para seguir al usuario).
+  Mientras la web corre, no uses `servo_test.py` a la vez (no comparten el estado de los ángulos).
 
 ## Acceso
 - Red: cable al router 4G Huawei (192.168.8.1). La Pi suele estar en **192.168.8.104** (DHCP).
@@ -48,3 +56,6 @@ proyecto. **Lee esto entero antes de mover nada** y añade al final del registro
 - 2026-10-11: creado `~/robot` con servokit; creada esta carpeta con `servo_test.py` y `servo_map.json`.
   Pendiente: fuente de servos y mapeo de canales.
 - 2026-10-11: sin fuente en V+ todavía (el usuario no sabe qué hay en la clema). Robot dentro de su caja.
+- 2026-10-11: fuente de servos conectada, robot fuera de la caja. Barrido de los 16 canales: se movieron servos.
+  Creada la web de mapeo (`web/`, servicio `spotmicro-web`). Siguiente: mapear los 12 servos con la web,
+  luego igualar las 4 patas con ajustes por servo (offsets) como postura de referencia.

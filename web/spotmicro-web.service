@@ -1,0 +1,14 @@
+[Unit]
+Description=SpotMicro - web de mapeo de servos (puerto 8080)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=luislecinana
+WorkingDirectory=/home/luislecinana/spotmicro/web
+ExecStart=/home/luislecinana/robot/bin/python /home/luislecinana/spotmicro/web/server.py
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

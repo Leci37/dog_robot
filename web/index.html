@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SpotMicro servos</title>
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--ink:#1f1e1c;--mut:#6b6a65;--line:#dcdad3;--acc:#534AB7;--acc-bg:#EEEDFE;--ok:#0F6E56;--ok-bg:#E1F5EE;--bad:#A32D2D;--bad-bg:#FCEBEB;--warn-bg:#FAEEDA}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1b19;--card:#262624;--ink:#ecebe6;--mut:#a3a29c;--line:#3d3d3a;--acc:#AFA9EC;--acc-bg:#2e2a55;--ok:#5DCAA5;--ok-bg:#0f3a2f;--bad:#F09595;--bad-bg:#4a1b1b;--warn-bg:#41300f}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+h1{font-size:17px;font-weight:600;margin:0;flex:1;min-width:180px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--bad);margin-right:6px}
+.dot.on{background:var(--ok)}
+main{max-width:1100px;margin:0 auto;padding:16px}
+button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--mut)}
+button:disabled{opacity:.45;cursor:wait}
+button.pri{background:var(--acc);color:var(--card);border-color:var(--acc)}
+button.stop{background:var(--bad);color:#fff;border-color:var(--bad);font-weight:600}
+.bar{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:12px;color:var(--mut);font-size:14px}
+.bar select{font:inherit;padding:4px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.legend{font-size:13px;color:var(--mut);margin-bottom:14px}
+.legend b{color:var(--ink);font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.card.sel{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc-bg)}
+.top{display:flex;justify-content:space-between;align-items:baseline}
+.ch{font-weight:600;font-size:16px}
+.ang{font-size:13px;color:var(--mut)}
+.tag{display:inline-block;font-size:13px;padding:2px 8px;border-radius:999px;background:var(--line);color:var(--mut)}
+.tag.m{background:var(--acc-bg);color:var(--acc)}
+.tag.l{background:var(--warn-bg)}
+.tag.dup{background:var(--bad-bg);color:var(--bad)}
+.row{display:flex;gap:6px;flex-wrap:wrap}
+.row button{padding:5px 9px;font-size:13px}
+#ask{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--card);border-top:2px solid var(--acc);padding:14px 16px 18px;display:none}
+#ask.show{display:block}
+#ask .in{max-width:1100px;margin:0 auto}
+#ask h2{font-size:16px;margin:0 0 10px}
+#ask .row button{font-size:16px;padding:10px 16px;min-width:64px}
+#ask small{color:var(--mut)}
+table{border-collapse:collapse;margin-top:22px;background:var(--card);border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+th,td{padding:7px 14px;border-bottom:1px solid var(--line);text-align:center;font-size:14px}
+th{color:var(--mut);font-weight:500}
+td.dup{background:var(--bad-bg);color:var(--bad)}
+#msg{font-size:13px;color:var(--mut);min-height:20px;margin-top:6px}
+.sp{height:200px}
+</style>
+</head>
+<body>
+<header>
+  <h1><span id="dot" class="dot"></span>SpotMicro · mapeo de servos</h1>
+  <span id="count" class="tag">0/12</span>
+  <button class="stop" id="off">Soltar todo</button>
+</header>
+<main>
+  <div class="bar">
+    <label>Amplitud de prueba
+      <select id="delta"><option>5</option><option selected>10</option><option>15</option><option>20</option></select> grados
+    </label>
+    <label><input type="checkbox" id="hold" checked> Dejar sujeto en 90° tras probar</label>
+  </div>
+  <div class="legend">
+    Vista desde arriba, cabeza delante: <b>A</b> delantera izq · <b>B</b> delantera der · <b>C</b> trasera der · <b>D</b> trasera izq.
+    &nbsp;Articulación: <b>1</b> hombro (abre/cierra al lado) · <b>2</b> muslo (adelante/atrás) · <b>3</b> rodilla.
+    Robot siempre en el aire. Límites 30–150°.
+  </div>
+  <div class="grid" id="grid"></div>
+  <div id="msg"></div>
+  <table id="sum"></table>
+  <div class="sp"></div>
+</main>
+
+<div id="ask"><div class="in">
+  <h2 id="askT"></h2>
+  <div class="row" id="askB"></div>
+  <div style="margin-top:10px" class="row"><button id="again">Repetir prueba</button><button id="cancel">Cerrar</button></div>
+  <small id="askS"></small>
+</div></div>
+
+<script>
+const LEGS = {A:'delantera izq.', B:'delantera der.', C:'trasera der.', D:'trasera izq.'};
+const JOINTS = ['hombro','muslo','rodilla'];
+let st = {angles:{}, map:{}}, busy = false, askCh = null, askLeg = null;
+const $ = id => document.getElementById(id);
+
+async function api(path, body) {
+  const r = await fetch(path, body ? {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)} : {});
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.status);
+  return j;
+}
+function setBusy(b, text) {
+  busy = b;
+  document.querySelectorAll('button').forEach(x => { if (x.id !== 'off') x.disabled = b; });
+  if (text !== undefined) $('msg').textContent = text;
+}
+async function act(path, body, text) {
+  if (busy && path !== '/api/off') return;
+  setBusy(true, text || 'moviendo…');
+  try { st = await api(path, body); $('dot').classList.add('on'); $('msg').textContent = 'listo'; }
+  catch (e) { $('msg').textContent = 'Error: ' + e.message; }
+  setBusy(false); render();
+}
+function label(m) {
+  if (!m) return null;
+  if (m.libre) return 'libre';
+  return m.pata + (JOINTS.indexOf(m.articulacion) + 1) + ' · ' + m.articulacion;
+}
+function dupKeys() {
+  const seen = {}, d = new Set();
+  for (const [ch, m] of Object.entries(st.map)) {
+    if (m.libre) continue;
+    const k = m.pata + m.articulacion;
+    if (seen[k] !== undefined) { d.add(ch); d.add(seen[k]); } else seen[k] = ch;
+  }
+  return d;
+}
+function render() {
+  const dups = dupKeys();
+  let html = '';
+  for (let ch = 0; ch < 16; ch++) {
+    const m = st.map[ch], a = st.angles[ch], l = label(m);
+    const cls = !m ? 'tag' : m.libre ? 'tag l' : dups.has(String(ch)) ? 'tag dup' : 'tag m';
+    html += `<div class="card ${askCh === ch ? 'sel' : ''}">
+      <div class="top"><span class="ch">Canal ${ch}</span><span class="ang">${a == null ? 'suelto' : a + '° sujeto'}</span></div>
+      <div><span class="${cls}">${l || 'sin mapear'}</span></div>
+      <div class="row"><button class="pri" data-t="${ch}">Probar</button><button data-r="${ch}">Soltar</button></div>
+      <div class="row"><button data-n="${ch}" data-d="-5">−5</button><button data-n="${ch}" data-d="-1">−1</button><button data-n="${ch}" data-d="1">+1</button><button data-n="${ch}" data-d="5">+5</button></div>
+    </div>`;
+  }
+  $('grid').innerHTML = html;
+  let n = 0, t = '<tr><th>Pata</th>' + JOINTS.map((j, i) => `<th>${i + 1} ${j}</th>`).join('') + '</tr>';
+  for (const L of Object.keys(LEGS)) {
+    t += `<tr><th>${L} <small>${LEGS[L]}</small></th>`;
+    for (const j of JOINTS) {
+      const chs = Object.entries(st.map).filter(([, m]) => m.pata === L && m.articulacion === j).map(([c]) => c);
+      if (chs.length) n++;
+      t += `<td class="${chs.length > 1 ? 'dup' : ''}">${chs.length ? 'canal ' + chs.join(', ') : '—'}</td>`;
+    }
+    t += '</tr>';
+  }
+  $('sum').innerHTML = t;
+  $('count').textContent = n + '/12 mapeados';
+}
+function ask(ch) {
+  askCh = ch; askLeg = null;
+  $('askT').textContent = `Canal ${ch}: ¿qué pata se ha movido?`;
+  $('askS').textContent = '';
+  $('askB').innerHTML = Object.keys(LEGS).map(L => `<button class="pri" data-leg="${L}">${L}</button>`).join('') +
+    '<button data-none="1">No se ha movido</button>';
+  $('ask').classList.add('show'); render();
+}
+function askJoint(L) {
+  askLeg = L;
+  $('askT').textContent = `Canal ${askCh} · pata ${L} (${LEGS[L]}): ¿qué articulación?`;
+  $('askB').innerHTML = JOINTS.map((j, i) => `<button class="pri" data-joint="${j}">${i + 1} ${j}</button>`).join('') +
+    '<button data-back="1">← otra pata</button>';
+}
+function closeAsk() { askCh = null; $('ask').classList.remove('show'); render(); }
+async function save(body) {
+  const ch = askCh;
+  await act('/api/map', Object.assign({ch}, body), 'guardando…');
+  const next = ch + 1;
+  if (next <= 15) {
+    $('askT').textContent = `Guardado canal ${ch}. ¿Probar el canal ${next}?`;
+    $('askB').innerHTML = `<button class="pri" data-go="${next}">Probar canal ${next}</button>`;
+    askCh = ch;
+  } else closeAsk();
+}
+async function test(ch) {
+  await act('/api/test', {ch, delta: +$('delta').value, hold: $('hold').checked}, `probando canal ${ch}… mira el robot`);
+  ask(ch);
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  const d = b.dataset;
+  if (b.id === 'off') act('/api/off', {}, 'soltando todo…');
+  else if (d.t !== undefined) test(+d.t);
+  else if (d.r !== undefined) act('/api/release', {ch: +d.r});
+  else if (d.n !== undefined) { const ch = +d.n, cur = st.angles[ch] ?? 90; act('/api/angle', {ch, angle: cur + +d.d}); }
+  else if (d.leg) askJoint(d.leg);
+  else if (d.back) ask(askCh);
+  else if (d.joint) save({pata: askLeg, articulacion: d.joint});
+  else if (d.none) save({libre: true});
+  else if (d.go !== undefined) test(+d.go);
+  else if (b.id === 'again') test(askCh);
+  else if (b.id === 'cancel') closeAsk();
+});
+async function poll() {
+  try { if (!busy) { st = await api('/api/state'); render(); } $('dot').classList.add('on'); }
+  catch { $('dot').classList.remove('on'); }
+}
+poll(); setInterval(poll, 4000);
+</script>
+</body>
+</html>
