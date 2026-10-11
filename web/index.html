@@ -103,7 +103,7 @@ pre#ayuda{white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-
 #lockProg .lp-chips{display:flex;flex-wrap:wrap;gap:4px}
 #lockProg .lp-chips span{font-size:12px;padding:1px 7px;border-radius:6px;border:1px solid var(--line);color:var(--mut)}
 #lockProg .lp-chips span.done{background:#e0a53a;border-color:#c27c12;color:#1f1e1c}
-#lockProg .lp-chips span.now{background:var(--acc);border-color:var(--acc);color:var(--card);animation:lpnow .6s ease-in-out infinite alternate}
+#lockProg .lp-chips span.cur{background:var(--acc);border-color:var(--acc);color:var(--card);animation:lpnow .6s ease-in-out infinite alternate}
 @keyframes lpnow{from{opacity:1}to{opacity:.55}}
 .pmsg{border-radius:8px;padding:8px 12px;font-size:14px;background:var(--warn-bg);border:1px solid var(--line)}
 .pmsg.ok{background:var(--ok-bg)}.pmsg.bad{background:var(--bad-bg)}
@@ -523,7 +523,7 @@ function renderLock(p) {
   const tags = all ? p.lista[0].replace(/^todos a la vez: /, '').split(', ').map(t => ({t})) : (p.lista || []).map(x => ({t: x.split(' ')[0], tip: x}));
   const pct = p.total ? Math.round(p.paso / p.total * 100) : 0, suelta = /suelta/.test(p.nombre);
   const chips = tags.map((x, i) => {
-    const cls = all ? (p.paso >= 1 ? 'done' : p.running ? 'now' : '') : i < p.paso ? 'done' : i === p.paso && p.running ? 'now' : '';
+    const cls = all ? (p.paso >= 1 ? 'done' : p.running ? 'cur' : '') : i < p.paso ? 'done' : i === p.paso && p.running ? 'cur' : '';
     return `<span class="${cls}" title="${esc(x.tip || x.t)}">${esc(x.t)}</span>`;
   }).join('');
   let head, now;
