@@ -172,3 +172,4 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   antes de volver a enchufarla. La Pi y la PCA (0x40, lado lógico) siguen bien. 9 apagados de golpe en total (dos más
   al enchufar/desenchufar cables en caliente).
 
+- 2026-10-11 20:45: la PCA9685 quedó quemada en la parte de potencia (los servos no reciben V+; la lógica 0x40 sí respondía). El usuario la cambia por la de repuesto: mismos canales y dirección 0x40. Pi apagada con poweroff.
