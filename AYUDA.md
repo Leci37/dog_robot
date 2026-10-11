@@ -130,6 +130,8 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
   desperezarse.
 - Caja plateada: Galope fuerte (6 versiones agresivas, códigos 74-79), Dar la pata sentado con A (96-99) y con B
   (16, 47-49), 4 versiones cada una, y las Ganadoras. Se han quitado las peor valoradas y las dar la pata de pie.
+- "Repetir sin parar": casilla en cada rutina; al pulsarla se repite hasta Parar o Soltar todo (arriba sale la vuelta).
+- Oro (fila dorada, 101-106): mejoras de Galope fuerte · ritmo; valóralas para saber cuál ayuda.
 - Velocidad de las rutinas: marchas 1ª muy lenta, 2ª lenta, 3ª normal, 4ª rápida, 5ª muy rápida. Botones en
   "Rutinas para probar" y, con una rutina en marcha, al lado de "Parar rutina": se nota en el paso siguiente.
 - Web > "Programar con bloques": como Scratch. Bloques de mover (pata/articulación/grados, relativo,

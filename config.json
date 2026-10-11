@@ -132,6 +132,30 @@
     "fuerte-recto": {
       "estrellas": 3,
       "hora": "2026-10-12T01:08:44"
+    },
+    "fuerte-pisoton": {
+      "estrellas": 4,
+      "hora": "2026-10-12T01:09:03"
+    },
+    "fuerte-todo": {
+      "estrellas": 3,
+      "hora": "2026-10-12T01:09:40"
+    },
+    "plata-pata-sentado": {
+      "estrellas": 5,
+      "hora": "2026-10-12T01:09:49"
+    },
+    "pata-b-sentado-2": {
+      "estrellas": 5,
+      "hora": "2026-10-12T01:09:56"
+    },
+    "pata-b-sentado-3": {
+      "estrellas": 5,
+      "hora": "2026-10-12T01:10:06"
+    },
+    "pata-b-sentado-4": {
+      "estrellas": 1,
+      "hora": "2026-10-12T01:10:17"
     }
   }
 }

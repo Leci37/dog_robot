@@ -172,6 +172,10 @@ button.rosa{background:#e8559a;border-color:#e8559a;color:#fff}button.rosa:hover
 .silverbox details{margin-top:8px}.silverbox summary{cursor:pointer;font-size:13px}
 .rank{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:2px 14px;font-size:13px;margin-top:6px}
 .rank span b{color:#e09800;letter-spacing:1px}
+button.oro{background:linear-gradient(180deg,#fff3c4,#e0b13a);border-color:#b8891c;color:#3a2a00;font-weight:700}
+button.oro:hover{background:linear-gradient(180deg,#fff8dc,#ebc155)}
+.card.oro{border-color:#c9971f;box-shadow:inset 4px 0 0 #c9971f}
+.loopchk{display:inline-flex;align-items:center;gap:4px;margin-top:4px;cursor:pointer}
 button.plata{background:linear-gradient(180deg,#f3f4f6,#b9c0c8);border-color:#8d949c;color:#1d2228;font-weight:600}
 button.plata:hover{background:linear-gradient(180deg,#ffffff,#c9cfd6)}
 button.azul{background:#2f6fd6;border-color:#2f6fd6;color:#fff}button.azul:hover{background:#245cb5}
@@ -1334,7 +1338,7 @@ async function rtPost(path, body, text) {
 function renderRunning(ex) {
   ex = ex || {};
   $('rtb').hidden = !ex.running; $('rtStop').hidden = !ex.running; $('rtGear').hidden = !ex.running || !rts;
-  if (ex.running) $('rtb').textContent = `▶ ${ex.nombre} · paso ${ex.paso}/${ex.total}`;
+  if (ex.running) $('rtb').textContent = `▶ ${ex.nombre} · paso ${ex.paso}/${ex.total}${ex.bucle ? ` · 🔁 vuelta ${ex.vuelta}` : ''}`;
   else if (ex.fin && ex.nombre && lastFin !== ex.nombre + ex.fin + ex.error) {
     lastFin = ex.nombre + ex.fin + ex.error;
     $('msg').textContent = `Rutina "${ex.nombre}": ${ex.fin}${ex.error ? ' (' + ex.error + ')' : ''}`;
@@ -1343,6 +1347,12 @@ function renderRunning(ex) {
     $('rtGear').innerHTML = Object.entries(rts.marchas).map(([n, t]) => `<option value="${n}" ${+n === rts.marcha ? 'selected' : ''}>${esc(t)}</option>`).join('');
   }
 }
+const loopIds = new Set((() => { try { return JSON.parse(localStorage.getItem('repetirSinParar') || '[]'); } catch { return []; } })());
+function saveLoops() { try { localStorage.setItem('repetirSinParar', JSON.stringify([...loopIds])); } catch {} }
+document.addEventListener('change', e => {  // casilla "Repetir sin parar" de cada rutina
+  const id = e.target.dataset && e.target.dataset.loop; if (!id) return;
+  e.target.checked ? loopIds.add(id) : loopIds.delete(id); saveLoops(); lastQuick = ''; lastSilver = ''; renderRt();
+});
 let lastFin = '', lastTryInfo = '', lastQuick = '', lastSilver = '', tuneOpen = true, rankOpen = false;
 document.addEventListener('toggle', e => { if (e.target.id === 'rankBox') rankOpen = e.target.open; }, true);
 document.addEventListener('toggle', e => { if (e.target.id === 'tuneBox') tuneOpen = e.target.open; }, true);
@@ -1384,7 +1394,8 @@ function renderRt() {
   const val = rts.valoraciones || {};
   const stars = id => `<span class="stars" title="Valórala de 0 a 6 (pulsa otra vez la misma para quitar)">${[1, 2, 3, 4, 5, 6].map(n =>
     `<button data-rate="${esc(id)}" data-estrellas="${n}" class="${(val[id] || 0) >= n ? 'on' : ''}" aria-label="${n} estrellas">★</button>`).join('')}</span>`;
-  const wrap = (c, btn) => (c.etapa === 2 && !c.curiosa) || c.ayuda ? `<span class="qitem">${btn}${c.ayuda ? '' : stars(c.id)}</span>` : btn;
+  const loopMark = id => loopIds.has(id) ? '<span class="pz" title="repite sin parar hasta pulsar Parar">🔁 sin parar</span>' : '';
+  const wrap = (c, btn) => (c.etapa === 2 && !c.curiosa) || c.ayuda ? `<span class="qitem">${btn}${c.ayuda ? '' : stars(c.id)}${loopMark(c.id)}</span>` : btn;
   const qb = (c, label) => wrap(c, `<button data-try="${esc(c.id)}" title="${c.codigo ? 'código ' + c.codigo + ' · ' : ''}${esc(c.desc)}" class="${chosen(c.id) ? 'pri' : ''}">${esc(label)}${chosen(c.id) ? ' ✓' : ''}</button>`);
   const favs = rts.candidatas.filter(c => c.favorita).sort((a, b) => a.favorita - b.favorita);
   const bajar = rts.candidatas.find(c => c.id === 'bajar'), walks = rts.candidatas.filter(c => c.andar);
@@ -1407,11 +1418,13 @@ function renderRt() {
   $('quick').hidden = TV;
   const rtName = Object.fromEntries(rts.candidatas.map(c => [c.id, c.nombre]));
   const ranked = Object.entries(val).filter(([id]) => rtName[id]).sort((a, b) => b[1] - a[1]);
-  const pbtn = (c, label) => wrap(c, `<button class="plata" data-try="${esc(c.id)}" title="${c.codigo ? 'código ' + c.codigo + ' · ' : ''}${esc(c.desc)}">${c.codigo ? c.codigo + ' · ' : ''}${esc(label || c.nombre)}</button>`);
+  const pbtn = (c, label) => wrap(c, `<button class="${c.oro ? 'oro' : 'plata'}" data-try="${esc(c.id)}" title="${c.codigo ? 'código ' + c.codigo + ' · ' : ''}${esc(c.desc)}">${c.codigo ? c.codigo + ' · ' : ''}${esc(label || c.nombre)}</button>`);
   const pg = g => platas.filter(c => c.grupo === g);
   const silver = platas.length ? `<h3>Ganadoras</h3>
     <div class="pz">Hechas con tus estrellas. <b>Galope fuerte</b>: 6 versiones agresivas del galope plata a la derecha (el que mejor fue).
       <b>Dar la pata</b>: sentado, 4 versiones con cada pata (la 1 es la que funcionó; las otras, más arriba y adelante). Valóralas igual.</div>
+    <div class="row"><span class="lbl">Oro</span>${pg('oro').map(c => pbtn(c, c.nombre.replace('Oro · ', ''))).join('')}</div>
+    <div class="pz">Oro: mejoras de <b>Galope fuerte · ritmo</b> (5★), cada una cambia una sola cosa para saber qué ayuda.</div>
     <div class="row"><span class="lbl">Galope fuerte</span>${pg('fuerte').map(c => pbtn(c, c.nombre.replace('Galope fuerte · ', ''))).join('')}</div>
     <div class="row"><span class="lbl">Dar la pata</span>${pg('pata').map(c => pbtn(c, c.nombre.replace('Dar la pata ', ''))).join('')}</div>
     <div class="row"><span class="lbl">Ganadoras</span>${pg('ganadora').map(c => pbtn(c)).join('')}</div>
@@ -1432,13 +1445,15 @@ function renderRt() {
       <div class="row"><button class="${c.color || (c.nueva ? 'nueva' : 'pri')}" data-try="${esc(c.id)}">▶ Probar</button>${c.ayuda ? '' : `<button data-mark="${esc(c.id)}" data-mk="bien">✓ Funciona</button>
         <button data-mark="${esc(c.id)}" data-mk="mal">✗ No</button>${mk ? `<button data-mark="${esc(c.id)}" data-mk="">borrar marca</button>` : ''}`}
         <button data-viewtry="${esc(c.id)}" title="Abrirla en el editor de bloques">bloques</button></div>
+      <label class="pz loopchk"><input type="checkbox" data-loop="${esc(c.id)}" ${loopIds.has(c.id) ? 'checked' : ''}> Repetir sin parar (hasta pulsar Parar)</label>
       ${mk === 'bien' && c.etapa === 2 ? `<div class="row"><button data-savetry="${esc(c.id)}" data-name="${esc(c.nombre.toLowerCase())}">Guardar en mis rutinas</button></div>` : ''}</div>`;
   }).join('');
   const g = rts.guardadas || {}, names = Object.keys(g);
   ROUTINE_NAMES = names;
   $('myRt').innerHTML = names.length ? names.map((n, i) => `<div class="card"><div class="top"><span class="ch">${i < 9 ? (i + 1) + '. ' : ''}${esc(n)}</span><span class="pz">${g[n].pasos} pasos</span></div>
       <div class="pz">${esc(g[n].origen)}</div>
-      <div class="row"><button class="pri" data-run="${esc(n)}">▶ Ejecutar</button><button data-edit="${esc(n)}">Ver / editar en bloques</button><button data-del="${esc(n)}">Borrar</button></div></div>`).join('')
+      <div class="row"><button class="pri" data-run="${esc(n)}">▶ Ejecutar</button><button data-edit="${esc(n)}">Ver / editar en bloques</button><button data-del="${esc(n)}">Borrar</button></div>
+      <label class="pz loopchk"><input type="checkbox" data-loop="mis:${esc(n)}" ${loopIds.has('mis:' + n) ? 'checked' : ''}> Repetir sin parar</label></div>`).join('')
     : '<div class="pz">Todavía no hay rutinas guardadas.</div>';
   const sel = $('blkLoad'), cur = sel.value;
   sel.innerHTML = '<option value="">abrir rutina guardada…</option>' + names.map(n => `<option>${esc(n)}</option>`).join('');
@@ -1609,13 +1624,14 @@ document.addEventListener('click', async e => {
     }
     rtPost('/api/routine_run', {candidata: d.try}, 'poniéndose de pie…');
   }
-  else if (d.try) rtPost('/api/routine_run', {candidata: d.try}, 'probando… mira el robot');
+  else if (d.try) rtPost('/api/routine_run', {candidata: d.try, repetir: loopIds.has(d.try)},
+    loopIds.has(d.try) ? 'repitiendo sin parar… (Parar o Soltar todo para acabar)' : 'probando… mira el robot');
   else if (d.mark !== undefined) rtPost('/api/try_mark', {id: d.mark, mark: d.mk}, 'marcando…');
   else if (d.savetry) {
     const name = prompt('Nombre para guardarla en "Mis rutinas":', d.name);
     if (name) rtPost('/api/routine_save', {nombre: name, candidata: d.savetry}, 'guardando…');
   }
-  else if (d.run) rtPost('/api/routine_run', {nombre: d.run}, `ejecutando "${d.run}"…`);
+  else if (d.run) rtPost('/api/routine_run', {nombre: d.run, repetir: loopIds.has('mis:' + d.run)}, `ejecutando "${d.run}"…`);
   else if (d.del) { if (confirm(`¿Borrar la rutina "${d.del}"?`)) rtPost('/api/routine_delete', {nombre: d.del}, 'borrando…'); }
   else if (d.edit) openInBlocks(d.edit);
   else if (d.convreset) { if (confirm('¿Olvidar la de pie elegida y volver a probar la 6 y sus variantes?')) rtPost('/api/convention_reset', {}, 'volviendo al paso 1…'); }

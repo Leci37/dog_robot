@@ -217,7 +217,16 @@ grupos = {}
 for c in stage2:
     if c.get("plata"):
         grupos[c["grupo"]] = grupos.get(c["grupo"], 0) + 1
-check(grupos == {"fuerte": 6, "pata": 8, "ganadora": 5}, f"caja de plata: {grupos} (6 galope fuerte, 8 dar la pata, 5 ganadoras)")
+check(grupos == {"oro": 6, "fuerte": 6, "pata": 8, "ganadora": 5}, f"caja de plata: {grupos} (6 oro, 6 galope fuerte, 8 dar la pata, 5 ganadoras)")
+cod_oro = sorted(c["codigo"] for c in rt["candidatas"] if c.get("oro"))
+check(cod_oro == [101, 102, 103, 104, 105, 106], f"las de oro con sus códigos fijos 101-106: {cod_oro}")
+call("/api/routine_run", {"candidata": "oro-todo", "repetir": True})
+time.sleep(4)
+ex = call("/api/routines")["ejecutando"]
+check(ex["running"] and ex["bucle"] and ex["vuelta"] >= 2, f"repetir sin parar: sigue en marcha y va por la vuelta {ex.get('vuelta')}")
+call("/api/routine_stop", {})
+fin = wait_routine(20)
+check(fin["fin"] == "parada", "Parar acaba la repetición sin fin")
 check("plata-pata-sentado" in {c["id"] for c in stage2}, "la dar la pata sentado original conserva su id (y su estrella)")
 cod = {c["id"]: c.get("codigo") for c in rt["candidatas"]}
 check(cod.get("fuerte-zancada") == 74 and cod.get("pata-a-sentado-1") == 96 and cod.get("plata-pata-sentado") == 16,

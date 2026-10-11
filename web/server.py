@@ -357,7 +357,8 @@ bound_ports = set()
 #   {"op": "repetir", "n": 1..50, "pasos": [...]}    {"op": "rutina", "nombre": "..."}
 
 routine = {"running": False, "nombre": "", "paso": 0, "total": 0, "error": "", "stop": False, "fin": "",
-           "detalle": "", "lista": []}  # detalle/lista: lo que hace ahora y los pasos con nombre (barra de "Bloquear todo")
+           "detalle": "", "lista": [], "bucle": False, "vuelta": 1}  # detalle/lista: lo que hace ahora y los pasos con
+# nombre (barra de "Bloquear todo"); bucle/vuelta: "repetir sin parar" (12-10) y en qué vuelta va
 
 
 class RoutineStop(Exception):
@@ -572,18 +573,23 @@ def run_move(st, ctx):
         move_many(targets, ctx["pause"] * gear_factor(), juntos=op == "set" and bool(st.get("juntos")))
 
 
-def start_routine(program, name, lista=None):
+def start_routine(program, name, lista=None, loop=False):
     if routine["running"]:
         raise ValueError(f"ya se está ejecutando '{routine['nombre']}': párala primero")
     if not isinstance(program, list) or not program:
         raise ValueError("programa vacío")
     routine.update(running=True, nombre=name, paso=0, total=count_steps(program), error="", stop=False, fin="",
-                   detalle="", lista=lista or [])
+                   detalle="", lista=lista or [], bucle=bool(loop), vuelta=1)
     ctx = {"pause": SPEEDS["normal"], "conv": load_config().get("convencion") or {}}
 
     def worker():
         try:
-            run_steps(program, ctx)
+            while True:  # con "repetir sin parar", vuelve a empezar hasta que se pulse Parar / Soltar todo
+                run_steps(program, ctx)
+                if not loop:
+                    break
+                wait_s(0.2)
+                routine.update(vuelta=routine["vuelta"] + 1, paso=0)
             routine["fin"] = "terminada"
         except RoutineStop:
             routine["fin"] = "parada"
@@ -594,7 +600,7 @@ def start_routine(program, name, lista=None):
             routine["running"] = False
             log(f"rutina '{name}': {routine['fin']}{' - ' + routine['error'] if routine['error'] else ''}")
 
-    log(f"rutina '{name}' empieza ({routine['total']} pasos)")
+    log(f"rutina '{name}' empieza ({routine['total']} pasos{', repitiendo sin parar' if loop else ''})")
     threading.Thread(target=worker, daemon=True).start()
 
 
@@ -755,11 +761,16 @@ def trot_program(conv, step=12, cycles=4, lift=16, fast=False):
             {"op": "esperar", "s": 0.5}, {"op": "repetir", "n": cycles, "pasos": cycle}, S(base_stance(conv), juntos=True)]
 
 
-def phase_gait(conv, fases, duty=0.6, step=12, lift=16, ticks=12, cycles=3, v="normal", press=0):
+def phase_gait(conv, fases, duty=0.6, step=12, lift=16, ticks=12, cycles=3, v="normal", press=0,
+               swing="arco", stance="seno", hip=None):
     """Marcha por fases (como los SpotMicro de GitHub y los aires del caballo): cada pata tiene su fase en el ciclo
     (0-1). Mientras apoya (fracción `duty`) el pie va de delante a atrás empujando el cuerpo; en el aire vuelve
     adelante trazando un arco (seno) de altura `lift`. Cada tick = un paso `set` con las 12 a la vez. `press`: pisada
-    firme, el pie apoyado empuja un poco hacia el suelo (la "penetration depth" de spot_mini_mini) para no resbalar."""
+    firme, el pie apoyado empuja un poco hacia el suelo (la "penetration depth" de spot_mini_mini) para no resbalar.
+    `swing="limpio"`: el pie sube antes de avanzar y baja después (no arrastra al despegar ni al posarse).
+    `stance="empuje"`: la pisada aprieta más al final del apoyo, justo antes de despegar (impulso).
+    `hip` {pata: fracción}: cuánto de la subida hace el hombro (0,5 normal; más = la pata sube más con el hombro,
+    p. ej. B, cuyo codo con el ajuste +50 llega a su tope)."""
     k0, h0, hom, cod = _gait(conv)
     cycle = []
     for t in range(ticks):
@@ -768,11 +779,16 @@ def phase_gait(conv, fases, duty=0.6, step=12, lift=16, ticks=12, cycles=3, v="n
             p = (t / ticks - fases[L]) % 1.0
             sl = step[L] if isinstance(step, dict) else step  # paso distinto por pata = girar
             if p < duty:                                   # apoyada: empuja de delante a atrás
-                x, z = sl / 2 - sl * p / duty, -press * math.sin(math.pi * p / duty)
+                q = p / duty
+                x = sl / 2 - sl * q
+                z = -press * (1.4 * q * q if stance == "empuje" else math.sin(math.pi * q))
             else:                                          # en el aire: vuelve adelante en arco
                 s = (p - duty) / (1 - duty)
-                x, z = -sl / 2 + sl * s, lift * math.sin(math.pi * s)
-            objs += [hom(L, h0[L] + x + z / 2), cod(L, k0[L] + z)]
+                if swing == "limpio":                      # avanza sobre todo a media altura; sube rápido
+                    x, z = -sl / 2 + sl * s * s * (3 - 2 * s), lift * math.sin(math.pi * s) ** 0.6
+                else:
+                    x, z = -sl / 2 + sl * s, lift * math.sin(math.pi * s)
+            objs += [hom(L, h0[L] + x + z * (hip or {}).get(L, 0.5)), cod(L, k0[L] + z)]
         cycle.append(S(objs, juntos=True))
     return [{"op": "velocidad", "v": v}, S(base_stance(conv), juntos=True), {"op": "esperar", "s": 0.5},
             {"op": "repetir", "n": cycles, "pasos": cycle}, S(base_stance(conv), juntos=True)]
@@ -994,6 +1010,31 @@ def plata_routines(c):
     ]]
 
 
+def oro_routines(c):
+    """6 de oro (12-10): mejoras de la mejor, "Galope fuerte · ritmo" (5★): galope a la derecha alto, zancada izq 18 /
+    der 6, pisada firme 5 y ritmo rápido (9 puntos por ciclo). Aprendido con las estrellas: la zancada 18/6 va mejor que
+    más larga (22/10: 2★) o más recta (20/14: 3★); pisar fuerte ayuda (ritmo 5: 5★, pisotón 7: 4★); más tiempo en el
+    aire no (más aire: 2★, turbo: 1★). Cada una cambia UNA cosa para saber qué ayuda; la 6 junta las que prometen."""
+    alta = c | {"delanteras": ALTA, "traseras": ALTA}
+    best = {"fases": GALOPE, "duty": 0.45, "step": {"A": 18, "D": 18, "B": 6, "C": 6}, "lift": 16, "press": 5,
+            "ticks": 9, "v": "rapido", "cycles": 7}
+    g = lambda **kw: phase_gait(alta, **(best | kw))  # noqa: E731
+    return [
+        ("oro-limpio", "Oro · despegue limpio", "El pie sube antes de avanzar y baja después: no arrastra al despegar ni al posarse",
+         g(swing="limpio")),
+        ("oro-empuje", "Oro · empuje final", "La pisada aprieta al final del apoyo, justo antes de despegar: impulso hacia delante",
+         g(stance="empuje")),
+        ("oro-b-hombro", "Oro · B sube con el hombro", "La B (codo en su tope por el ajuste +50) levanta con el hombro: no arrastra",
+         g(hip={"B": 1.0})),
+        ("oro-pisoton", "Oro · ritmo y pisotón", "Las dos que mejor fueron juntas: el ritmo (5★) con la pisada del pisotón (7)",
+         g(press=7)),
+        ("oro-aire", "Oro · aire con ritmo", "Por si la buena era 'más aire': su pie a 20 y apoyo 40 %, con la zancada y el ritmo de la mejor",
+         g(lift=20, duty=0.4)),
+        ("oro-todo", "Oro · todo lo bueno", "Despegue limpio + empuje final + B con el hombro + pisada 6",
+         g(swing="limpio", stance="empuje", hip={"B": 1.0}, press=6)),
+    ]
+
+
 def amarillas_routines(c):
     """3 'de pie' suaves (12-10: muy poca potencia y la pata D siempre se queda abajo y hay que darle un toquecito).
     Todas acaban con el toquecito a D: la estira de golpe 8° más y la devuelve."""
@@ -1096,6 +1137,8 @@ CODIGOS = {
     "fuerte-zancada": 74, "fuerte-aire": 75, "fuerte-ritmo": 76, "fuerte-recto": 77, "fuerte-pisoton": 78, "fuerte-todo": 79,
     "pata-a-sentado-1": 96, "pata-a-sentado-2": 97, "pata-a-sentado-3": 98, "pata-a-sentado-4": 99,
     "pata-b-sentado-2": 47, "pata-b-sentado-3": 48, "pata-b-sentado-4": 49,
+    # 12-10: las de oro (mejoras del galope fuerte · ritmo)
+    "oro-limpio": 101, "oro-empuje": 102, "oro-b-hombro": 103, "oro-pisoton": 104, "oro-aire": 105, "oro-todo": 106,
 }
 CODIGO_DE_PIE = 10
 
@@ -1103,11 +1146,13 @@ CODIGO_DE_PIE = 10
 def candidate_routines(conv_saved):
     """Todas las rutinas generadas, cada una con su `codigo` (fijo, ver CODIGOS)."""
     cands = _candidate_routines(conv_saved)
-    free = 100
+    free, used = 100, set(CODIGOS.values())
     for c in cands:
         if c["id"] in CODIGOS:
             c["codigo"] = CODIGOS[c["id"]]
         else:
+            while free in used:  # no repetir un código fijo (p. ej. las de oro, 101-106)
+                free += 1
             c["codigo"] = free
             free += 1
     return cands
@@ -1231,6 +1276,9 @@ def _candidate_routines(conv_saved):
     for rid, name, desc, prog in nuevas_routines(c):  # las verdes (las curiosas, azules y sin estrellas)
         kind = {"curiosa": True, "color": "azul"} if rid in CURIOSAS else {"nueva": True}
         cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "programa": prog} | kind)
+    for rid, name, desc, prog in oro_routines(c):  # mejoras de la mejor (fila dorada en la caja de plata)
+        cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "plata": True, "oro": True, "color": "oro",
+                      "grupo": "oro", "programa": prog})
     for rid, name, desc, prog, grupo in plata_routines(c):  # caja de plata: ganadoras, galope fuerte, dar la pata sentado
         cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "plata": True, "color": "plata", "grupo": grupo,
                       "programa": prog})
@@ -1781,18 +1829,18 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/routine_run":
             if b.get("codigo") not in (None, ""):  # desde la tele / el teclado del HDMI: por código (10 o P = de pie)
                 cand = by_code(b["codigo"], candidate_routines(load_config().get("convencion")))
-                start_routine(cand["programa"], cand["nombre"])
+                start_routine(cand["programa"], cand["nombre"], loop=bool(b.get("repetir")))
                 log(f"rutina por código {b['codigo']}: '{cand['nombre']}'")
             elif b.get("candidata"):
                 cand = next((c for c in candidate_routines(load_config().get("convencion")) if c["id"] == b["candidata"]), None)
                 if not cand:
                     raise ValueError("rutina de prueba desconocida")
-                start_routine(cand["programa"], cand["nombre"])
+                start_routine(cand["programa"], cand["nombre"], loop=bool(b.get("repetir")))
             elif b.get("nombre") and not b.get("programa"):
                 r = load_json(ROUTINES_FILE, {}).get(b["nombre"])
                 if not r:
                     raise ValueError(f"no existe la rutina '{b['nombre']}'")
-                start_routine(r["programa"], b["nombre"])
+                start_routine(r["programa"], b["nombre"], loop=bool(b.get("repetir")))
             else:
                 start_routine(b.get("programa"), b.get("nombre") or "programa de bloques")
         elif p == "/api/lock_all":

@@ -306,3 +306,11 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
 - 2026-10-12 (13, sesión "fork"): Luis: "dar la pata sentado 1 y 2 van muy bien, y el galope fuerte también: en el HDMI".
   `FIJAS_TELE` (plata-pata-sentado 16, pata-b-sentado-2 47, fuerte-ritmo 76) van siempre primero en `popular_ids`;
   luego por estrellas (≥3) y al final la plata sin valorar (antes salía la plata en su orden y las de 2★ primero).
+- 2026-10-12 (15): **Repetir sin parar**: casilla en cada caja de rutina (y en Mis rutinas; se guarda en el navegador,
+  localStorage "repetirSinParar"); `/api/routine_run {…, repetir: true}` → `start_routine(loop=True)` repite el programa
+  hasta Parar/Soltar todo (`routine["bucle"]`, `routine["vuelta"]`; la cabecera muestra "🔁 vuelta N"). **Oro** (fila dorada
+  en la caja de plata, códigos 101-106, `oro_routines`): mejoras de "Galope fuerte · ritmo" (la mejor según las estrellas y
+  lo que dijo el usuario; "más aire" tenía 2★), cambiando UNA cosa cada una: despegue limpio (`phase_gait(swing="limpio")`:
+  sube antes de avanzar), empuje final (`stance="empuje"`: aprieta al final del apoyo), B sube con el hombro
+  (`hip={"B": 1.0}`, su codo está en el tope), ritmo + pisotón (press 7), aire con ritmo, y todo lo bueno junto.
+  El contador de códigos automáticos ahora salta los fijos de CODIGOS.
