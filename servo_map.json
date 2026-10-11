@@ -1,9 +1,9 @@
 {
-  "_nota": "Canal PCA9685 -> pata y articulaciÃ³n. Vista desde arriba, cabeza delante: A delantera izq, B delantera der, C trasera der, D trasera izq. Articulaciones (del cuerpo al suelo): 1 hombro (abre/cierra al lado), 2 rodilla (pata adelante/atrÃ¡s), 3 tobillo (dobla la parte de abajo).",
+  "_nota": "Canal PCA9685 -> pata y articulación. Vista desde arriba, cabeza delante: A delantera izq, B delantera der, C trasera der, D trasera izq. Articulaciones (del cuerpo al suelo): 1 pectoral (abre/cierra al lado), 2 hombro (pata adelante/atrás), 3 codo (dobla la parte de abajo).",
   "canales": {
     "0": {
       "pata": "A",
-      "articulacion": "tobillo",
+      "articulacion": "codo",
       "nota": "no responde"
     },
     "1": {
@@ -12,23 +12,23 @@
     },
     "2": {
       "pata": "A",
-      "articulacion": "rodilla"
+      "articulacion": "hombro"
     },
     "3": {
       "pata": "B",
-      "articulacion": "rodilla"
+      "articulacion": "hombro"
     },
     "4": {
       "pata": "A",
-      "articulacion": "hombro"
+      "articulacion": "pectoral"
     },
     "5": {
       "pata": "B",
-      "articulacion": "hombro"
+      "articulacion": "pectoral"
     },
     "6": {
       "pata": "B",
-      "articulacion": "tobillo"
+      "articulacion": "codo"
     },
     "7": {
       "libre": true
@@ -41,27 +41,28 @@
     },
     "10": {
       "pata": "C",
-      "articulacion": "hombro"
+      "articulacion": "pectoral"
     },
     "11": {
       "pata": "D",
-      "articulacion": "hombro"
+      "articulacion": "pectoral"
     },
     "12": {
       "pata": "C",
-      "articulacion": "rodilla"
+      "articulacion": "hombro"
     },
     "13": {
       "pata": "D",
-      "articulacion": "rodilla"
+      "articulacion": "hombro"
     },
     "14": {
       "pata": "C",
-      "articulacion": "tobillo"
+      "articulacion": "codo"
     },
     "15": {
       "pata": "D",
-      "articulacion": "tobillo"
+      "articulacion": "codo"
     }
-  }
+  },
+  "nomenclatura": 2
 }

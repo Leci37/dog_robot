@@ -91,6 +91,7 @@ class Panel:
         self.msg = ""
         self.msg_until = 0
         self.confirm = None  # (tecla, hasta)
+        self.rts = None
 
     # ---------- dibujo ----------
     def put(self, y, x, s, attr=0):
@@ -111,6 +112,9 @@ class Panel:
         try:
             self.sys = api("/api/system")
             self.state = api("/api/state")
+            if time.time() - getattr(self, "last_rt", 0) > 6:
+                self.rts = api("/api/routines", timeout=8)
+                self.last_rt = time.time()
         except Exception:  # noqa: BLE001
             self.sys = self.state = None
 
@@ -122,7 +126,7 @@ class Panel:
         G, Y, R, C, H = (curses.color_pair(i) for i in (1, 2, 3, 4, 5))
         B = curses.A_BOLD
         self.put(0, 0, " " * (w - 1), H)
-        self.put(0, 1, "SPOTMICRO · pantalla del robot", H | B)
+        self.put(0, 1, "LUIS LECI control · pantalla del robot", H | B)
         self.put(0, max(1, w - 10), datetime.now().strftime("%H:%M:%S"), H)
         y = 2
         s = self.sys
@@ -167,6 +171,14 @@ class Panel:
             held = sum(1 for a in (self.state or {}).get("angles", {}).values() if a is not None)
             self.put(y, 1, "ROBOT", B)
             self.put(y, 15, f"{held} servos sujetos" if held else "servos sueltos (sin fuerza)")
+            rt = (self.state or {}).get("rutina") or {}
+            if rt.get("running"):
+                self.put(y, 42, f"RUTINA: {rt['nombre']} (paso {rt['paso']}/{rt['total']})  X = parar", Y | B)
+            y += 1
+            names = list(((self.rts or {}).get("guardadas") or {}).keys())[:9]
+            self.put(y, 1, "RUTINAS", B)
+            self.put(y, 15, "   ".join(f"{i + 1} {n}" for i, n in enumerate(names)) if names
+                     else "(ninguna guardada: se crean desde la web)")
             y += 1
             scr_mode = s["screen"]
             web_txt = "W = web aquí" if scr_mode["navegador_instalado"] else "navegador no instalado"
@@ -176,9 +188,11 @@ class Panel:
         self.put(y, 0, "-" * (w - 1), C)
         y += 1
         self.put(y, 1, "TECLAS", B)
-        self.put(y, 9, "S soltar todo   M bloquear a mitad (90°)   R recoger   E estirar")
+        self.put(y, 9, "S soltar todo   M bloquear a mitad (90°)   R recoger   E estirar   1-9 rutina   X parar rutina")
         y += 1
-        self.put(y, 9, "W web en esta pantalla   C consola normal   H ayuda   A apagar   B reiniciar")
+        self.put(y, 9, "W web en esta pantalla   C consola (en vez del panel)   T consola aparte (Alt+F1 vuelve)")
+        y += 1
+        self.put(y, 9, "H ayuda   A apagar   B reiniciar")
         y += 1
         self.put(y, 0, "-" * (w - 1), C)
         y += 1
@@ -236,10 +250,21 @@ class Panel:
             self.action("Recogiendo las patas", "/api/pose_go", {"pata": "todas", "nombre": "recogida"})
         elif c == "e":
             self.action("Estirando las patas", "/api/pose_go", {"pata": "todas", "nombre": "estirada"})
-        elif c in ("w", "2"):
+        elif c == "x":
+            self.action("Parando la rutina", "/api/routine_stop", {}, timeout=10)
+        elif c.isdigit() and c != "0":
+            names = list(((self.rts or {}).get("guardadas") or {}).keys())
+            i = int(c) - 1
+            if i < len(names):
+                self.action(f"Ejecutando la rutina '{names[i]}'", "/api/routine_run", {"nombre": names[i]}, timeout=10)
+            else:
+                self.say(f"No hay rutina {c}.")
+        elif c == "w":
             return "web"
-        elif c in ("c", "3"):
+        elif c == "c":
             return "consola"
+        elif c == "t":
+            subprocess.run(["sudo", "-n", "chvt", "2"])  # logind abre un login en tty2; Alt+F1 vuelve aquí
         elif c == "h":
             self.help()
         return None
@@ -293,14 +318,14 @@ def menu(p):
         h, w = scr.getmaxyx()
         H, B, C = curses.color_pair(5), curses.A_BOLD, curses.color_pair(4)
         p.put(0, 0, " " * (w - 1), H)
-        p.put(0, 1, "SPOTMICRO", H | B)
+        p.put(0, 1, "LUIS LECI control", H | B)
         p.put(2, 2, "¿Qué quieres ver en esta pantalla?", B)
-        p.put(4, 4, "[1]  Panel del robot   (cómo conectarse, alimentación y teclas)", B)
+        p.put(4, 4, "[1]  Panel del robot   (cómo conectarse, alimentación, rutinas y teclas)", B)
         web = "(navegador a pantalla completa; necesita ratón; va lento en la Pi 2)"
         if not browser_ok():
             web = "(NO INSTALADO)"
         p.put(6, 4, f"[2]  Página web del robot   {web}", B)
-        p.put(8, 4, "[3]  Consola normal   (la pantalla negra con login)", B)
+        p.put(8, 4, "[3]  Consola normal   (la pantalla negra con login; también con Ctrl+Alt+F2 en cualquier momento)", B)
         p.put(11, 4, f"Si no pulsas nada, en {left:2d} s:  {names[default]}", C | B)
         p.put(12, 4, "(La opción por defecto se cambia desde la web: sección Sistema > Pantalla HDMI)")
         ips = [ip for ip in local_ips() if ip != DIRECT_IP]

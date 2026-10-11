@@ -1,0 +1,12 @@
+[Unit]
+Description=LUIS LECI control - LED verde: corto-corto-largo = programa vivo
+After=spotmicro-web.service
+
+[Service]
+ExecStart=/usr/bin/python3 /home/luislecinana/spotmicro/sistema/led_vivo.py
+Restart=always
+RestartSec=2
+TimeoutStopSec=3
+
+[Install]
+WantedBy=multi-user.target

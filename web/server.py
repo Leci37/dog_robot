@@ -32,7 +32,9 @@ SCREEN_MODE = SCREEN_DIR / "modo"          # lo que se pide mostrar en el HDMI: 
 SCREEN_BOOT = SCREEN_DIR / "arranque"      # opción por defecto del menú al arrancar
 SCREEN_STATUS = SCREEN_DIR / "estado"      # lo que muestra ahora (lo escribe el panel)
 BROWSER_SCRIPT = SCREEN_DIR / "navegador.sh"
-PORTS = (8080, 80)
+PORTS = tuple(int(p) for p in os.environ.get("SPOTMICRO_PORTS", "8080,80").split(","))  # pruebas: otro puerto
+INSTALL_SCRIPT = ROOT / "sistema" / "instala-navegador.sh"
+INSTALL_UNIT = "spotmicro-instala-navegador"
 LINK_LOCAL_IP = "169.254.42.1"             # dirección fija para cable directo (ver CLAUDE.md)
 IPV6_LL = "fe80::ba27:ebff:fe16:ec15"      # IPv6 link-local fija (EUI-64 de la MAC)
 
@@ -42,26 +44,16 @@ PHYS_MIN, PHYS_MAX = 5, 175    # límites del ángulo físico enviado al servo, 
 MAX_DELTA = 45
 CENTER = 90
 SPEEDS = {"lento": 0.05, "normal": 0.03, "rapido": 0.012}  # segundos por grado
+FAST = bool(os.environ.get("SPOTMICRO_FAST"))  # solo para pruebas con el simulador: sin esperas reales
+if FAST:
+    SPEEDS = {k: 0.0 for k in SPEEDS}
 LEGS = ["A", "B", "C", "D"]
 RIGHT = {"B", "C"}  # patas derechas: servos en espejo respecto a las izquierdas
 FRONT = {"A", "B"}
-
-# Posturas candidatas para descubrir el sentido de cada articulación: ángulos lógicos de la pata
-# izquierda trasera; derechas en espejo (180 - a) y, en la variante "delanteras invertidas", las
-# delanteras también en espejo en rodilla y tobillo. El usuario marca cuáles quedan bien.
-CANDIDATE_BASES = [
-    ("neutra", "Neutra (todo a 90°)", {"hombro": 90, "rodilla": 90, "tobillo": 90}),
-    ("r+t-", "Rodilla +25 · tobillo −40", {"hombro": 90, "rodilla": 115, "tobillo": 50}),
-    ("r-t+", "Rodilla −25 · tobillo +40", {"hombro": 90, "rodilla": 65, "tobillo": 130}),
-    ("r+t+", "Rodilla +25 · tobillo +40", {"hombro": 90, "rodilla": 115, "tobillo": 130}),
-    ("r-t-", "Rodilla −25 · tobillo −40", {"hombro": 90, "rodilla": 65, "tobillo": 50}),
-]
-CANDIDATES = []
-for _id, _name, _base in CANDIDATE_BASES:
-    CANDIDATES.append({"id": _id + "|igual", "nombre": _name, "delanteras": "igual", "base": _base})
-    if _id != "neutra":
-        CANDIDATES.append({"id": _id + "|inv", "nombre": _name, "delanteras": "invertidas", "base": _base})
-JOINTS = ["hombro", "rodilla", "tobillo"]  # nombres del usuario, del cuerpo hacia el suelo
+JOINTS = ["pectoral", "hombro", "codo"]  # nombres del usuario, del cuerpo hacia el suelo (1, 2, 3)
+ROUTINES_FILE = ROOT / "rutinas.json"    # {"nombre": {"programa": [...], "bloques": {...}|null, "origen": str}}
+CONFIG_FILE = ROOT / "config.json"       # {"convencion": {"sh": ±1, "sk": ±1, "fi": bool}, "pruebas": {...}}
+STATIC_DIR = WEB / "static"
 
 kit = ServoKit(channels=16)
 for _ch in range(16):
@@ -87,8 +79,9 @@ def load_map():
         data = {
             "_nota": "Canal PCA9685 -> pata y articulación. Vista desde arriba, cabeza delante: "
                      "A delantera izq, B delantera der, C trasera der, D trasera izq. "
-                     "Articulaciones (del cuerpo al suelo): 1 hombro (abre/cierra al lado), "
-                     "2 rodilla (pata adelante/atrás), 3 tobillo (dobla la parte de abajo).",
+                     "Articulaciones (del cuerpo al suelo): 1 pectoral (abre/cierra al lado), "
+                     "2 hombro (pata adelante/atrás), 3 codo (dobla la parte de abajo).",
+            "nomenclatura": 2,
             "canales": {},
         }
     return data
@@ -244,8 +237,10 @@ def screen_info():
     hdmi = ""
     for st in Path("/sys/class/drm").glob("card*-HDMI-A-1/status"):
         hdmi = read_text(st)
+    installing = any(active(u) for u in (INSTALL_UNIT, "instala-navegador3", "instala-navegador2"))
     return {"modo": read_text(SCREEN_MODE, "panel"), "arranque": read_text(SCREEN_BOOT, "panel"),
             "estado": read_text(SCREEN_STATUS, ""), "panel_activo": active("spotmicro-pantalla.service"),
+            "instalando_navegador": installing,
             "consola_activa": active("getty@tty1.service"),
             "navegador_instalado": BROWSER_SCRIPT.exists() and bool(shutil.which("cage")) and bool(shutil.which("chromium")),
             "hdmi": hdmi}
@@ -292,6 +287,417 @@ def set_screen(mode):
 
 
 bound_ports = set()
+
+
+# ---------- rutinas: lenguaje de pasos, ejecución en segundo plano ----------
+#
+# Un programa es una lista de pasos JSON. Ángulos "de gesto": los de la pata D (trasera izquierda);
+# al resto de patas se les aplica el equivalente para que hagan el mismo gesto (espejo 180−a en las
+# derechas y, si la convención dice delanteras invertidas, también en hombro/codo de las delanteras).
+#   {"op": "articulacion", "pata": "A".."D"|"todas", "art": "pectoral|hombro|codo", "angulo": 30..150}
+#   {"op": "articulacion_rel", "pata": ..., "art": ..., "delta": -60..60}
+#   {"op": "pata", "pata": "A", "pectoral": a?, "hombro": a?, "codo": a?}
+#   {"op": "set", "objetivos": [{"pata", "art", "angulo"}]}   ángulos lógicos YA calculados (rutinas generadas)
+#   {"op": "postura", "nombre": "de pie"}    {"op": "mitad"}    {"op": "soltar", "pata"?: "A"}
+#   {"op": "esperar", "s": 0..30}    {"op": "velocidad", "v": "lento|normal|rapido"}
+#   {"op": "repetir", "n": 1..50, "pasos": [...]}    {"op": "rutina", "nombre": "..."}
+
+routine = {"running": False, "nombre": "", "paso": 0, "total": 0, "error": "", "stop": False, "fin": ""}
+
+
+class RoutineStop(Exception):
+    pass
+
+
+def load_json(path, default):
+    try:
+        return json.loads(path.read_text())
+    except (FileNotFoundError, json.JSONDecodeError):
+        return default
+
+
+def load_config():
+    return load_json(CONFIG_FILE, {})
+
+
+def gesture_angle(leg, art, a, conv=None):
+    """Ángulo de gesto (referido a la pata D) -> ángulo lógico del servo de esa pata."""
+    conv = conv if conv is not None else (load_config().get("convencion") or {})
+    dev = a - 90
+    if conv.get("fi") and leg in FRONT and art != "pectoral":
+        dev = -dev
+    v = 90 + dev
+    return clamp(180 - v if leg in RIGHT else v)
+
+
+def logical_to_gesture(leg, art, v, conv):
+    """Inversa de gesture_angle (para los pasos relativos)."""
+    if leg in RIGHT:
+        v = 180 - v
+    dev = v - 90
+    if conv.get("fi") and leg in FRONT and art != "pectoral":
+        dev = -dev
+    return 90 + dev
+
+
+def legs_of(spec):
+    if spec in (None, "todas"):
+        return LEGS
+    if spec not in LEGS:
+        raise ValueError(f"pata no válida: {spec}")
+    return [spec]
+
+
+def check_art(art):
+    if art not in JOINTS:
+        raise ValueError(f"articulación no válida: {art}")
+    return art
+
+
+def count_steps(steps, depth=0):
+    n = 0
+    for st in steps:
+        n += count_steps(st.get("pasos", []), depth + 1) * max(1, min(50, int(st.get("n", 1)))) if st.get("op") == "repetir" else 1
+    return n
+
+
+def wait_s(secs):
+    end = time.time() + max(0.0, min(30.0, float(secs))) / (100 if FAST else 1)
+    while time.time() < end:
+        if routine["stop"]:
+            raise RoutineStop()
+        time.sleep(0.05)
+
+
+def run_steps(steps, ctx, depth=0):
+    if depth > 6:
+        raise ValueError("demasiadas rutinas dentro de rutinas")
+    for st in steps:
+        if routine["stop"]:
+            raise RoutineStop()
+        op = st.get("op")
+        if op == "repetir":
+            for _ in range(max(1, min(50, int(st.get("n", 1))))):
+                run_steps(st.get("pasos", []), ctx, depth + 1)
+            continue
+        if op == "esperar":
+            wait_s(st.get("s", 0.5))
+        elif op == "velocidad":
+            ctx["pause"] = SPEEDS.get(st.get("v"), SPEEDS["normal"])
+        elif op == "rutina":
+            r = load_json(ROUTINES_FILE, {}).get(st.get("nombre", ""))
+            if not r:
+                raise ValueError(f"no existe la rutina '{st.get('nombre')}'")
+            run_steps(r["programa"], ctx, depth + 1)
+            continue
+        else:
+            with lock:  # cada paso con el cerrojo de servos; entre pasos la web sigue respondiendo
+                run_move(st, ctx)
+        routine["paso"] += 1
+
+
+def run_move(st, ctx):
+    op, conv = st.get("op"), ctx["conv"]
+    targets = {}
+    if op == "articulacion":
+        art = check_art(st.get("art"))
+        for leg in legs_of(st.get("pata")):
+            ch = leg_channels(leg).get(art)
+            if ch is not None:
+                targets[ch] = gesture_angle(leg, art, float(st.get("angulo", 90)), conv)
+    elif op == "articulacion_rel":
+        art = check_art(st.get("art"))
+        d = max(-60, min(60, float(st.get("delta", 0))))
+        for leg in legs_of(st.get("pata")):
+            ch = leg_channels(leg).get(art)
+            if ch is not None:
+                cur = angles[ch] if angles[ch] is not None else gesture_angle(leg, art, 90, conv)
+                targets[ch] = gesture_angle(leg, art, logical_to_gesture(leg, art, cur, conv) + d, conv)
+    elif op == "pata":
+        leg = legs_of(st.get("pata"))[0]
+        chs = leg_channels(leg)
+        for art in JOINTS:
+            if st.get(art) is not None and art in chs:
+                targets[chs[art]] = gesture_angle(leg, art, float(st[art]), conv)
+    elif op == "set":
+        for o in st.get("objetivos", []):
+            ch = leg_channels(legs_of(o["pata"])[0]).get(check_art(o["art"]))
+            if ch is not None:
+                targets[ch] = clamp(o["angulo"])
+    elif op == "postura":
+        poses = load_poses()
+        for leg in LEGS:
+            pose, chs = poses.get(leg, {}).get(st.get("nombre", "")), leg_channels(leg)
+            for art, a in (pose or {}).items():
+                if art in chs:
+                    targets[chs[art]] = a
+        if not targets:
+            raise ValueError(f"no hay postura '{st.get('nombre')}' guardada")
+    elif op == "mitad":
+        for leg in LEGS:
+            for ch in leg_channels(leg).values():
+                targets[ch] = CENTER
+    elif op == "soltar":
+        for leg in legs_of(st.get("pata")):
+            for ch in leg_channels(leg).values():
+                release(ch)
+        return
+    else:
+        raise ValueError(f"paso desconocido: {op}")
+    if targets:
+        move_many(targets, ctx["pause"])
+
+
+def start_routine(program, name):
+    if routine["running"]:
+        raise ValueError(f"ya se está ejecutando '{routine['nombre']}': párala primero")
+    if not isinstance(program, list) or not program:
+        raise ValueError("programa vacío")
+    routine.update(running=True, nombre=name, paso=0, total=count_steps(program), error="", stop=False, fin="")
+    ctx = {"pause": SPEEDS["normal"], "conv": load_config().get("convencion") or {}}
+
+    def worker():
+        try:
+            run_steps(program, ctx)
+            routine["fin"] = "terminada"
+        except RoutineStop:
+            routine["fin"] = "parada"
+        except Exception as e:  # noqa: BLE001
+            routine["error"] = str(e)
+            routine["fin"] = "error"
+        finally:
+            routine["running"] = False
+            log(f"rutina '{name}': {routine['fin']}{' - ' + routine['error'] if routine['error'] else ''}")
+
+    log(f"rutina '{name}' empieza ({routine['total']} pasos)")
+    threading.Thread(target=worker, daemon=True).start()
+
+
+# ---------- rutinas para probar (generadas) ----------
+# Patas de longitud parecida: para agacharse con la pezuña bajo la cadera, el codo se dobla beta y el
+# hombro beta/2. Como no sabemos hacia qué lado gira cada servo, la etapa 1 prueba las 8 combinaciones
+# (signo del hombro sh, del codo sk, delanteras igual o invertidas fi). Cuando el usuario marca una como
+# buena se guarda la convención y la etapa 2 genera rutinas (de pie, tumbarse, sentarse, andar…).
+
+def dev_angle(leg, art, dev, conv):
+    s = conv.get("sh", 1) if art == "hombro" else conv.get("sk", 1) if art == "codo" else 1
+    if conv.get("fi") and leg in FRONT and art != "pectoral":
+        s = -s
+    v = 90 + s * dev
+    return clamp(180 - v if leg in RIGHT else v)
+
+
+def stance(conv, beta, legs=None, pectoral=0.0, hip_extra=None):
+    out = []
+    for leg in legs or LEGS:
+        hd = beta / 2 + (hip_extra or {}).get(leg, 0)
+        for art, dev in (("pectoral", pectoral), ("hombro", hd), ("codo", beta)):
+            out.append({"pata": leg, "art": art, "angulo": dev_angle(leg, art, dev, conv)})
+    return out
+
+
+def S(objs):
+    return {"op": "set", "objetivos": objs}
+
+
+def walk_program(conv, step_l, step_r, cycles=2, beta=40, lift=18):
+    """Paso a paso (creep): una pata cada vez en el orden D A C B; tras cada paso el cuerpo avanza."""
+    order, h0, k0 = ["D", "A", "C", "B"], beta / 2, beta
+    step = {L: (step_l if L in ("A", "D") else step_r) for L in LEGS}
+    hd = {"D": h0 - step["D"] / 2, "A": h0 - step["A"] / 4, "C": h0, "B": h0 + step["B"] / 4}
+    prog = [{"op": "velocidad", "v": "normal"}, S(stance(conv, beta)), {"op": "esperar", "s": 0.6},
+            S([{"pata": L, "art": "hombro", "angulo": dev_angle(L, "hombro", hd[L], conv)} for L in LEGS])]
+    cycle = []
+    for L in order:
+        cycle.append(S([{"pata": L, "art": "codo", "angulo": dev_angle(L, "codo", k0 + lift, conv)}]))
+        cycle.append(S([{"pata": L, "art": "hombro", "angulo": dev_angle(L, "hombro", h0 + step[L] / 2, conv)}]))
+        cycle.append(S([{"pata": L, "art": "codo", "angulo": dev_angle(L, "codo", k0, conv)}]))
+        hd[L] = h0 + step[L] / 2
+        for x in LEGS:
+            hd[x] -= step[x] / 4
+        cycle.append(S([{"pata": x, "art": "hombro", "angulo": dev_angle(x, "hombro", hd[x], conv)} for x in LEGS]))
+    prog.append({"op": "repetir", "n": cycles, "pasos": cycle})
+    prog.append(S(stance(conv, beta)))
+    return prog
+
+
+def candidate_routines(conv_saved):
+    """Etapa 1 (sin convención): 8 variantes de 'de pie'. Etapa 2 (con convención): rutinas útiles."""
+    cands = []
+    for sh in (1, -1):
+        for sk in (1, -1):
+            for fi in (False, True):
+                conv = {"sh": sh, "sk": sk, "fi": fi}
+                n = len(cands) + 1
+                cands.append({
+                    "id": f"depie|{sh}|{sk}|{int(fi)}", "etapa": 1, "nombre": f"De pie · variante {n}",
+                    "desc": f"hombro {'+' if sh > 0 else '−'}, codo {'+' if sk > 0 else '−'}, delanteras "
+                            f"{'invertidas' if fi else 'igual que las traseras'}",
+                    "conv": conv,
+                    "programa": [{"op": "velocidad", "v": "normal"}, {"op": "mitad"}, {"op": "esperar", "s": 1},
+                                 S(stance(conv, 40)), {"op": "esperar", "s": 2}],
+                })
+    if not conv_saved:
+        return cands
+    c = conv_saved
+    st = lambda beta, **kw: S(stance(c, beta, **kw))  # noqa: E731
+    two = [
+        ("de-pie-alto", "De pie alto", "Patas casi rectas (agachado 30)", [st(30)]),
+        ("de-pie-bajo", "De pie bajo", "Más agachado (55)", [st(55)]),
+        ("tumbarse", "Tumbarse", "Despacio hasta lo más agachado (60)",
+         [{"op": "velocidad", "v": "lento"}, st(40), st(60)]),
+        ("levantarse", "Levantarse", "De tumbado a de pie, despacio",
+         [{"op": "velocidad", "v": "lento"}, st(60), {"op": "esperar", "s": 1}, st(40)]),
+        ("sentarse", "Sentarse", "Traseras muy dobladas, delanteras casi rectas",
+         [{"op": "velocidad", "v": "lento"}, st(40),
+          S(stance(c, 60, legs=["C", "D"]) + stance(c, 20, legs=["A", "B"]))]),
+        ("reverencia", "Estirarse (reverencia)", "Delanteras dobladas, traseras rectas, y vuelta",
+         [{"op": "velocidad", "v": "lento"}, st(40),
+          S(stance(c, 60, legs=["A", "B"]) + stance(c, 25, legs=["C", "D"])), {"op": "esperar", "s": 1.5}, st(40)]),
+        ("flexiones", "Flexiones", "Sube y baja 3 veces",
+         [st(40), {"op": "repetir", "n": 3, "pasos": [st(55), st(30)]}, st(40)]),
+        ("balanceo", "Balancearse a los lados", "Pectorales a un lado y al otro, 3 veces",
+         [st(40), {"op": "repetir", "n": 3, "pasos": [
+             S([{"pata": L, "art": "pectoral", "angulo": dev_angle(L, "pectoral", 12 if L in ("A", "D") else -12, c)} for L in LEGS]),
+             S([{"pata": L, "art": "pectoral", "angulo": dev_angle(L, "pectoral", -12 if L in ("A", "D") else 12, c)} for L in LEGS])]},
+          st(40)]),
+        ("saludar-b", "Saludar con la pata B", "Levanta la delantera derecha y la mueve",
+         [st(40), S([{"pata": "B", "art": "hombro", "angulo": dev_angle("B", "hombro", 55, c)},
+                     {"pata": "B", "art": "codo", "angulo": dev_angle("B", "codo", 20, c)}]),
+          {"op": "repetir", "n": 3, "pasos": [
+              S([{"pata": "B", "art": "pectoral", "angulo": dev_angle("B", "pectoral", 15, c)}]),
+              S([{"pata": "B", "art": "pectoral", "angulo": dev_angle("B", "pectoral", -15, c)}])]},
+          st(40)]),
+        ("marcar-paso", "Marcar el paso (trote en el sitio)", "Levanta en diagonal A+C y luego B+D, 4 veces",
+         [st(40), {"op": "repetir", "n": 4, "pasos": [
+             S([{"pata": L, "art": "codo", "angulo": dev_angle(L, "codo", 58, c)} for L in ("A", "C")]),
+             S(stance(c, 40, legs=["A", "C"])),
+             S([{"pata": L, "art": "codo", "angulo": dev_angle(L, "codo", 58, c)} for L in ("B", "D")]),
+             S(stance(c, 40, legs=["B", "D"]))]}]),
+        ("andar-corto", "Andar hacia delante (paso corto)", "Una pata cada vez, 2 ciclos", walk_program(c, 12, 12)),
+        ("andar-largo", "Andar hacia delante (paso largo)", "Una pata cada vez, 2 ciclos", walk_program(c, 20, 20)),
+        ("andar-atras", "Andar hacia atrás", "Una pata cada vez, 2 ciclos", walk_program(c, -12, -12)),
+        ("girar-izq", "Girar a la izquierda", "Izquierdas hacia atrás, derechas hacia delante", walk_program(c, -12, 12)),
+        ("girar-der", "Girar a la derecha", "Izquierdas hacia delante, derechas hacia atrás", walk_program(c, 12, -12)),
+    ]
+    for rid, name, desc, prog in two:
+        cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "programa": prog})
+    return cands
+
+
+def save_convention(conv):
+    cfg = load_config()
+    cfg["convencion"] = conv
+    write_json(CONFIG_FILE, cfg)
+    poses = load_poses()  # posturas básicas para los botones Recoger/Estirar y la tecla R/E del panel
+    for name, beta in (("de pie", 40), ("estirada", 10), ("recogida", 60)):
+        for o in stance(conv, beta):
+            poses.setdefault(o["pata"], {}).setdefault(name, {})[o["art"]] = o["angulo"]
+    write_json(POSES_FILE, poses)
+
+
+def routines_info():
+    cfg = load_config()
+    conv = cfg.get("convencion")
+    saved = load_json(ROUTINES_FILE, {})
+    return {"guardadas": {k: {"origen": v.get("origen", ""), "pasos": count_steps(v["programa"]),
+                              "bloques": bool(v.get("bloques"))} for k, v in saved.items()},
+            "candidatas": [{k: v for k, v in c.items() if k != "programa"} | {"pasos": count_steps(c["programa"])}
+                           for c in candidate_routines(conv)],
+            "convencion": conv, "pruebas": cfg.get("pruebas", {}), "ejecutando": dict(routine)}
+
+
+# ---------- pestaña de estado: cómo me estoy conectando ----------
+
+def connection_info(client, host):
+    s = system_info()
+    if client.startswith("127.") or client == "::1":
+        via = "desde la propia Pi (pantalla HDMI o túnel SSH)"
+    elif client.startswith("169.254."):
+        via = "por cable directo entre el PC y la Pi (sin router)"
+    elif client.startswith("fe80:"):
+        via = "por IPv6 de enlace local (cable directo)"
+    elif s["net"]["gateway"]:
+        via = "a través del router"
+    else:
+        via = "por la red local"
+    keys = [k.split()[-1] for k in read_text(Path.home() / ".ssh" / "authorized_keys").splitlines() if k.strip()]
+    ssh_ip = next((a["ip"] for a in s["net"]["ipv4"] if a["if"] == "eth0" and a["ip"] != LINK_LOCAL_IP), LINK_LOCAL_IP)
+    return {
+        "cliente": client, "host": host, "via": via, "modo": s["net"]["mode"], "gateway": s["net"]["gateway"],
+        "internet": bool(s["net"]["gateway"]), "ipv4": s["net"]["ipv4"], "ipv6_ll": s["net"]["ipv6_ll"],
+        "hostname": s["net"]["hostname"], "urls": s["net"]["urls"], "ports": s["ports"],
+        "web_credencial": "sin contraseña: cualquiera conectado a la misma red puede usarla",
+        "ssh": {"usuario": os.environ.get("USER") or Path.home().name, "claves": keys,
+                "contrasena": "la del usuario de la Pi (apuntada en NOTAS-LOCALES.md, que no se sube a GitHub)",
+                "comandos": [f"ssh luislecinana@{ssh_ip}", f"ssh luislecinana@{LINK_LOCAL_IP}",
+                             f"ssh -L 8080:localhost:8080 luislecinana@{IPV6_LL}%<ifIndex>"]},
+        "rutas": {"web": s["net"]["urls"], "ayuda": "/ayuda", "api": ["/api/state", "/api/system", "/api/routines",
+                  "/api/informe", "/api/conexion"], "carpeta_en_la_pi": str(ROOT)},
+        "pi": {"uptime_s": s["uptime_s"], "hora": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+               "throttled": s["throttled"], "temp_c": s["temp_c"]},
+    }
+
+
+# ---------- informe para la mudanza ----------
+
+def report():
+    items = []
+
+    def add(area, item, ok, detail="", warn=False):
+        items.append({"area": area, "item": item, "estado": "ok" if ok else ("aviso" if warn else "fallo"), "detalle": detail})
+
+    def active(u):
+        return run(["systemctl", "is-active", u], timeout=3) == "active"
+    s = system_info()
+    add("Servicios", "Web del robot (spotmicro-web)", True, f"puertos {s['ports']}")
+    add("Servicios", "Pantalla HDMI (spotmicro-pantalla o consola)", active("spotmicro-pantalla.service") or active("getty@tty1.service"))
+    add("Servicios", "Navegador para la pantalla (cage + chromium)", s["screen"]["navegador_instalado"],
+        "sin él, la opción 'página web' de la pantalla no funciona", warn=True)
+    add("Servicios", "SSH", active("ssh.service"))
+    keys = read_text(Path.home() / ".ssh" / "authorized_keys").splitlines()
+    names = [k.split()[-1] for k in keys if k.strip()]
+    add("Servicios", "Claves SSH autorizadas (PC de sobremesa y portátil)", len(names) >= 2, ", ".join(names), warn=True)
+    prof = {k: run(["nmcli", "-g", k, "con", "show", "spotmicro-eth0"])
+            for k in ("GENERAL.STATE", "connection.autoconnect", "connection.autoconnect-priority")}
+    add("Red", "Perfil de red 'spotmicro-eth0' activo y automático",
+        prof["GENERAL.STATE"] == "activated" and prof["connection.autoconnect"] == "yes" and prof["connection.autoconnect-priority"] == "100",
+        " · ".join(f"{k.split('.')[-1]}={v or '?'}" for k, v in prof.items()))
+    ips = [a["ip"] for a in s["net"]["ipv4"]]
+    add("Red", f"Dirección fija para cable directo {LINK_LOCAL_IP}", LINK_LOCAL_IP in ips, ", ".join(ips))
+    add("Red", f"IPv6 fija {IPV6_LL}", s["net"]["ipv6_ll"] == IPV6_LL, s["net"]["ipv6_ll"])
+    add("Red", "Modo de red ahora", True, s["net"]["mode"])
+    th = s["throttled"] or 0
+    add("Alimentación", "Ahora", not th & 1, ", ".join(s["throttled_txt"]) or "sin avisos")
+    add("Alimentación", "Caídas de tensión en este arranque", s["caidas_tension_arranque"] == 0, str(s["caidas_tension_arranque"]), warn=True)
+    golpes = [ln for ln in read_text(ENERGY_LOG).splitlines() if "DE GOLPE" in ln]
+    add("Alimentación", "Arranques tras corte o cuelgue (registro)", not golpes,
+        f"{len(golpes)} en total; el último: {golpes[-1][:19]}" if golpes else "ninguno", warn=True)
+    add("Sistema", "Watchdog (reinicia la Pi si se cuelga)",
+        run(["systemctl", "show", "-p", "RuntimeWatchdogUSec", "--value"]) not in ("", "0", "infinity"))
+    add("Sistema", "Journal persistente (logs tras un corte)", Path("/var/log/journal").is_dir())
+    du = shutil.disk_usage("/")
+    add("Sistema", "Espacio libre en la SD", du.free > 1e9, f"{du.free / 1e9:.1f} GB", warn=True)
+    fs = run(["sudo", "-n", "/usr/sbin/tune2fs", "-l", "/dev/mmcblk0p2"])
+    add("Sistema", "Sistema de archivos sin errores", "Filesystem state:         clean" in fs,
+        next((ln.split(":", 1)[1].strip() for ln in fs.splitlines() if ln.startswith("Filesystem state")), "?"))
+    ntp = run(["timedatectl", "show", "-p", "NTPSynchronized", "--value"])
+    add("Sistema", "Hora sincronizada", ntp == "yes", "sin internet la hora puede ir mal (la Pi no tiene reloj)", warn=True)
+    pca = run(["/usr/sbin/i2cget", "-y", "1", "0x40", "0xfe"])
+    add("Robot", "Placa de servos PCA9685 responde (0x40)", pca.startswith("0x"), f"PRESCALE={pca or 'sin respuesta'}")
+    m = load_map()["canales"]
+    assigned = {(v.get("pata"), v.get("articulacion")) for v in m.values() if v.get("pata")}
+    notes = [f"canal {k}: {v['nota']}" for k, v in m.items() if v.get("nota") and v.get("pata")]
+    add("Robot", "Mapa de servos (12 articulaciones)", len(assigned) == 12, f"{len(assigned)}/12" + (" · " + "; ".join(notes) if notes else ""),
+        warn=True)
+    conv = load_config().get("convencion")
+    add("Robot", "Sentido de las articulaciones encontrado (rutina 'De pie' marcada ✓)", bool(conv), str(conv or "pendiente"), warn=True)
+    add("Robot", "Rutinas guardadas", True, ", ".join(load_json(ROUTINES_FILE, {}).keys()) or "ninguna todavía")
+    dirty = run(["git", "-C", str(ROOT), "status", "--porcelain"])
+    last = run(["git", "-C", str(ROOT), "log", "-1", "--format=%cd", "--date=format:%Y-%m-%d %H:%M"])
+    add("Copias", "Cambios guardados en git", not dirty, f"último: {last}" + (" · hay cambios sin guardar" if dirty else ""), warn=True)
+    summary = {e: sum(1 for i in items if i["estado"] == e) for e in ("ok", "aviso", "fallo")}
+    return {"items": items, "resumen": summary, "hora": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
 
 def save_map(data):
@@ -405,8 +811,24 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def state(self):
-        return {"angles": angles, "map": load_map()["canales"], "poses": load_poses(), "candidatas": CANDIDATES,
+        return {"angles": angles, "map": load_map()["canales"], "poses": load_poses(), "rutina": dict(routine),
                 "limits": {"min": SAFE_MIN, "max": SAFE_MAX, "max_delta": MAX_DELTA}}
+
+    STATIC_TYPES = {".js": "application/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png",
+                    ".gif": "image/gif", ".mp3": "audio/mpeg", ".cur": "image/x-icon", ".txt": "text/plain; charset=utf-8"}
+
+    def static(self, path):
+        f = (STATIC_DIR / path[len("/static/"):]).resolve()
+        if STATIC_DIR.resolve() not in f.parents or not f.is_file():
+            self._send(404, {"error": "no existe"})
+            return
+        data = f.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", self.STATIC_TYPES.get(f.suffix, "application/octet-stream"))
+        self.send_header("Cache-Control", "max-age=86400")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def do_GET(self):
         path = urlsplit(self.path).path
@@ -416,8 +838,16 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, self.state())
         elif path == "/api/system":
             self._send(200, system_info())
+        elif path == "/api/routines":
+            self._send(200, routines_info())
+        elif path == "/api/informe":
+            self._send(200, report())
+        elif path == "/api/conexion":
+            self._send(200, connection_info(self.client_address[0], self.headers.get("Host", "")))
         elif path in ("/ayuda", "/ayuda.txt"):
             self._send(200, HELP_FILE.read_bytes() if HELP_FILE.exists() else b"sin ayuda", "text/plain; charset=utf-8")
+        elif path.startswith("/static/"):
+            self.static(path)
         else:
             self._send(404, {"error": "no existe"})
 
@@ -425,9 +855,17 @@ class Handler(BaseHTTPRequestHandler):
         try:
             n = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(n) or b"{}")
-            if urlsplit(self.path).path in ("/api/screen", "/api/screen_boot", "/api/system_action"):
+            path = urlsplit(self.path).path
+            if path in ("/api/screen", "/api/screen_boot", "/api/system_action"):
                 self.route_system(body)  # no tocan servos: sin esperar al cerrojo de movimiento
                 return
+            if path.startswith("/api/routine") or path in ("/api/try_mark", "/api/convention_reset"):
+                self.route_routines(path, body)
+                return
+            if path == "/api/off":
+                routine["stop"] = True  # parar cualquier rutina antes de soltar
+            elif routine["running"]:
+                raise ValueError(f"hay una rutina en marcha ('{routine['nombre']}'): párala primero")
             with lock:
                 self.route(body)
         except ValueError as e:
@@ -435,6 +873,85 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:  # noqa: BLE001
             log(f"ERROR {self.path}: {e!r}")
             self._send(500, {"error": repr(e)})
+
+    def route_routines(self, p, b):
+        if p == "/api/routine_run":
+            if b.get("candidata"):
+                cand = next((c for c in candidate_routines(load_config().get("convencion")) if c["id"] == b["candidata"]), None)
+                if not cand:
+                    raise ValueError("rutina de prueba desconocida")
+                start_routine(cand["programa"], cand["nombre"])
+            elif b.get("nombre") and not b.get("programa"):
+                r = load_json(ROUTINES_FILE, {}).get(b["nombre"])
+                if not r:
+                    raise ValueError(f"no existe la rutina '{b['nombre']}'")
+                start_routine(r["programa"], b["nombre"])
+            else:
+                start_routine(b.get("programa"), b.get("nombre") or "programa de bloques")
+        elif p == "/api/routine_stop":
+            routine["stop"] = True
+            log("rutina: parar pedido")
+        elif p == "/api/routine_save":
+            name = str(b.get("nombre", "")).strip()[:40]
+            if not name:
+                raise ValueError("ponle un nombre a la rutina")
+            if b.get("candidata"):
+                cand = next((c for c in candidate_routines(load_config().get("convencion")) if c["id"] == b["candidata"]), None)
+                if not cand:
+                    raise ValueError("rutina de prueba desconocida")
+                prog, origen, blocks = cand["programa"], f"prueba: {cand['nombre']}", None
+            else:
+                prog, origen, blocks = b.get("programa"), "bloques", b.get("bloques")
+            if not isinstance(prog, list) or not prog:
+                raise ValueError("programa vacío")
+            count_steps(prog)
+            saved = load_json(ROUTINES_FILE, {})
+            saved[name] = {"programa": prog, "bloques": blocks, "origen": origen, "guardada": datetime.now().isoformat(timespec="seconds")}
+            write_json(ROUTINES_FILE, saved)
+            log(f"rutina '{name}' guardada ({origen})")
+        elif p == "/api/routine_delete":
+            saved = load_json(ROUTINES_FILE, {})
+            if saved.pop(b.get("nombre", ""), None) is None:
+                raise ValueError("no existe esa rutina")
+            write_json(ROUTINES_FILE, saved)
+            log(f"rutina '{b.get('nombre')}' borrada")
+        elif p == "/api/routine_get":
+            if b.get("candidata"):
+                cand = next((c for c in candidate_routines(load_config().get("convencion")) if c["id"] == b["candidata"]), None)
+                if not cand:
+                    raise ValueError("rutina de prueba desconocida")
+                self._send(200, {"programa": cand["programa"], "bloques": None, "nombre": cand["nombre"]})
+                return
+            r = load_json(ROUTINES_FILE, {}).get(b.get("nombre", ""))
+            if not r:
+                raise ValueError("no existe esa rutina")
+            self._send(200, r)
+            return
+        elif p == "/api/try_mark":
+            cid, mark = b.get("id", ""), b.get("mark", "")
+            cands = {c["id"]: c for c in candidate_routines(load_config().get("convencion"))}
+            if cid not in cands:
+                raise ValueError("rutina de prueba desconocida")
+            cfg = load_config()
+            pruebas = cfg.setdefault("pruebas", {})
+            if mark in ("bien", "mal"):
+                pruebas[cid] = {"mark": mark, "hora": datetime.now().isoformat(timespec="seconds")}
+            else:
+                pruebas.pop(cid, None)
+            write_json(CONFIG_FILE, cfg)
+            if mark == "bien" and cands[cid].get("etapa") == 1:
+                save_convention(cands[cid]["conv"])
+                log(f"convención guardada desde '{cands[cid]['nombre']}': {cands[cid]['conv']} (+ posturas de pie/estirada/recogida)")
+            log(f"prueba '{cid}' marcada: {mark or 'sin marca'}")
+        elif p == "/api/convention_reset":
+            cfg = load_config()
+            cfg.pop("convencion", None)
+            write_json(CONFIG_FILE, cfg)
+            log("convención borrada: vuelta a la etapa 1")
+        else:
+            self._send(404, {"error": "no existe"})
+            return
+        self._send(200, routines_info())
 
     def route_system(self, b):
         p = urlsplit(self.path).path
@@ -448,10 +965,19 @@ class Handler(BaseHTTPRequestHandler):
             SCREEN_DIR.mkdir(exist_ok=True)
             SCREEN_BOOT.write_text(mode + "\n")
             log(f"pantalla HDMI al arrancar -> {mode}")
+        elif p == "/api/system_action" and b.get("accion") == "instalar-navegador":
+            if system_info()["screen"]["instalando_navegador"]:
+                raise ValueError("ya se está instalando")
+            if not system_info()["net"]["gateway"]:
+                raise ValueError("hace falta internet (router) para instalar el navegador")
+            subprocess.Popen(["sudo", "-n", "systemd-run", f"--unit={INSTALL_UNIT}", "--description=LUIS LECI control: instalar navegador",
+                              str(INSTALL_SCRIPT)])
+            log("instalación del navegador lanzada desde la web")
         elif p == "/api/system_action":
             action = b.get("accion")
             if action not in ("apagar", "reiniciar"):
                 raise ValueError("acción no válida")
+            routine["stop"] = True
             with lock:
                 for ch in range(16):
                     release(ch)
@@ -579,37 +1105,6 @@ class Handler(BaseHTTPRequestHandler):
             m["offset"], m["invertir"] = off, inv
             save_map(data)
             log(f"calibrar canal {ch}: {action} -> ajuste {off:+d}, invertir={inv}, angulo logico {angles[ch]}")
-        elif p == "/api/candidate_go":
-            cand = next((c for c in CANDIDATES if c["id"] == b["id"]), None)
-            if not cand:
-                raise ValueError("postura candidata desconocida")
-            mirror = b.get("mirror", {})
-            per_leg = {}
-            for leg in LEGS:
-                chs = leg_channels(leg)
-                per_leg[leg] = {}
-                for j, a in cand["base"].items():
-                    if j not in chs:
-                        continue
-                    if cand["delanteras"] == "invertidas" and leg in FRONT and j != "hombro":
-                        a = 180 - a
-                    if mirror.get(j, True) and leg in RIGHT:
-                        a = 180 - a
-                    per_leg[leg][j] = (chs[j], a)
-            move_many({ch: a for _, _, (ch, a) in interleaved(per_leg)}, pause_of(b))
-            log(f"candidata {cand['id']} ({cand['nombre']}, delanteras {cand['delanteras']})")
-        elif p == "/api/candidate_mark":
-            cid = b["id"]
-            if not any(c["id"] == cid for c in CANDIDATES):
-                raise ValueError("postura candidata desconocida")
-            poses = load_poses()
-            marks = poses.setdefault("_candidatas", {})
-            if b.get("mark") in ("bien", "mal"):
-                marks[cid] = {"mark": b["mark"], "nota": str(b.get("nota", ""))[:200]}
-            else:
-                marks.pop(cid, None)
-            write_json(POSES_FILE, poses)
-            log(f"candidata {cid} marcada: {marks.get(cid)}")
         elif p == "/api/release":
             ch = check_ch(b["ch"])
             release(ch)

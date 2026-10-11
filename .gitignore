@@ -1,8 +1,13 @@
+# registros y estado en marcha (no son código)
 acciones.log
-*.tmp
-*.bak
-__pycache__/
 energia.log
+web/acciones.log
 pantalla/modo
 pantalla/estado
 pantalla/menu_visto
+net_test.log
+*.tmp
+*.bak
+__pycache__/
+# credenciales y datos personales: SOLO en la Pi, nunca en GitHub
+NOTAS-LOCALES.md

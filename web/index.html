@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SpotMicro control</title>
+<title>LUIS LECI control</title>
 <style>
 :root{--bg:#f6f5f1;--card:#fff;--ink:#1f1e1c;--mut:#6b6a65;--line:#dcdad3;--acc:#534AB7;--acc-bg:#EEEDFE;--ok:#0F6E56;--ok-bg:#E1F5EE;--bad:#A32D2D;--bad-bg:#FCEBEB;--warn-bg:#FAEEDA}
 @media (prefers-color-scheme:dark){:root{--bg:#1b1b19;--card:#262624;--ink:#ecebe6;--mut:#a3a29c;--line:#3d3d3a;--acc:#AFA9EC;--acc-bg:#2e2a55;--ok:#5DCAA5;--ok-bg:#0f3a2f;--bad:#F09595;--bad-bg:#4a1b1b;--warn-bg:#41300f}}
@@ -66,17 +66,27 @@ details.sys>summary{cursor:pointer;font-size:16px;font-weight:600;margin:6px 0 1
 .kv code,.mono{font-family:ui-monospace,Consolas,monospace;font-size:13px}
 .ev{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--mut);max-height:160px;overflow:auto;white-space:pre-wrap}
 pre#ayuda{white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-size:13px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:8px 0 0}
+#stw{position:relative}
+#stBtn{cursor:pointer;border:1px solid transparent;font:inherit;font-size:13px}
+.stpanel{position:absolute;right:0;top:calc(100% + 8px);width:min(460px,92vw);max-height:78vh;overflow:auto;background:var(--card);
+  border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.2);padding:10px 14px 14px;z-index:30;font-size:13px;line-height:1.6}
+.stpanel h3{font-size:12px;margin:10px 0 2px;color:var(--mut);font-weight:600;letter-spacing:.02em}
+.stpanel code{font-family:ui-monospace,Consolas,monospace;font-size:12px;word-break:break-all}
 body.tv{font-size:19px}
 body.tv .row button{font-size:17px;padding:8px 12px}
 </style>
 </head>
 <body>
 <header>
-  <h1><span id="dot" class="dot"></span>SpotMicro · control</h1>
+  <h1><span id="dot" class="dot"></span>LUIS LECI control <span class="pz">· SpotMicro</span></h1>
+  <span id="rtb" class="tag m" hidden></span>
+  <button class="stop" id="rtStop" hidden>Parar rutina</button>
   <span id="pw" class="tag" title="Alimentación de la Pi">alimentación…</span>
   <span id="netb" class="tag" title="Conexión de red">red…</span>
   <span id="count" class="tag">0/12</span>
   <button class="stop" id="off">Soltar todo</button>
+  <div id="stw"><button id="stBtn" class="tag" title="Cómo estás conectado, credenciales y rutas">● estado ▾</button>
+    <div id="stPanel" class="stpanel" hidden></div></div>
   <div id="now" class="now" hidden></div>
 </header>
 <main>
@@ -88,12 +98,18 @@ body.tv .row button{font-size:17px;padding:8px 12px}
         <div class="ev" id="sysEv"></div></div>
       <div class="card"><div class="ch">Pantalla HDMI</div><div class="kv" id="sysScr">…</div>
         <div class="row"><button data-scr="panel">Panel</button><button data-scr="web" id="scrWeb">Página web</button><button data-scr="consola">Consola</button></div>
+        <div class="row"><button id="instBtn" hidden>Instalar / continuar el navegador</button></div>
         <label class="kv">Al arrancar, por defecto:
           <select id="scrBoot"><option value="panel">panel</option><option value="web">página web</option><option value="consola">consola</option></select></label></div>
       <div class="card"><div class="ch">Apagar</div>
         <div class="kv">Antes de desenchufar la Pi, apágala aquí y espera unos 20 s (LED verde quieto). Así no se estropea la SD.</div>
         <div class="row"><button class="stop" data-sys="apagar">Apagar la Pi</button><button data-sys="reiniciar">Reiniciar</button></div></div>
+      <div class="card"><div class="ch">Informe para la mudanza</div>
+        <div class="kv">Comprueba que todo está listo para funcionar en otra casa (red, alimentación, servicios, robot).</div>
+        <div class="row"><button class="pri" id="repBtn">Comprobar ahora</button></div>
+        <div class="kv" id="repSum"></div></div>
     </div>
+    <div id="rep"></div>
     <details id="helpd" style="margin-top:10px"><summary class="kv"><b>Ayuda: cómo conectarse, pantalla, cortes de corriente y qué hacer si algo falla</b></summary>
       <pre id="ayuda">cargando…</pre></details>
   </details>
@@ -121,19 +137,34 @@ body.tv .row button{font-size:17px;padding:8px 12px}
   <div class="grid legs" id="groups"></div>
   <div class="legend">
     Vista desde arriba, cabeza delante: <b>A</b> delantera izq · <b>B</b> delantera der · <b>C</b> trasera der · <b>D</b> trasera izq.
-    &nbsp;Articulación, del cuerpo al suelo: <b>1</b> hombro (abre/cierra al lado) · <b>2</b> rodilla (pata adelante/atrás) · <b>3</b> tobillo (dobla la parte de abajo).
+    &nbsp;Articulación, del cuerpo al suelo: <b>1</b> pectoral (abre/cierra al lado) · <b>2</b> hombro (pata adelante/atrás) · <b>3</b> codo (dobla la parte de abajo).
     Robot siempre en el aire. Límites 30–150°.
   </div>
-  <h2 class="sec">Posturas candidatas</h2>
-  <div class="legend">Cada una lleva las 4 patas a la vez (alternando, poco a poco). Pruébala, mira el robot y márcala
-    <b>✓ bien</b> o <b>✗ mal</b>. "Delanteras invertidas" = las delanteras doblan al revés que las traseras.
-    Si una queda bien, puedes guardarla como recogida o estirada. Robot en el aire.</div>
-  <div class="grid legs" id="cands"></div>
+  <h2 class="sec">Rutinas para probar</h2>
+  <div class="legend" id="tryInfo"></div>
+  <div class="grid legs" id="tries"></div>
+  <h2 class="sec">Mis rutinas</h2>
+  <div class="legend">Rutinas guardadas en el robot (desde las pruebas o desde los bloques). También se lanzan desde la pantalla HDMI con las teclas 1-9.</div>
+  <div class="grid legs" id="myRt"></div>
+  <details id="blkd" style="margin-top:18px">
+    <summary class="sec" style="font-size:16px;font-weight:600;cursor:pointer">Programar con bloques (tipo Scratch)</summary>
+    <div class="legend">Arrastra bloques debajo de <b>al pulsar ▶ Ejecutar</b>. Los ángulos son los de la pata D (trasera izquierda);
+      las demás hacen el mismo gesto (en espejo en las derechas). Robot en el aire. "Soltar todo" para cualquier rutina.</div>
+    <div class="row" style="margin-bottom:8px">
+      <button class="pri" id="blkRun">▶ Ejecutar</button><button class="stop" id="blkStop">■ Parar</button>
+      <input id="blkName" placeholder="nombre de la rutina" style="font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);width:180px">
+      <button id="blkSave">Guardar</button>
+      <select id="blkLoad" style="font:inherit;padding:6px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)"><option value="">abrir rutina guardada…</option></select>
+      <button id="blkNew">Nuevo</button>
+    </div>
+    <div id="blk" style="height:560px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card)"></div>
+    <div class="pz" id="blkMsg"></div>
+  </details>
   <h2 class="sec">Secuencias</h2>
   <div class="row" style="margin-bottom:8px">
+    <button class="pri" data-seq="pectoral">Todos los pectorales</button>
     <button class="pri" data-seq="hombro">Todos los hombros</button>
-    <button class="pri" data-seq="rodilla">Todas las rodillas</button>
-    <button class="pri" data-seq="tobillo">Todos los tobillos</button>
+    <button class="pri" data-seq="codo">Todos los codos</button>
     <button class="pri" data-seq="todo">Todo, pata a pata</button>
     <button class="stop" id="stopseq">Parar</button>
   </div>
@@ -169,13 +200,13 @@ body.tv .row button{font-size:17px;padding:8px 12px}
 
 <script>
 const LEGS = {A:'delantera izq.', B:'delantera der.', C:'trasera der.', D:'trasera izq.'};
-const JOINTS = ['hombro','rodilla','tobillo'];
+const JOINTS = ['pectoral','hombro','codo'];
 let st = {angles:{}, map:{}}, busy = false, askCh = null, askLeg = null, dragging = false;
 let hl = new Set(), seqRunning = false, seqStop = false;
 const RIGHT = new Set(['B', 'C']);
 const openCal = new Set();
-const mirror = {hombro: true, rodilla: true, tobillo: true};
-const GROUP_NAMES = {hombro: 'Todos los hombros', rodilla: 'Todas las rodillas (codos)', tobillo: 'Todos los tobillos'};
+const mirror = {pectoral: true, hombro: true, codo: true};
+const GROUP_NAMES = {pectoral: 'Todos los pectorales', hombro: 'Todos los hombros', codo: 'Todos los codos'};
 const LEGS_SPOKEN = {A:'delantera izquierda', B:'delantera derecha', C:'trasera derecha', D:'trasera izquierda'};
 const NUMS = ['uno', 'dos', 'tres'];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -239,29 +270,12 @@ function renderGroups() {
   $('recAll').disabled = busy || !has('recogida');
   $('estAll').disabled = busy || !has('estirada');
 }
-let lastCand = null;
-function renderCands() {
-  const marks = (st.poses || {})._candidatas || {};
-  $('cands').innerHTML = (st.candidatas || []).map(c => {
-    const mk = marks[c.id], b = c.base;
-    const cls = !mk ? '' : mk.mark === 'bien' ? 'tag m' : 'tag dup';
-    return `<div class="card ${lastCand === c.id ? 'hl' : ''}">
-      <div class="top"><span class="ch">${c.nombre}</span>${mk ? `<span class="${cls}">${mk.mark === 'bien' ? '✓ bien' : '✗ mal'}</span>` : ''}</div>
-      <div class="pz">Delanteras ${c.delanteras} · h ${b.hombro}° · r ${b.rodilla}° · t ${b.tobillo}° (pata izq. trasera)</div>
-      <div class="row"><button class="pri" data-cg="${c.id}">Probar</button>
-        <button data-cm="${c.id}" data-mk="bien">✓ Bien</button><button data-cm="${c.id}" data-mk="mal">✗ Mal</button>
-        ${mk ? `<button data-cm="${c.id}" data-mk="">borrar</button>` : ''}</div>
-      ${lastCand === c.id ? `<div class="row"><button data-ps="todas" data-pn="recogida">Guardar como recogida</button><button data-ps="todas" data-pn="estirada">Guardar como estirada</button></div>` : ''}
-    </div>`;
-  }).join('');
-}
 function groupGo(j, a) {
   a = Math.max(LIM.min, Math.min(LIM.max, a));
   act('/api/group', {articulacion: j, angle: a, mirror: mirror[j], speed: speed()}, `${GROUP_NAMES[j].toLowerCase()} → ${a}°…`);
 }
 function renderLegs() {
   renderGroups();
-  renderCands();
   const poses = st.poses || {};
   let html = '';
   for (const L of Object.keys(LEGS)) {
@@ -293,6 +307,7 @@ function dupKeys() {
   return d;
 }
 function render() {
+  renderRunning(st.rutina);
   const dups = dupKeys();
   let html = '';
   for (let ch = 0; ch < 16; ch++) {
@@ -390,7 +405,7 @@ async function runSeq(group) {
   }
   const reps = $('reps').value === 'inf' ? Infinity : +$('reps').value;
   const gap = +$('gap').value * 1000, hold = $('hold').checked;
-  const plural = {hombro: 'hombros', rodilla: 'rodillas', tobillo: 'tobillos', todo: 'patas'}[group];
+  const plural = {pectoral: 'pectorales', hombro: 'hombros', codo: 'codos', todo: 'patas'}[group];
   seqRunning = true; seqStop = false;
   try {
     for (let r = 0; r < reps && !seqStop; r++) {
@@ -433,12 +448,6 @@ document.addEventListener('click', e => {
     if (confirm(`Bloquear los ${n} servos a 90°, poco a poco y alternando patas. ¿Robot en el aire?`)) act('/api/pose90', {speed: speed()}, 'bloqueando todo a mitad (90°)…');
   }
   else if (d.gj) { const ref = groupRef(d.gj) ?? 90; groupGo(d.gj, ref + +d.gd); }
-  else if (d.cg) {
-    const c = st.candidatas.find(x => x.id === d.cg);
-    lastCand = d.cg;
-    act('/api/candidate_go', {id: d.cg, mirror, speed: speed()}, `probando "${c.nombre}" (delanteras ${c.delanteras})… mira el robot`);
-  }
-  else if (d.cm) act('/api/candidate_mark', {id: d.cm, mark: d.mk}, 'marcando…');
   else if (d.cz) act('/api/calibrate', {ch: +d.cz, action: 'zero'}, `canal ${d.cz}: esta posición es ahora su 90°`);
   else if (d.ci) act('/api/calibrate', {ch: +d.ci, action: 'invert'}, `canal ${d.ci}: sentido invertido`);
   else if (d.cr) act('/api/calibrate', {ch: +d.cr, action: 'reset'}, `canal ${d.cr}: ajuste quitado`);
@@ -516,6 +525,10 @@ function renderSys() {
     ${s.navegador_instalado ? '' : '<span class="tag warn">navegador no instalado: la opción "Página web" no funciona</span><br>'}
     <span class="pz">La página web en la tele va lenta en la Pi 2 y gasta más corriente.</span>`;
   $('scrWeb').disabled = busy || !s.navegador_instalado;
+  $('instBtn').hidden = s.navegador_instalado;
+  $('instBtn').disabled = s.instalando_navegador || !n.gateway;
+  $('instBtn').textContent = s.instalando_navegador ? 'Instalando el navegador… (con 4G lento tarda)' :
+    n.gateway ? 'Instalar / continuar el navegador' : 'Instalar el navegador (necesita router con internet)';
   if (document.activeElement !== $('scrBoot')) $('scrBoot').value = s.arranque;
 }
 async function pollSys() {
@@ -541,6 +554,302 @@ document.addEventListener('change', e => {
 });
 try { if (localStorage.getItem('sysd') === '1') $('sysd').open = true; } catch {}
 pollSys(); setInterval(pollSys, TV ? 10000 : 5000);
+
+// ---------- pestaña de estado (arriba a la derecha) ----------
+let conn = null;
+async function pollConn() {
+  try { conn = await api('/api/conexion'); renderConn(); }
+  catch { $('stBtn').className = 'tag bad'; $('stBtn').textContent = '● sin conexión con la Pi ▾'; }
+}
+function renderConn() {
+  const c = conn; if (!c) return;
+  const modeTxt = {router: 'router', directo: 'cable directo', 'sin-cable': 'sin cable'}[c.modo] || c.modo;
+  $('stBtn').className = 'tag ' + ({router: 'ok', directo: 'warn'}[c.modo] || 'bad');
+  $('stBtn').textContent = `● ${modeTxt} · ${location.host} ▾`;
+  if ($('stPanel').hidden) return;
+  const th = c.pi.throttled || 0, up = Math.floor(c.pi.uptime_s / 60);
+  $('stPanel').innerHTML = `
+    <h3>CÓMO ESTÁS CONECTADO</h3>
+    Tu equipo <code>${esc(c.cliente)}</code> entra <b>${esc(c.via)}</b>.<br>
+    Estás usando <code>${esc(location.origin)}</code>${location.pathname !== '/' ? ' · ruta <code>' + esc(location.pathname) + '</code>' : ''}.<br>
+    Red de la Pi: <b>${esc(modeTxt)}</b>${c.gateway ? ` · router <code>${esc(c.gateway)}</code> · con internet` : ' · sin internet'}
+    <h3>DIRECCIONES DE LA PI</h3>
+    ${c.ipv4.map(a => `<code>${esc(a.ip)}/${a.prefix}</code> (${esc(a.if)})`).join('<br>')}<br>
+    IPv6 fija: <code>${esc(c.ipv6_ll)}</code><br>Nombre: <code>${esc(c.hostname)}.local</code>
+    <h3>CREDENCIALES</h3>
+    Web: ${esc(c.web_credencial)}.<br>
+    SSH: usuario <code>${esc(c.ssh.usuario)}</code>, por clave (${c.ssh.claves.map(k => '<code>' + esc(k) + '</code>').join(', ') || 'ninguna'}) o contraseña: ${esc(c.ssh.contrasena)}.
+    <h3>RUTAS</h3>
+    Web: ${c.urls.map(u => `<a href="${esc(u)}">${esc(u)}</a>`).join(' · ')}<br>
+    SSH:<br>${c.ssh.comandos.map(x => '&nbsp;&nbsp;<code>' + esc(x) + '</code>').join('<br>')}<br>
+    Ayuda: <a href="/ayuda" target="_blank">/ayuda</a> · API: ${c.rutas.api.map(x => '<code>' + esc(x) + '</code>').join(' ')}<br>
+    Carpeta del proyecto en la Pi: <code>${esc(c.rutas.carpeta_en_la_pi)}</code>
+    <h3>LA PI AHORA</h3>
+    ${esc(c.pi.hora)} · encendida hace ${Math.floor(up / 60)} h ${up % 60} min · ${esc(c.pi.temp_c)} °C ·
+    alimentación ${th & 1 ? '<b>FALTA CORRIENTE</b>' : th & 0x10000 ? 'hubo caídas' : 'OK'}<br>
+    LED verde: corto-corto-largo = programa vivo · parpadeo rápido = no responde
+    <h3>IR A</h3>
+    <a href="#sysd" data-open="sysd">Sistema</a> · <a href="#tries">Rutinas para probar</a> · <a href="#myRt">Mis rutinas</a> ·
+    <a href="#blkd" data-open="blkd">Bloques</a> · <a href="#groups">Grupos</a> · <a href="#legs">Patas</a> · <a href="#grid">Canales</a>`;
+}
+document.addEventListener('click', e => {
+  if (e.target.closest('#stBtn')) { $('stPanel').hidden = !$('stPanel').hidden; renderConn(); if (!$('stPanel').hidden) pollConn(); return; }
+  const a = e.target.closest('a[data-open]');
+  if (a) { $(a.dataset.open).open = true; $('stPanel').hidden = true; return; }
+  if (!e.target.closest('#stPanel')) $('stPanel').hidden = true;
+});
+pollConn(); setInterval(pollConn, TV ? 15000 : 8000);
+
+// ---------- informe para la mudanza ----------
+async function runReport() {
+  $('repSum').textContent = 'comprobando… (unos segundos)';
+  try {
+    const r = await api('/api/informe');
+    $('repSum').innerHTML = `${esc(r.hora)}: <span class="tag ok">${r.resumen.ok} bien</span> <span class="tag warn">${r.resumen.aviso} avisos</span> <span class="tag bad">${r.resumen.fallo} fallos</span>`;
+    $('rep').innerHTML = `<table style="margin:10px 0;width:100%"><tr><th>Área</th><th>Comprobación</th><th>Estado</th><th>Detalle</th></tr>` +
+      r.items.map(i => `<tr><td>${esc(i.area)}</td><td style="text-align:left">${esc(i.item)}</td>
+        <td><span class="tag ${i.estado === 'ok' ? 'ok' : i.estado === 'aviso' ? 'warn' : 'bad'}">${i.estado}</span></td>
+        <td style="text-align:left" class="pz">${esc(i.detalle)}</td></tr>`).join('') + '</table>';
+  } catch (e) { $('repSum').textContent = 'Error: ' + e.message; }
+}
+
+// ---------- rutinas: para probar y guardadas ----------
+let rts = null, ROUTINE_NAMES = [];
+async function pollRt() { try { rts = await api('/api/routines'); renderRt(); } catch {} }
+async function rtPost(path, body, text) {
+  $('msg').textContent = text;
+  try { rts = await api(path, body); renderRt(); $('msg').textContent = 'listo'; }
+  catch (e) { $('msg').textContent = 'Error: ' + e.message; }
+}
+function renderRunning(ex) {
+  ex = ex || {};
+  $('rtb').hidden = !ex.running; $('rtStop').hidden = !ex.running;
+  if (ex.running) $('rtb').textContent = `▶ ${ex.nombre} · paso ${ex.paso}/${ex.total}`;
+  else if (ex.fin && ex.nombre && lastFin !== ex.nombre + ex.fin + ex.error) {
+    lastFin = ex.nombre + ex.fin + ex.error;
+    $('msg').textContent = `Rutina "${ex.nombre}": ${ex.fin}${ex.error ? ' (' + ex.error + ')' : ''}`;
+  }
+}
+let lastFin = '';
+function renderRt() {
+  if (!rts) return;
+  renderRunning(rts.ejecutando);
+  const conv = rts.convencion, pr = rts.pruebas || {}, stage = conv ? 2 : 1;
+  $('tryInfo').innerHTML = conv
+    ? `<b>Sentido encontrado</b> (hombro ${conv.sh > 0 ? '+' : '−'}, codo ${conv.sk > 0 ? '+' : '−'}, delanteras ${conv.fi ? 'invertidas' : 'igual'}).
+       Ya están guardadas las posturas <b>de pie</b>, <b>estirada</b> y <b>recogida</b>. Prueba estas rutinas, marca <b>✓ funciona</b> o <b>✗ no</b>
+       y guarda las buenas en "Mis rutinas". Robot en el aire primero; luego en el suelo sujetándolo. <button data-convreset="1">Volver a buscar el sentido</button>`
+    : `<b>Paso 1:</b> busca la variante de <b>De pie</b> en la que las 4 patas quedan iguales (codos doblados hacia atrás y pezuñas bajo el cuerpo).
+       Robot en el aire. Pruébalas una a una y marca la buena con <b>✓ funciona</b>: se guardan los parámetros y aparecen las demás rutinas
+       (andar, girar, sentarse, tumbarse, saludar…).`;
+  const list = rts.candidatas.filter(c => c.etapa === stage || (c.etapa === 1 && pr[c.id] && pr[c.id].mark === 'bien'));
+  $('tries').innerHTML = list.map(c => {
+    const mk = pr[c.id] && pr[c.id].mark;
+    return `<div class="card ${mk === 'bien' ? 'hl' : ''}"><div class="top"><span class="ch">${esc(c.nombre)}</span>${mk ? `<span class="tag ${mk === 'bien' ? 'ok' : 'bad'}">${mk === 'bien' ? '✓ funciona' : '✗ no'}</span>` : ''}</div>
+      <div class="pz">${esc(c.desc)} · ${c.pasos} pasos</div>
+      <div class="row"><button class="pri" data-try="${esc(c.id)}">▶ Probar</button><button data-mark="${esc(c.id)}" data-mk="bien">✓ Funciona</button>
+        <button data-mark="${esc(c.id)}" data-mk="mal">✗ No</button>${mk ? `<button data-mark="${esc(c.id)}" data-mk="">borrar marca</button>` : ''}
+        <button data-viewtry="${esc(c.id)}" title="Abrirla en el editor de bloques">bloques</button></div>
+      ${mk === 'bien' && c.etapa === 2 ? `<div class="row"><button data-savetry="${esc(c.id)}" data-name="${esc(c.nombre.toLowerCase())}">Guardar en mis rutinas</button></div>` : ''}</div>`;
+  }).join('');
+  const g = rts.guardadas || {}, names = Object.keys(g);
+  ROUTINE_NAMES = names;
+  $('myRt').innerHTML = names.length ? names.map((n, i) => `<div class="card"><div class="top"><span class="ch">${i < 9 ? (i + 1) + '. ' : ''}${esc(n)}</span><span class="pz">${g[n].pasos} pasos</span></div>
+      <div class="pz">${esc(g[n].origen)}</div>
+      <div class="row"><button class="pri" data-run="${esc(n)}">▶ Ejecutar</button><button data-edit="${esc(n)}">Ver / editar en bloques</button><button data-del="${esc(n)}">Borrar</button></div></div>`).join('')
+    : '<div class="pz">Todavía no hay rutinas guardadas.</div>';
+  const sel = $('blkLoad'), cur = sel.value;
+  sel.innerHTML = '<option value="">abrir rutina guardada…</option>' + names.map(n => `<option>${esc(n)}</option>`).join('');
+  sel.value = cur;
+}
+
+// ---------- bloques (Blockly, servido desde la propia Pi: funciona sin internet) ----------
+let ws = null, blkLoading = null;
+const LEG_OPTS = [['todas', 'todas'], ['A (del. izq.)', 'A'], ['B (del. der.)', 'B'], ['C (tras. der.)', 'C'], ['D (tras. izq.)', 'D']];
+const ART_OPTS = [['pectoral', 'pectoral'], ['hombro', 'hombro'], ['codo', 'codo']];
+const NUM = (name, value, min, max, precision) => ({type: 'field_number', name, value, min, max, precision: precision || 1});
+const TOOLBOX = {kind: 'categoryToolbox', contents: [
+  {kind: 'category', name: 'Mover', colour: '210', contents: ['lc_mover', 'lc_mover_rel', 'lc_pata'].map(type => ({kind: 'block', type}))},
+  {kind: 'category', name: 'Posturas', colour: '290', contents: ['lc_postura', 'lc_mitad', 'lc_soltar'].map(type => ({kind: 'block', type}))},
+  {kind: 'category', name: 'Control', colour: '120', contents: ['lc_inicio', 'lc_esperar', 'lc_velocidad', 'lc_repetir'].map(type => ({kind: 'block', type}))},
+  {kind: 'category', name: 'Rutinas', colour: '20', contents: [{kind: 'block', type: 'lc_rutina'}]},
+  {kind: 'category', name: 'Servos (avanzado)', colour: '250', contents: [
+    {kind: 'block', type: 'lc_alavez', inputs: {SERVOS: {block: {type: 'lc_servo'}}}}, {kind: 'block', type: 'lc_servo'}]},
+]};
+const SAMPLE = {blocks: {languageVersion: 0, blocks: [{type: 'lc_inicio', x: 30, y: 30, next: {block:
+  {type: 'lc_velocidad', fields: {V: 'normal'}, next: {block:
+  {type: 'lc_mitad', next: {block:
+  {type: 'lc_esperar', fields: {S: 1}, next: {block:
+  {type: 'lc_repetir', fields: {N: 2}, inputs: {PASOS: {block:
+    {type: 'lc_mover', fields: {PATA: 'todas', ART: 'codo', ANG: 110}, next: {block:
+    {type: 'lc_esperar', fields: {S: 0.5}, next: {block:
+    {type: 'lc_mover', fields: {PATA: 'todas', ART: 'codo', ANG: 90}}}}}}}},
+  next: {block: {type: 'lc_soltar', fields: {PATA: 'todas'}}}}}}}}}}}}]}};
+function poseOptions() {
+  const names = new Set();
+  Object.entries(st.poses || {}).forEach(([leg, p]) => { if (LEGS[leg]) Object.keys(p).forEach(n => names.add(n)); });
+  ['de pie', 'estirada', 'recogida'].forEach(n => names.add(n));
+  return [...names].map(n => [n, n]);
+}
+function routineOptions() { return ROUTINE_NAMES.length ? ROUTINE_NAMES.map(n => [n, n]) : [['(ninguna guardada)', '']]; }
+function loadScript(src) {
+  return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('no se pudo cargar ' + src)); document.head.appendChild(s); });
+}
+function defineBlocks() {
+  const stmt = {previousStatement: null, nextStatement: null};
+  Blockly.common.defineBlocksWithJsonArray([
+    {type: 'lc_mover', message0: 'mover %1 %2 a %3 °', args0: [{type: 'field_dropdown', name: 'PATA', options: LEG_OPTS},
+      {type: 'field_dropdown', name: 'ART', options: ART_OPTS}, NUM('ANG', 90, 30, 150)], ...stmt, colour: 210,
+      tooltip: 'Ángulo de gesto (el de la pata D). Las demás patas hacen el mismo gesto.'},
+    {type: 'lc_mover_rel', message0: 'mover %1 %2 %3 ° más', args0: [{type: 'field_dropdown', name: 'PATA', options: LEG_OPTS},
+      {type: 'field_dropdown', name: 'ART', options: ART_OPTS}, NUM('D', 10, -60, 60)], ...stmt, colour: 210,
+      tooltip: 'Suma (o resta, con negativo) grados a la posición actual.'},
+    {type: 'lc_pata', message0: 'pata %1 → pectoral %2 hombro %3 codo %4', args0: [{type: 'field_dropdown', name: 'PATA', options: LEG_OPTS.slice(1)},
+      NUM('P1', 90, 30, 150), NUM('P2', 90, 30, 150), NUM('P3', 90, 30, 150)], ...stmt, colour: 210,
+      tooltip: 'Coloca las 3 articulaciones de una pata a la vez.'},
+    {type: 'lc_mitad', message0: 'todo a mitad (90°)', ...stmt, colour: 290},
+    {type: 'lc_soltar', message0: 'soltar %1', args0: [{type: 'field_dropdown', name: 'PATA', options: LEG_OPTS}], ...stmt, colour: 290,
+      tooltip: 'Deja los servos sin fuerza.'},
+    {type: 'lc_esperar', message0: 'esperar %1 s', args0: [NUM('S', 1, 0, 30, 0.1)], ...stmt, colour: 120},
+    {type: 'lc_velocidad', message0: 'velocidad %1', args0: [{type: 'field_dropdown', name: 'V', options: [['lenta', 'lento'], ['normal', 'normal'], ['rápida', 'rapido']]}], ...stmt, colour: 120},
+    {type: 'lc_repetir', message0: 'repetir %1 veces %2 %3', args0: [NUM('N', 3, 1, 50), {type: 'input_dummy'}, {type: 'input_statement', name: 'PASOS'}], ...stmt, colour: 120},
+    {type: 'lc_alavez', message0: 'a la vez %1 %2', args0: [{type: 'input_dummy'}, {type: 'input_statement', name: 'SERVOS', check: 'servo'}], ...stmt, colour: 250,
+      tooltip: 'Mueve juntos, poco a poco, todos los servos que pongas dentro.'},
+    {type: 'lc_servo', message0: 'servo %1 %2 a %3 ° (ángulo real)', args0: [{type: 'field_dropdown', name: 'PATA', options: LEG_OPTS.slice(1)},
+      {type: 'field_dropdown', name: 'ART', options: ART_OPTS}, NUM('ANG', 90, 30, 150)], previousStatement: 'servo', nextStatement: 'servo', colour: 250,
+      tooltip: 'Ángulo real de ese servo, sin espejo. Va dentro de "a la vez". Así se guardan las rutinas de prueba.'},
+  ]);
+  Blockly.Blocks.lc_inicio = {init() { this.appendDummyInput().appendField('al pulsar ▶ Ejecutar'); this.setNextStatement(true); this.setColour(45); this.hat = 'cap'; this.setTooltip('El programa empieza aquí.'); }};
+  Blockly.Blocks.lc_postura = {init() { this.appendDummyInput().appendField('postura').appendField(new Blockly.FieldDropdown(poseOptions), 'P'); this.setPreviousStatement(true); this.setNextStatement(true); this.setColour(290); this.setTooltip('Postura guardada para las 4 patas.'); }};
+  Blockly.Blocks.lc_rutina = {init() { this.appendDummyInput().appendField('ejecutar rutina').appendField(new Blockly.FieldDropdown(routineOptions), 'R'); this.setPreviousStatement(true); this.setNextStatement(true); this.setColour(20); this.setTooltip('Ejecuta una de "Mis rutinas".'); }};
+}
+async function ensureBlockly() {
+  if (ws) return;
+  if (!blkLoading) blkLoading = (async () => {
+    $('blkMsg').textContent = 'cargando el editor de bloques…';
+    await loadScript('/static/blockly/blockly_compressed.js');
+    await loadScript('/static/blockly/blocks_compressed.js');
+    await loadScript('/static/blockly/msg/es.js');
+    defineBlocks();
+    ws = Blockly.inject('blk', {toolbox: TOOLBOX, media: '/static/blockly/media/', renderer: 'zelos', trashcan: true,
+      zoom: {controls: true, wheel: true, startScale: 0.75}, move: {scrollbars: true, drag: true, wheel: false}});
+    Blockly.serialization.workspaces.load(SAMPLE, ws);
+    window.addEventListener('resize', () => Blockly.svgResize(ws));
+    $('blkMsg').textContent = '';
+  })();
+  try { await blkLoading; } catch (e) { blkLoading = null; $('blkMsg').textContent = 'Error: ' + e.message; throw e; }
+}
+function stepsFrom(b) {
+  const out = [];
+  for (; b; b = b.getNextBlock()) { if (b.isEnabled && !b.isEnabled()) continue; const s = blockStep(b); if (s) out.push(s); }
+  return out;
+}
+function blockStep(b) {
+  const f = n => b.getFieldValue(n), num = n => Number(b.getFieldValue(n));
+  switch (b.type) {
+    case 'lc_mover': return {op: 'articulacion', pata: f('PATA'), art: f('ART'), angulo: num('ANG')};
+    case 'lc_mover_rel': return {op: 'articulacion_rel', pata: f('PATA'), art: f('ART'), delta: num('D')};
+    case 'lc_pata': return {op: 'pata', pata: f('PATA'), pectoral: num('P1'), hombro: num('P2'), codo: num('P3')};
+    case 'lc_postura': return {op: 'postura', nombre: f('P')};
+    case 'lc_mitad': return {op: 'mitad'};
+    case 'lc_soltar': return f('PATA') === 'todas' ? {op: 'soltar'} : {op: 'soltar', pata: f('PATA')};
+    case 'lc_esperar': return {op: 'esperar', s: num('S')};
+    case 'lc_velocidad': return {op: 'velocidad', v: f('V')};
+    case 'lc_repetir': return {op: 'repetir', n: num('N'), pasos: stepsFrom(b.getInputTargetBlock('PASOS'))};
+    case 'lc_rutina': return f('R') ? {op: 'rutina', nombre: f('R')} : null;
+    case 'lc_alavez': {
+      const objetivos = [];
+      for (let c = b.getInputTargetBlock('SERVOS'); c; c = c.getNextBlock())
+        if (c.type === 'lc_servo') objetivos.push({pata: c.getFieldValue('PATA'), art: c.getFieldValue('ART'), angulo: Number(c.getFieldValue('ANG'))});
+      return objetivos.length ? {op: 'set', objetivos} : null;
+    }
+    default: return null;
+  }
+}
+// programa (lista de pasos) -> bloques, para ver y editar en formato Scratch cualquier rutina
+function chainBlocks(list) {
+  list = list.filter(Boolean);
+  for (let i = list.length - 2; i >= 0; i--) list[i].next = {block: list[i + 1]};
+  return list[0];
+}
+function stepToBlock(s) {
+  switch (s.op) {
+    case 'articulacion': return {type: 'lc_mover', fields: {PATA: s.pata || 'todas', ART: s.art, ANG: s.angulo}};
+    case 'articulacion_rel': return {type: 'lc_mover_rel', fields: {PATA: s.pata || 'todas', ART: s.art, D: s.delta}};
+    case 'pata': return {type: 'lc_pata', fields: {PATA: s.pata, P1: s.pectoral ?? 90, P2: s.hombro ?? 90, P3: s.codo ?? 90}};
+    case 'set': return {type: 'lc_alavez', inputs: {SERVOS: {block: chainBlocks(s.objetivos.map(o =>
+      ({type: 'lc_servo', fields: {PATA: o.pata, ART: o.art, ANG: o.angulo}})))}}};
+    case 'postura': return {type: 'lc_postura', fields: {P: s.nombre}};
+    case 'mitad': return {type: 'lc_mitad'};
+    case 'soltar': return {type: 'lc_soltar', fields: {PATA: s.pata || 'todas'}};
+    case 'esperar': return {type: 'lc_esperar', fields: {S: s.s}};
+    case 'velocidad': return {type: 'lc_velocidad', fields: {V: s.v}};
+    case 'repetir': {
+      const inner = chainBlocks((s.pasos || []).map(stepToBlock));
+      return {type: 'lc_repetir', fields: {N: s.n}, ...(inner ? {inputs: {PASOS: {block: inner}}} : {})};
+    }
+    case 'rutina': return {type: 'lc_rutina', fields: {R: s.nombre}};
+    default: return null;
+  }
+}
+function programToWorkspace(steps) {
+  const first = chainBlocks((steps || []).map(stepToBlock));
+  return {blocks: {languageVersion: 0, blocks: [{type: 'lc_inicio', x: 30, y: 30, ...(first ? {next: {block: first}} : {})}]}};
+}
+function blkProgram() {
+  const tops = ws.getTopBlocks(true), hat = tops.find(b => b.type === 'lc_inicio');
+  return hat ? stepsFrom(hat.getNextBlock()) : tops.flatMap(b => stepsFrom(b));
+}
+async function openInBlocks(name, candidate) {
+  $('blkd').open = true;
+  await ensureBlockly();
+  try {
+    const r = await api('/api/routine_get', candidate ? {candidata: candidate} : {nombre: name});
+    ws.clear();
+    Blockly.serialization.workspaces.load(r.bloques || programToWorkspace(r.programa), ws);
+    $('blkName').value = candidate ? (r.nombre || '').toLowerCase() : name;
+    $('blkMsg').textContent = candidate ? `abierta la rutina de prueba "${r.nombre}" (puedes cambiarla y guardarla con otro nombre)` : `abierta "${name}"`;
+    $('blkd').scrollIntoView({behavior: 'smooth'});
+  } catch (e) { $('blkMsg').textContent = 'Error: ' + e.message; }
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  const d = b.dataset;
+  if (b.id === 'repBtn') runReport();
+  else if (b.id === 'instBtn') sysPost('/api/system_action', {accion: 'instalar-navegador'}, 'lanzando la instalación del navegador (sigue sola en segundo plano)…');
+  else if (d.viewtry) openInBlocks(null, d.viewtry);
+  else if (b.id === 'rtStop' || b.id === 'blkStop') rtPost('/api/routine_stop', {}, 'parando la rutina…');
+  else if (d.try) rtPost('/api/routine_run', {candidata: d.try}, 'probando… mira el robot');
+  else if (d.mark !== undefined) rtPost('/api/try_mark', {id: d.mark, mark: d.mk}, 'marcando…');
+  else if (d.savetry) {
+    const name = prompt('Nombre para guardarla en "Mis rutinas":', d.name);
+    if (name) rtPost('/api/routine_save', {nombre: name, candidata: d.savetry}, 'guardando…');
+  }
+  else if (d.run) rtPost('/api/routine_run', {nombre: d.run}, `ejecutando "${d.run}"…`);
+  else if (d.del) { if (confirm(`¿Borrar la rutina "${d.del}"?`)) rtPost('/api/routine_delete', {nombre: d.del}, 'borrando…'); }
+  else if (d.edit) openInBlocks(d.edit);
+  else if (d.convreset) { if (confirm('¿Olvidar el sentido encontrado y volver a probar las variantes de "De pie"?')) rtPost('/api/convention_reset', {}, 'volviendo al paso 1…'); }
+  else if (b.id === 'blkRun') {
+    await ensureBlockly();
+    const prog = blkProgram();
+    if (!prog.length) { $('blkMsg').textContent = 'No hay bloques debajo de "al pulsar ▶ Ejecutar".'; return; }
+    rtPost('/api/routine_run', {programa: prog, nombre: $('blkName').value.trim() || 'programa de bloques'}, 'ejecutando los bloques… mira el robot');
+  }
+  else if (b.id === 'blkSave') {
+    await ensureBlockly();
+    const name = $('blkName').value.trim();
+    if (!name) { $('blkMsg').textContent = 'Escribe un nombre para la rutina.'; $('blkName').focus(); return; }
+    const prog = blkProgram();
+    if (!prog.length) { $('blkMsg').textContent = 'No hay nada que guardar.'; return; }
+    rtPost('/api/routine_save', {nombre: name, programa: prog, bloques: Blockly.serialization.workspaces.save(ws)}, `guardando "${name}"…`);
+  }
+  else if (b.id === 'blkNew') { await ensureBlockly(); ws.clear(); Blockly.serialization.workspaces.load(SAMPLE, ws); $('blkName').value = ''; }
+});
+document.addEventListener('change', e => { if (e.target.id === 'blkLoad' && e.target.value) openInBlocks(e.target.value); });
+document.addEventListener('toggle', e => {
+  if (e.target.id === 'blkd' && e.target.open) ensureBlockly().then(() => Blockly.svgResize(ws)).catch(() => {});
+}, true);
+pollRt(); setInterval(pollRt, TV ? 10000 : 5000);
 async function poll() {
   try { if (!busy && !dragging) { st = await api('/api/state'); render(); } $('dot').classList.add('on'); }
   catch { $('dot').classList.remove('on'); }
