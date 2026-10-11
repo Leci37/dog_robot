@@ -270,7 +270,8 @@ class Panel:
 
     def draw_outputs(self, y, x, wid, G, Y, R, B, DIM, REV, now):
         d = self.d
-        self.box(y, x, 19, wid, "16 SALIDAS PCA9685 · ↑↓ elegir  ←→ mover 5°  P probar  L soltar")
+        self.box(y, x, 19, wid, "16 SALIDAS PCA9685")
+        self.put(y, x + wid - 40, " ↑↓ elegir ←→ mover P probar L soltar ", curses.color_pair(6))
         st = d.state or {}
         m, ang = st.get("map", {}), st.get("angles", {})
         self.put(y + 1, x + 2, "can pata/art.       ángulo 0-180°   grados   pulso  estado", DIM | B)
@@ -283,7 +284,7 @@ class Panel:
                 lab = "libre"
             else:
                 lab = "sin mapear"
-            if info.get("nota"):
+            if info.get("nota") and info.get("pata"):
                 lab += " !"
             fl = d.flash.get(ch)
             moving = fl and now < fl[0]
@@ -301,7 +302,7 @@ class Panel:
                 attr = REV | B
             elif moving:
                 attr = (Y | B | REV) if now < fl[0] - 1.8 else (Y | B)
-            elif info.get("nota"):
+            elif info.get("nota") and info.get("pata"):
                 attr = R
             elif info.get("libre") or not info:
                 attr = DIM
@@ -394,7 +395,7 @@ class Panel:
         if not names:
             self.put(y + 6, x + 4, "ninguna guardada todavía (se crean desde la web)")
         conv = ((d.rts or {}).get("convencion"))
-        self.put(y + 10, x + 2, "sentido de las patas: " + ("encontrado" if conv else "pendiente (web > Rutinas para probar)"),
+        self.put(y + 10, x + 2, "sentido de las patas: " + ("encontrado" if conv else "pendiente (Rutinas para probar)"),
                  G if conv else Y)
 
     def draw_activity(self, y, x, wid, B, DIM, Y):
