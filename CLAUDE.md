@@ -10,7 +10,16 @@ proyecto. **Lee esto entero antes de mover nada** y añade al final del registro
 - **PCA9685** (driver PWM de 16 canales) en I2C bus 1, **dirección 0x40** (0x70 = all-call del mismo chip).
   Cableado: VCC→pin 1 (3,3 V), SDA→pin 3, SCL→pin 5, GND→pin 6. OE y V+ del header lateral, libres.
   Si `i2cdetect -y 1` muestra **todas** las direcciones a la vez → mal contacto (casi siempre GND), no un chip roto.
-- **12 servos** (probablemente MG996R), 3 por pata. Asignación de canales: ver `servo_map.json`.
+- **12 servos** (probablemente MG996R), 3 por pata. Mapa (ver `servo_map.json`):
+
+  | Pata | 1 hombro | 2 rodilla | 3 tobillo |
+  |---|---|---|---|
+  | A delantera izq | 4 | 2 | 0 (**no responde**: la PCA saca pulso, falla servo/cable) |
+  | B delantera der | 5 | 3 | 1 |
+  | C trasera der | 10 | 12 | 14 |
+  | D trasera izq | 11 | 13 | 15 |
+
+  Canales 6-9 libres. Patrón: delante bajando de 2 en 2 (B 5-3-1, A 4-2-0), detrás subiendo (C 10-12-14, D 11-13-15).
 - En bolsa, sin montar: LCD 1602A (sin I2C), HC-SR04, HC-05, una PCA9685 de repuesto.
 
 ## Seguridad (no negociable)
@@ -43,6 +52,9 @@ proyecto. **Lee esto entero antes de mover nada** y añade al final del registro
   → 90°, sujeto o suelto), Soltar, ajuste ±1/±5°. Tras probar, pregunta pata A-D / "no se ha movido" y
   articulación. Botón "Soltar todo" = parada. Log de acciones en `web/acciones.log` (para seguir al usuario).
   Mientras la web corre, no uses `servo_test.py` a la vez (no comparten el estado de los ángulos).
+  Sección **Patas**: deslizador por articulación; posturas "recogida"/"estirada" se **enseñan** (el usuario coloca
+  la pata y guarda) en `poses.json`; Recoger/Estirar mueven las 3 articulaciones interpoladas a la vez; "todas"
+  va pata a pata. Se enseña porque la dirección de cada servo es desconocida (izq/der en espejo, horns distintos).
 
 ## Acceso
 - Red: cable al router 4G Huawei (192.168.8.1). La Pi suele estar en **192.168.8.104** (DHCP).
@@ -62,3 +74,5 @@ proyecto. **Lee esto entero antes de mover nada** y añade al final del registro
 - 2026-10-11: el usuario usa hombro/rodilla/tobillo; renombrado por número (antes hombro/muslo/rodilla).
   Canal 4: al probarlo con el canal 3 (B1) sujeto, el usuario vio moverse los hombros de A y B → probablemente
   A1 + respingo del servo sujeto; pendiente repetir con todo suelto.
+- 2026-10-11: mapa completo por patrón de cableado (canal 1 = B3, canal 0 = A3 sin respuesta). Canales 6-9 libres.
+  Web: amplitud hasta 45°, centro, velocidad, ±15, deslizador, postura 90, sección de patas con posturas.
