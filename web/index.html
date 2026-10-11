@@ -160,6 +160,7 @@ html{scroll-behavior:smooth}
   <h1><span id="dot" class="dot"></span>LUIS LECI control <span class="pz">· SpotMicro</span></h1>
   <span id="rtb" class="tag m" hidden></span>
   <button class="stop" id="rtStop" hidden>Parar rutina</button>
+  <select id="rtGear" hidden title="Velocidad de la rutina (se nota en el paso siguiente)" style="font:inherit;padding:4px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)"></select>
   <span id="pw" class="tag" title="Alimentación de la Pi">alimentación…</span>
   <span id="netb" class="tag" title="Conexión de red">red…</span>
   <div id="amp" class="amp" title="Consumo estimado de los servos (gris suelto · ámbar sujetando · rojo moviéndose)"></div>
@@ -1298,11 +1299,14 @@ async function rtPost(path, body, text) {
 }
 function renderRunning(ex) {
   ex = ex || {};
-  $('rtb').hidden = !ex.running; $('rtStop').hidden = !ex.running;
+  $('rtb').hidden = !ex.running; $('rtStop').hidden = !ex.running; $('rtGear').hidden = !ex.running || !rts;
   if (ex.running) $('rtb').textContent = `▶ ${ex.nombre} · paso ${ex.paso}/${ex.total}`;
   else if (ex.fin && ex.nombre && lastFin !== ex.nombre + ex.fin + ex.error) {
     lastFin = ex.nombre + ex.fin + ex.error;
     $('msg').textContent = `Rutina "${ex.nombre}": ${ex.fin}${ex.error ? ' (' + ex.error + ')' : ''}`;
+  }
+  if (rts && rts.marchas && document.activeElement !== $('rtGear')) {
+    $('rtGear').innerHTML = Object.entries(rts.marchas).map(([n, t]) => `<option value="${n}" ${+n === rts.marcha ? 'selected' : ''}>${esc(t)}</option>`).join('');
   }
 }
 let lastFin = '';
@@ -1316,7 +1320,7 @@ function renderRt() {
     const off = st.map[ch].offset || 0;
     return `<span class="row" style="display:inline-flex;align-items:center;margin-right:12px">${leg}3 (canal ${ch}) ajuste <b>${off > 0 ? '+' : ''}${off}°</b>
       ${[-15, -5, 5, 15].map(d => `<button data-nudge="${ch}" data-d="${d}">${d > 0 ? '+' : ''}${d}</button>`).join('')}
-      ${Math.abs(off) > 40 ? '<span class="tag warn">llega a su tope al recoger: mejor girar su horn 3 dientes</span>' : ''}</span>`;
+      ${Math.abs(off) > 40 ? '<span class="tag warn">llega a su tope al recoger y al levantar el pie andando (la pata B levanta menos): mejor girar su horn 3 dientes</span>' : ''}</span>`;
   };
   $('tryInfo').innerHTML = (conv
     ? `<b>De pie elegida:</b> ${conv.variante ? 'la ' + esc(conv.variante) : 'variante 6'} (hombro ${conv.sh > 0 ? '+' : '−'}, codo ${conv.sk > 0 ? '+' : '−'}, delanteras ${conv.fi ? 'invertidas' : 'igual'}).
@@ -1325,13 +1329,18 @@ function renderRt() {
     : `<b>Paso 1:</b> la buena es la <b>6</b> (hombro −, codo +, delanteras invertidas). Prueba la 6 y sus variantes y marca la mejor con <b>✓ funciona</b>:
        se guarda como postura "de pie" y aparecen las demás rutinas (andar, girar, sentarse…). Cada una recoge las 4 patas y se levanta
        con las 4 a la vez, muy despacio (antes iban de una en una y cada pata cargaba sola con su esquina). Entre prueba y prueba, <b>Bajar despacio</b>.`)
-    + `<div class="row" style="margin-top:8px;align-items:center">Codos delanteros: ${nudge('B')} ${nudge('A')}</div>
+    + `<div class="row" style="margin-top:8px;align-items:center">Velocidad de las rutinas:
+       ${Object.entries(rts.marchas || {}).map(([n, t]) => `<button data-gear="${n}" class="${+n === rts.marcha ? 'pri' : ''}">${esc(t)}</button>`).join('')}
+       <span class="pz">(se puede cambiar con la rutina en marcha)</span></div>
+       <div class="row" style="margin-top:8px;align-items:center">Codos delanteros: ${nudge('B')} ${nudge('A')}</div>
        <div class="pz">B3 lleva +45 y A3 −15 (15° hacia delante en A3 es −15 porque va en espejo de B3; si A3 se fue hacia atrás, pulsa +15 dos veces).
        El ajuste corre ese servo en todas las posturas y rutinas.</div>`;
-  const list = rts.candidatas.filter(c => c.etapa === stage || c.ayuda || (c.etapa === 1 && pr[c.id] && pr[c.id].mark === 'bien'));
+  const list = stage === 1 ? rts.candidatas : [...rts.candidatas.filter(c => c.etapa === 2), ...rts.candidatas.filter(c => c.etapa === 1)];
+  const firstStand = list.find(c => c.etapa === 1);
   $('tries').innerHTML = list.map(c => {
+    const sep = stage === 2 && c === firstStand ? '<div class="pz" style="grid-column:1/-1;margin-top:6px"><b>De pie</b>: la marcada con ✓ es la que usan las rutinas de arriba; marca otra para cambiarla.</div>' : '';
     const mk = pr[c.id] && pr[c.id].mark;
-    return `<div class="card ${mk === 'bien' ? 'hl' : ''}"><div class="top"><span class="ch">${esc(c.nombre)}</span>${mk ? `<span class="tag ${mk === 'bien' ? 'ok' : 'bad'}">${mk === 'bien' ? '✓ funciona' : '✗ no'}</span>` : ''}</div>
+    return `${sep}<div class="card ${mk === 'bien' ? 'hl' : ''}"><div class="top"><span class="ch">${esc(c.nombre)}</span>${mk ? `<span class="tag ${mk === 'bien' ? 'ok' : 'bad'}">${mk === 'bien' ? '✓ funciona' : '✗ no'}</span>` : ''}</div>
       <div class="pz">${esc(c.desc)} · ${c.pasos} pasos</div>
       <div class="row"><button class="pri" data-try="${esc(c.id)}">▶ Probar</button>${c.ayuda ? '' : `<button data-mark="${esc(c.id)}" data-mk="bien">✓ Funciona</button>
         <button data-mark="${esc(c.id)}" data-mk="mal">✗ No</button>${mk ? `<button data-mark="${esc(c.id)}" data-mk="">borrar marca</button>` : ''}`}
@@ -1498,6 +1507,7 @@ async function openInBlocks(name, candidate) {
     $('blkd').scrollIntoView({behavior: 'smooth'});
   } catch (e) { $('blkMsg').textContent = 'Error: ' + e.message; }
 }
+$('rtGear').addEventListener('change', e => rtPost('/api/routine_speed', {marcha: +e.target.value}, 'cambiando la velocidad…'));
 document.addEventListener('click', async e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   const d = b.dataset;
@@ -1515,6 +1525,7 @@ document.addEventListener('click', async e => {
   else if (d.del) { if (confirm(`¿Borrar la rutina "${d.del}"?`)) rtPost('/api/routine_delete', {nombre: d.del}, 'borrando…'); }
   else if (d.edit) openInBlocks(d.edit);
   else if (d.convreset) { if (confirm('¿Olvidar la de pie elegida y volver a probar la 6 y sus variantes?')) rtPost('/api/convention_reset', {}, 'volviendo al paso 1…'); }
+  else if (d.gear) rtPost('/api/routine_speed', {marcha: +d.gear}, 'cambiando la velocidad…');
   else if (d.nudge) { await act('/api/calibrate', {ch: +d.nudge, action: 'nudge', delta: +d.d}, `canal ${d.nudge}: ajuste ${+d.d > 0 ? '+' : ''}${d.d}°`); renderRt(); }
   else if (b.id === 'blkRun') {
     await ensureBlockly();

@@ -83,9 +83,17 @@ en `.gitignore`, **nunca** subirlo).
   pectorales → recoger las 4 patas a la vez (`TUCK` 52) → estirarlas a la vez a velocidad `suave` (0,1 s/°).
   Al marcar ✓ una, se guarda en `config.json` la convención con `variante`, `delanteras`, `traseras`, `pectoral`
   (solo una ✓ a la vez) y las posturas "de pie" (`base_stance`)/"estirada"/"recogida" en `poses.json`; etapa 2 =
-  15 rutinas sobre esa de pie (de pie alto/bajo, tumbarse, levantarse, sentarse, reverencia, flexiones, balanceo,
-  saludar con B, marcar el paso, andar corto/largo/atrás, girar izq/der); `juntos_multi` mueve juntos los pasos de
-  varias patas. Modelo: patas de longitud parecida → agachar `beta`: codo beta, hombro beta/2. Andar = "creep" (D A C B).
+  17 rutinas sobre esa de pie: primero las 5 de andar (`andar` paso a paso, `andar-balanceo`, `trote`, `andar-atras`,
+  `paseo` = adelante/girar izq/adelante/girar der), girar izq/der, marcar el paso, y luego de pie alto/bajo, tumbarse,
+  levantarse, sentarse, reverencia, flexiones, balanceo y saludar con B. Las de pie (etapa 1) siguen visibles debajo:
+  marcar ✓ otra cambia la convención. `juntos_multi` mueve juntos los pasos de varias patas; las marchas van todas
+  `juntos`. Modelo: patas de longitud parecida → agachar `beta`: codo beta, hombro beta/2. `walk_program` (creep,
+  orden D A C B, al revés hacia atrás): el pie sube con hombro +lift/2 y codo +lift (sale vertical), avanza en el aire,
+  baja, y el cuerpo avanza con las 4; `sway` aparta el cuerpo con los pectorales (supone pectoral + = abrir, sin
+  confirmar). `trot_program`: diagonales A+C / B+D. `march_program`: marcar el paso.
+- **Marchas de velocidad** (`MARCHAS`, config `marcha` 1-5: ×2 · ×1,4 · ×1 · ×0,6 · ×0,35 sobre la pausa por grado y
+  las esperas de las rutinas). `POST /api/routine_speed {marcha}`, vale con la rutina en marcha (`gear_factor()` se lee
+  en cada paso). En la web: botones en "Rutinas para probar" y un desplegable junto a "Parar rutina".
 - **Paso `set` con `juntos`**: `move_many(..., juntos=True)` mueve todos los servos a la vez (1° cada uno por paso)
   aunque el límite de consumo diga tandas: en tandas, cada pata levantaba sola su esquina y su servo no podía.
 - **Ajuste fino** `/api/calibrate` `{action: "nudge", delta: ±1-30}`: corre el `offset` del canal (máx. ±60) sin
@@ -203,3 +211,9 @@ Con una rutina en marcha la web rechaza los movimientos manuales (salvo Soltar t
   (eran iguales; quedan en git, commit 04abf55). Pruebas con simulador: TODO BIEN (se arreglaron dos que dependían del
   canal 0 de A3 y del tiempo del LED). Pendiente: probar en el robot y que el usuario marque ✓; después, las marchas.
   La fuente de servos de 5 A sigue siendo poca: 6 V y ≥10 A.
+- 2026-10-12 (2): el usuario: "la 2 con un poco de la 5" (y la 6.1 también iba bien) → **6.7** = agachado 30 y pectorales
+  +5, marcada ✓ (convención guardada; "de pie" = la 6.7). Pidió velocidades (marchas 1ª-5ª) y 5 rutinas de andar:
+  paso a paso, con balanceo, trote lento, hacia atrás y paseo. Nuevo motor de marcha (pie vertical, todo `juntos`).
+  Con B3 a +45, al levantar la pata B andando el codo llega a 175° (le faltan ~6°): la pata B levanta menos hasta
+  girar su horn. Pruebas con simulador: TODO BIEN. OJO al probar: `pkill -f` con la ruta absoluta no encuentra un
+  servidor de prueba lanzado con ruta relativa (se quedó uno vivo en el 8097 con el simulador): parar por el puerto.

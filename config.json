@@ -23,5 +23,20 @@
         "codo": null
       }
     }
+  },
+  "pruebas": {
+    "de-pie-6.7": {
+      "mark": "bien",
+      "hora": "2026-10-11T23:15:08"
+    }
+  },
+  "convencion": {
+    "sh": -1,
+    "sk": 1,
+    "fi": true,
+    "variante": "6.7",
+    "delanteras": 30,
+    "traseras": 30,
+    "pectoral": 5
   }
 }

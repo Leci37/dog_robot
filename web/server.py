@@ -45,6 +45,9 @@ MAX_DELTA = 45
 CENTER = 90
 SPEEDS = {"lento": 0.05, "normal": 0.03, "rapido": 0.012,  # segundos por grado
           "suave": 0.1}  # para levantar el cuerpo: las 4 patas juntas, muy despacio
+# marcha de las rutinas (config.json "marcha"): multiplica las pausas por grado y las esperas; se cambia en marcha
+MARCHAS = {1: ("1ª muy lenta", 2.0), 2: ("2ª lenta", 1.4), 3: ("3ª normal", 1.0), 4: ("4ª rápida", 0.6),
+           5: ("5ª muy rápida", 0.35)}
 FAST = bool(os.environ.get("SPOTMICRO_FAST"))  # solo para pruebas con el simulador: sin esperas reales
 if FAST:
     SPEEDS = {k: 0.0 for k in SPEEDS}
@@ -371,6 +374,15 @@ def load_config():
     return load_json(CONFIG_FILE, {})
 
 
+def gear():
+    n = load_config().get("marcha", 3)
+    return n if n in MARCHAS else 3
+
+
+def gear_factor():
+    return MARCHAS[gear()][1]
+
+
 def gesture_angle(leg, art, a, conv=None):
     """Ángulo de gesto (referido a la pata D) -> ángulo lógico del servo de esa pata."""
     conv = conv if conv is not None else (load_config().get("convencion") or {})
@@ -432,7 +444,7 @@ def run_steps(steps, ctx, depth=0):
                 run_steps(st.get("pasos", []), ctx, depth + 1)
             continue
         if op == "esperar":
-            wait_s(st.get("s", 0.5))
+            wait_s(float(st.get("s", 0.5)) * gear_factor())
         elif op == "velocidad":
             ctx["pause"] = SPEEDS.get(st.get("v"), SPEEDS["normal"])
         elif op == "rutina":
@@ -556,7 +568,7 @@ def run_move(st, ctx):
     else:
         raise ValueError(f"paso desconocido: {op}")
     if targets:
-        move_many(targets, ctx["pause"], juntos=op == "set" and bool(st.get("juntos")))
+        move_many(targets, ctx["pause"] * gear_factor(), juntos=op == "set" and bool(st.get("juntos")))
 
 
 def start_routine(program, name, lista=None):
@@ -601,6 +613,8 @@ VARIANTES_6 = [  # (id, nombre, descripción, agachado delanteras, agachado tras
     ("6.4", "De pie 6.4 · inclinada atrás", "delanteras 32, traseras 48 (morro arriba)", 32, 48, 0),
     ("6.5", "De pie 6.5 · pectorales +10", "apoyo más ancho o más estrecho (la 6.6 hace lo contrario)", 40, 40, 10),
     ("6.6", "De pie 6.6 · pectorales −10", "lo contrario que la 6.5", 40, 40, -10),
+    # 12-10-2026, el usuario: "la 2, con un poco de la 5" -> la elegida para andar
+    ("6.7", "De pie 6.7 · alta + pectorales +5", "la 6.2 con un poco de la 6.5 (agachado 30, pectorales +5)", 30, 30, 5),
 ]
 TUCK = 52  # agachado de "recogido": codos lejos de los topes 30/150 (con los topes hubo apagones)
 
@@ -674,25 +688,67 @@ def tope_warnings(prog):
     return sorted(out)
 
 
-def walk_program(conv, step_l, step_r, cycles=2, beta=40, lift=18):
-    """Paso a paso (creep): una pata cada vez en el orden D A C B; tras cada paso el cuerpo avanza."""
-    order, h0, k0 = ["D", "A", "C", "B"], beta / 2, beta
-    step = {L: (step_l if L in ("A", "D") else step_r) for L in LEGS}
-    hd = {"D": h0 - step["D"] / 2, "A": h0 - step["A"] / 4, "C": h0, "B": h0 + step["B"] / 4}
-    prog = [{"op": "velocidad", "v": "normal"}, S(stance(conv, beta)), {"op": "esperar", "s": 0.6},
-            S([{"pata": L, "art": "hombro", "angulo": dev_angle(L, "hombro", hd[L], conv)} for L in LEGS])]
+def _gait(conv):
+    """Lo que comparten las marchas: agachado de cada pata en la de pie elegida y atajos para los objetivos."""
+    k0 = {L: conv.get("delanteras" if L in FRONT else "traseras", 40) for L in LEGS}  # codo
+    h0 = {L: k0[L] / 2 for L in LEGS}                                                # hombro (pie bajo la cadera)
+    hom = lambda L, d: {"pata": L, "art": "hombro", "angulo": dev_angle(L, "hombro", d, conv)}  # noqa: E731
+    cod = lambda L, d: {"pata": L, "art": "codo", "angulo": dev_angle(L, "codo", d, conv)}      # noqa: E731
+    return k0, h0, hom, cod
+
+
+def walk_program(conv, step_l, step_r, cycles=3, lift=16, sway=0):
+    """Paso a paso (creep): una pata cada vez y las otras 3 siempre apoyadas, en el orden D A C B (al revés hacia
+    atrás). Cada pata sube (hombro y codo a la vez: el pie sale vertical), avanza en el aire y baja; luego el cuerpo
+    avanza con las 4 juntas. Con `sway`, antes de levantar una pata el cuerpo se aparta hacia el otro lado con los
+    pectorales (supone que pectoral + abre la pata: si se cae hacia la pata levantada, es al revés)."""
+    k0, h0, hom, cod = _gait(conv)
+    p0 = conv.get("pectoral", 0)
+    step = {L: step_l if L in ("A", "D") else step_r for L in LEGS}
+    order = ["D", "A", "C", "B"] if step_l + step_r >= 0 else ["B", "C", "A", "D"]
+    hd = {L: h0[L] - step[L] / 2 + i * step[L] / 4 for i, L in enumerate(order)}  # escalonadas: le toca a la de más atrás
+
+    def pecs(side):  # side +1: pies hacia la izquierda, cuerpo a la derecha (para levantar una izquierda)
+        return [{"pata": L, "art": "pectoral", "angulo": dev_angle(L, "pectoral", p0 + (side if L in ("A", "D") else -side) * sway, conv)}
+                for L in LEGS]
+    prog = [S(base_stance(conv), juntos=True), {"op": "esperar", "s": 0.5}, S([hom(L, hd[L]) for L in LEGS], juntos=True)]
     cycle = []
     for L in order:
-        cycle.append(S([{"pata": L, "art": "codo", "angulo": dev_angle(L, "codo", k0 + lift, conv)}]))
-        cycle.append(S([{"pata": L, "art": "hombro", "angulo": dev_angle(L, "hombro", h0 + step[L] / 2, conv)}]))
-        cycle.append(S([{"pata": L, "art": "codo", "angulo": dev_angle(L, "codo", k0, conv)}]))
-        hd[L] = h0 + step[L] / 2
+        if sway:
+            cycle.append(S(pecs(1 if L in ("A", "D") else -1), juntos=True))
+        dest = h0[L] + step[L] / 2
+        cycle += [S([hom(L, hd[L] + lift / 2), cod(L, k0[L] + lift)], juntos=True),   # sube
+                  S([hom(L, dest + lift / 2)], juntos=True),                           # avanza en el aire
+                  S([hom(L, dest), cod(L, k0[L])], juntos=True)]                       # baja
+        hd[L] = dest
         for x in LEGS:
             hd[x] -= step[x] / 4
-        cycle.append(S([{"pata": x, "art": "hombro", "angulo": dev_angle(x, "hombro", hd[x], conv)} for x in LEGS]))
+        cycle.append(S([hom(x, hd[x]) for x in LEGS], juntos=True))                    # el cuerpo avanza
     prog.append({"op": "repetir", "n": cycles, "pasos": cycle})
-    prog.append(S(stance(conv, beta)))
+    prog.append(S(base_stance(conv), juntos=True))
     return prog
+
+
+def trot_program(conv, step=12, cycles=4, lift=16):
+    """Trote lento: las diagonales A+C y B+D se turnan. Una sube, avanza en el aire mientras la otra empuja el
+    cuerpo hacia delante, y baja. Solo 2 patas apoyadas: más rápido pero menos estable que el paso a paso."""
+    k0, h0, hom, cod = _gait(conv)
+    cycle = []
+    for up, down in ((["A", "C"], ["B", "D"]), (["B", "D"], ["A", "C"])):
+        cycle += [S([o for L in up for o in (hom(L, h0[L] - step / 2 + lift / 2), cod(L, k0[L] + lift))], juntos=True),
+                  S([hom(L, h0[L] + step / 2 + lift / 2) for L in up] + [hom(L, h0[L] - step / 2) for L in down], juntos=True),
+                  S([o for L in up for o in (hom(L, h0[L] + step / 2), cod(L, k0[L]))], juntos=True)]
+    return [S(base_stance(conv), juntos=True), {"op": "esperar", "s": 0.5},
+            {"op": "repetir", "n": cycles, "pasos": cycle}, S(base_stance(conv), juntos=True)]
+
+
+def march_program(conv, n=4, lift=16):
+    """Marcar el paso: levanta en diagonal A+C y luego B+D, sin avanzar."""
+    k0, h0, hom, cod = _gait(conv)
+    up = lambda legs: S([o for L in legs for o in (hom(L, h0[L] + lift / 2), cod(L, k0[L] + lift))], juntos=True)  # noqa: E731
+    return [S(base_stance(conv), juntos=True), {"op": "repetir", "n": n, "pasos": [
+        up(["A", "C"]), S(base_stance(conv, ["A", "C"]), juntos=True),
+        up(["B", "D"]), S(base_stance(conv, ["B", "D"]), juntos=True)]}]
 
 
 def candidate_routines(conv_saved):
@@ -715,8 +771,18 @@ def candidate_routines(conv_saved):
     b0 = (c.get("delanteras", 40) + c.get("traseras", 40)) / 2
     st = lambda beta, **kw: S(stance(c, beta, **kw))  # noqa: E731
     st0 = S(base_stance(c))  # la de pie elegida
-    lift = {L: c.get("delanteras" if L in FRONT else "traseras", 40) + 18 for L in LEGS}
-    two = [
+    walk = lambda l, r, n=3: walk_program(c, l, r, cycles=n)  # noqa: E731
+    two = [  # primero las 5 de andar (las que se están probando), luego girar y el resto
+        ("andar", "Andar · paso a paso", "Una pata cada vez, las otras 3 apoyadas (la más segura), 3 ciclos", walk(12, 12)),
+        ("andar-balanceo", "Andar · con balanceo", "Paso a paso apartando el cuerpo de la pata que levanta (más estable si "
+         "se cae hacia ella; si se cae más, el balanceo va al revés: dímelo)", walk_program(c, 12, 12, sway=10)),
+        ("trote", "Andar · trote lento", "Diagonales A+C y B+D a la vez: más rápido, menos estable, 4 ciclos", trot_program(c)),
+        ("andar-atras", "Andar · hacia atrás", "Paso a paso hacia atrás, 3 ciclos", walk(-12, -12)),
+        ("paseo", "Andar · paseo", "Ruta: adelante, gira a la izquierda, adelante, gira a la derecha (2 ciclos cada tramo)",
+         walk(12, 12, 2) + walk(-12, 12, 2) + walk(12, 12, 2) + walk(12, -12, 2)),
+        ("girar-izq", "Girar a la izquierda", "Izquierdas hacia atrás, derechas hacia delante, 3 ciclos", walk(-12, 12)),
+        ("girar-der", "Girar a la derecha", "Izquierdas hacia delante, derechas hacia atrás, 3 ciclos", walk(12, -12)),
+        ("marcar-paso", "Marcar el paso (en el sitio)", "Levanta en diagonal A+C y luego B+D, 4 veces", march_program(c)),
         ("de-pie-alto", "De pie alto", f"Patas más rectas (agachado {b0 - 10:g})", [st(b0 - 10)]),
         ("de-pie-bajo", "De pie bajo", f"Más agachado ({min(55, b0 + 12):g})", [st(min(55, b0 + 12))]),
         ("tumbarse", "Tumbarse", f"Despacio hasta recogido ({TUCK})",
@@ -742,17 +808,6 @@ def candidate_routines(conv_saved):
               S([{"pata": "B", "art": "pectoral", "angulo": dev_angle("B", "pectoral", 15, c)}]),
               S([{"pata": "B", "art": "pectoral", "angulo": dev_angle("B", "pectoral", -15, c)}])]},
           st0]),
-        ("marcar-paso", "Marcar el paso (trote en el sitio)", "Levanta en diagonal A+C y luego B+D, 4 veces",
-         [st0, {"op": "repetir", "n": 4, "pasos": [
-             S([{"pata": L, "art": "codo", "angulo": dev_angle(L, "codo", lift[L], c)} for L in ("A", "C")]),
-             S(base_stance(c, ["A", "C"])),
-             S([{"pata": L, "art": "codo", "angulo": dev_angle(L, "codo", lift[L], c)} for L in ("B", "D")]),
-             S(base_stance(c, ["B", "D"]))]}]),
-        ("andar-corto", "Andar hacia delante (paso corto)", "Una pata cada vez, 2 ciclos", walk_program(c, 12, 12, beta=b0)),
-        ("andar-largo", "Andar hacia delante (paso largo)", "Una pata cada vez, 2 ciclos", walk_program(c, 20, 20, beta=b0)),
-        ("andar-atras", "Andar hacia atrás", "Una pata cada vez, 2 ciclos", walk_program(c, -12, -12, beta=b0)),
-        ("girar-izq", "Girar a la izquierda", "Izquierdas hacia atrás, derechas hacia delante", walk_program(c, -12, 12, beta=b0)),
-        ("girar-der", "Girar a la derecha", "Izquierdas hacia delante, derechas hacia atrás", walk_program(c, 12, -12, beta=b0)),
     ]
     for rid, name, desc, prog in two:
         cands.append({"id": rid, "etapa": 2, "nombre": name, "desc": desc, "programa": juntos_multi(prog)})
@@ -778,7 +833,8 @@ def routines_info():
                               "bloques": bool(v.get("bloques"))} for k, v in saved.items()},
             "candidatas": [{k: v for k, v in c.items() if k != "programa"} | {"pasos": count_steps(c["programa"])}
                            for c in candidate_routines(conv)],
-            "convencion": conv, "pruebas": cfg.get("pruebas", {}), "ejecutando": dict(routine)}
+            "convencion": conv, "pruebas": cfg.get("pruebas", {}), "ejecutando": dict(routine),
+            "marcha": gear(), "marchas": {str(k): v[0] for k, v in MARCHAS.items()}}
 
 
 # ---------- pestaña de estado: cómo me estoy conectando ----------
@@ -1313,6 +1369,14 @@ class Handler(BaseHTTPRequestHandler):
         elif p == "/api/routine_stop":
             routine["stop"] = True
             log("rutina: parar pedido")
+        elif p == "/api/routine_speed":  # marcha 1-5; vale también con una rutina en marcha (se nota en el paso siguiente)
+            n = int(b.get("marcha", 3))
+            if n not in MARCHAS:
+                raise ValueError("la marcha va de 1 a 5")
+            cfg = load_config()
+            cfg["marcha"] = n
+            write_json(CONFIG_FILE, cfg)
+            log(f"marcha de las rutinas: {MARCHAS[n][0]}")
         elif p == "/api/routine_save":
             name = str(b.get("nombre", "")).strip()[:40]
             if not name:

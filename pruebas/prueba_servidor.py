@@ -185,8 +185,8 @@ call("/api/off", {})
 call("/api/convention_reset", {})
 rt = call("/api/routines")
 e1 = [c for c in rt["candidatas"] if c["etapa"] == 1]
-check(len([c for c in e1 if not c.get("ayuda")]) == 7 and any(c["id"] == "bajar" for c in e1) and not rt["convencion"],
-      "etapa 1: la 6 y sus 6 variantes, más 'Bajar despacio'")
+check(len([c for c in e1 if not c.get("ayuda")]) == 8 and any(c["id"] == "bajar" for c in e1) and not rt["convencion"],
+      "etapa 1: la 6 y sus 7 variantes (con la 6.7), más 'Bajar despacio'")
 check(all("variante" not in c["nombre"] for c in e1), "ya no están las 8 variantes viejas de 'De pie'")
 cid = "de-pie-6"
 call("/api/routine_run", {"candidata": cid})
@@ -205,6 +205,17 @@ check({k: rt["convencion"][k] for k in ("sh", "sk", "fi")} == {"sh": -1, "sk": 1
 check(rt["pruebas"].get("de-pie-6.2", {}).get("mark") == "bien" and "de-pie-6" not in rt["pruebas"], "solo queda una de pie marcada ✓")
 stage2 = [c for c in rt["candidatas"] if c["etapa"] == 2]
 check(len(stage2) >= 12, f"etapa 2: {len(stage2)} rutinas")
+check([c["id"] for c in stage2[:5]] == ["andar", "andar-balanceo", "trote", "andar-atras", "paseo"], "las 5 de andar van primero")
+rt = call("/api/routine_speed", {"marcha": 5})
+check(rt["marcha"] == 5 and rt["marchas"]["1"].startswith("1ª"), f"marcha 5: {rt['marchas']['5']}")
+call("/api/routine_speed", {"marcha": 9}, expect=400)
+check(True, "marcha fuera de 1-5 rechazada")
+call("/api/routine_run", {"programa": [{"op": "repetir", "n": 50, "pasos": [{"op": "esperar", "s": 30}]}], "nombre": "larga"})
+time.sleep(0.3)
+rt = call("/api/routine_speed", {"marcha": 1})
+check(rt["marcha"] == 1 and rt["ejecutando"]["running"], "la marcha se cambia con una rutina en marcha")
+call("/api/routine_stop", {})
+wait_routine(10)
 poses = call("/api/state")["poses"]
 check(all(n in poses.get("A", {}) for n in ("de pie", "estirada", "recogida")), "posturas básicas guardadas")
 for c in stage2:
@@ -223,7 +234,7 @@ check(fin["fin"] == "terminada", f"programa de bloques: {fin.get('fin')} {fin.ge
 call("/api/routine_save", {"nombre": "prueba", "programa": prog, "bloques": {"blocks": {}}})
 check("prueba" in call("/api/routines")["guardadas"], "guarda rutina")
 check(call("/api/routine_get", {"nombre": "prueba"})["programa"] == prog, "lee rutina")
-call("/api/routine_save", {"nombre": "andar", "candidata": "andar-corto"})
+call("/api/routine_save", {"nombre": "andar", "candidata": "andar"})
 call("/api/routine_run", {"programa": [{"op": "rutina", "nombre": "andar"}, {"op": "rutina", "nombre": "prueba"}], "nombre": "anidada"})
 fin = wait_routine()
 check(fin["fin"] == "terminada", f"rutina dentro de rutina: {fin.get('fin')} {fin.get('error', '')}")
@@ -249,6 +260,7 @@ for n in ("prueba", "andar"):
     call("/api/routine_delete", {"nombre": n})
 check(not call("/api/routines")["guardadas"], "borra rutinas")
 call("/api/convention_reset", {})
+call("/api/routine_speed", {"marcha": 3})
 
 st = call("/api/power", {"limitar": True, "amperios": 5, "permitir_sin_corriente": True})
 check(st["potencia"]["a_la_vez_12"] == 1, f"límite 5 A: {st['potencia']['a_la_vez_12']} servo a la vez")

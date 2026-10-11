@@ -89,9 +89,13 @@ B) Cable de red directo entre la Pi y el PC (sin router, sin internet)
   sus variantes (6.1 baja, 6.2 alta, 6.3 y 6.4 inclinadas, 6.5 y 6.6 pectorales) y marca ✓ la mejor.
   Cada una recoge las 4 patas y se levanta con las 4 a la vez, muy despacio. Entre prueba y prueba,
   "Bajar despacio". Los codos delanteros tienen su ajuste ahí mismo (B3 +45, A3 -15; botones ±5/±15).
-  Al marcar ✓ se guardan las posturas "de pie", "estirada" y "recogida", y aparecen ~15 rutinas: de pie
-  alto/bajo, tumbarse, levantarse, sentarse, reverencia, flexiones, balanceo, saludar, marcar el paso,
-  andar (corto/largo/atrás), girar. Marca ✓/✗ cada una y guarda las buenas en "Mis rutinas".
+  Al marcar ✓ se guardan las posturas "de pie", "estirada" y "recogida", y aparecen las rutinas. Primero
+  las 5 de andar: paso a paso, con balanceo, trote lento, hacia atrás y paseo (adelante, gira, adelante,
+  gira). Luego girar a izquierda/derecha, marcar el paso, de pie alto/bajo, tumbarse, levantarse, sentarse,
+  reverencia, flexiones, balanceo y saludar. Las de pie siguen debajo: marcar ✓ otra cambia la que usan todas.
+  Marca ✓/✗ cada una y guarda las buenas en "Mis rutinas".
+- Velocidad de las rutinas: marchas 1ª muy lenta, 2ª lenta, 3ª normal, 4ª rápida, 5ª muy rápida. Botones en
+  "Rutinas para probar" y, con una rutina en marcha, al lado de "Parar rutina": se nota en el paso siguiente.
 - Web > "Programar con bloques": como Scratch. Bloques de mover (pata/articulación/grados, relativo,
   pata entera), posturas, todo a mitad, soltar, esperar, velocidad, repetir y ejecutar rutina.
   Los ángulos son los de la pata D; las demás hacen el mismo gesto. Guarda el programa con un nombre.

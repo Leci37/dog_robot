@@ -14,6 +14,21 @@
       "pectoral": 90,
       "hombro": 90,
       "codo": 90
+    },
+    "de pie": {
+      "pectoral": 85,
+      "hombro": 105,
+      "codo": 60
+    },
+    "estirada": {
+      "pectoral": 90,
+      "hombro": 95,
+      "codo": 80
+    },
+    "recogida": {
+      "pectoral": 90,
+      "hombro": 116,
+      "codo": 38
     }
   },
   "D": {
@@ -31,6 +46,21 @@
       "pectoral": 90,
       "hombro": 90,
       "codo": 90
+    },
+    "de pie": {
+      "pectoral": 95,
+      "hombro": 75,
+      "codo": 120
+    },
+    "estirada": {
+      "pectoral": 90,
+      "hombro": 85,
+      "codo": 100
+    },
+    "recogida": {
+      "pectoral": 90,
+      "hombro": 64,
+      "codo": 142
     }
   },
   "A": {
@@ -48,6 +78,21 @@
       "codo": 90,
       "hombro": 30,
       "pectoral": 30
+    },
+    "de pie": {
+      "pectoral": 95,
+      "hombro": 105,
+      "codo": 60
+    },
+    "estirada": {
+      "pectoral": 90,
+      "hombro": 95,
+      "codo": 80
+    },
+    "recogida": {
+      "pectoral": 90,
+      "hombro": 116,
+      "codo": 38
     }
   },
   "B": {
@@ -65,6 +110,21 @@
       "hombro": 90,
       "pectoral": 90,
       "codo": 90
+    },
+    "de pie": {
+      "pectoral": 85,
+      "hombro": 75,
+      "codo": 120
+    },
+    "estirada": {
+      "pectoral": 90,
+      "hombro": 85,
+      "codo": 100
+    },
+    "recogida": {
+      "pectoral": 90,
+      "hombro": 64,
+      "codo": 142
     }
   }
 }
