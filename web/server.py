@@ -800,12 +800,15 @@ def check_ch(ch):
 class Handler(BaseHTTPRequestHandler):
     def _send(self, code, body, ctype="application/json"):
         data = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False).encode()
-        self.send_response(code)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+        try:
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # el cliente cerró antes de recibir la respuesta (p. ej. cambió de página)
 
     def log_message(self, *args):
         pass
@@ -823,12 +826,15 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, {"error": "no existe"})
             return
         data = f.read_bytes()
-        self.send_response(200)
-        self.send_header("Content-Type", self.STATIC_TYPES.get(f.suffix, "application/octet-stream"))
-        self.send_header("Cache-Control", "max-age=86400")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", self.STATIC_TYPES.get(f.suffix, "application/octet-stream"))
+            self.send_header("Cache-Control", "max-age=86400")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
 
     def do_GET(self):
         path = urlsplit(self.path).path
