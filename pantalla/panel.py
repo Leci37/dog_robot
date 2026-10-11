@@ -415,7 +415,18 @@ def main(scr):
             wr(MODE, nxt)
 
 
+def on_sigterm(signum, frame):
+    """systemd nos para (p. ej. al pasar a la consola normal): salir limpio, no como fallo."""
+    try:
+        curses.endwin()
+    except curses.error:
+        pass
+    raise SystemExit(0)
+
+
 if __name__ == "__main__":
+    import signal
+    signal.signal(signal.SIGTERM, on_sigterm)
     for font in FONTS:
         if subprocess.run(["setfont", f"/usr/share/consolefonts/{font}.psf.gz"], capture_output=True).returncode == 0:
             break
