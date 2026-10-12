@@ -11,9 +11,9 @@ y pide el autobús, manejado desde una web y desde la tele, sin internet.</b></p
     <td colspan="3" align="center"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/robot-en-accion.webp" width="480" alt="El robot en acción: se levanta, menea el culo y da la pata (pulsa para ver el vídeo)"></a></td>
   </tr>
   <tr>
-    <td align="center"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-1.jpg" width="240" alt="1 · Se levanta"></a><br><sub><b>1 · Se levanta</b></sub></td>
-    <td align="center"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-2.jpg" width="240" alt="2 · Menea el culo"></a><br><sub><b>2 · Menea el culo</b></sub></td>
-    <td align="center"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-3.jpg" width="240" alt="3 · Da la pata"></a><br><sub><b>3 · Da la pata</b></sub></td>
+    <td align="center"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/momento-1-se-levanta.jpg" width="240" alt="1 · Se levanta"></a><br><sub><b>1 · Se levanta</b></sub></td>
+    <td align="center"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/momento-2-menea.jpg" width="240" alt="2 · Menea el culo"></a><br><sub><b>2 · Menea el culo</b></sub></td>
+    <td align="center"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/momento-3-pata.jpg" width="240" alt="3 · Da la pata"></a><br><sub><b>3 · Da la pata</b></sub></td>
   </tr>
   <tr>
     <td colspan="3" align="center"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="https://img.shields.io/badge/▶%20Ver%20el%20vídeo%20completo-Robot%20perro%20andando-red?style=for-the-badge&logo=youtube&logoColor=white" alt="Ver el vídeo completo en YouTube"></a></td>
