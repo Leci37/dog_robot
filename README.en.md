@@ -14,17 +14,6 @@
   <a href="https://youtu.be/Hf6u9rh6BYM"><img src="https://img.shields.io/badge/▶%20Watch%20the%20video-Robot%20dog%20walking-red?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch the video on YouTube"></a>
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Raspberry%20Pi-2%20Model%20B-c51a4a?logo=raspberrypi&logoColor=white" alt="Raspberry Pi 2">
-  <img src="https://img.shields.io/badge/Python-3.13%20no%20frameworks-3776ab?logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/servos-12%20×%20MG996R-555" alt="12 MG996R servos">
-  <img src="https://img.shields.io/badge/PCA9685-I2C%200x40-2e7d32" alt="PCA9685">
-  <img src="https://img.shields.io/badge/works-offline-0a7ea4" alt="Works offline">
-  <img src="https://img.shields.io/badge/routines-80%2B-orange" alt="80+ routines">
-</p>
-
-![The web app: Hz bar, Toreto mode and the box of winning routines with their stars](docs/img/web-arriba.jpg)
-
 > The interface and the in-repo docs are in Spanish (the robot's owner is Spanish); this page explains everything in English.
 > Names used throughout: legs **A** front-left · **B** front-right · **C** rear-right · **D** rear-left; joints
 > **1 pectoral** (abduction) · **2 hombro** (shoulder/hip) · **3 codo** (elbow/knee). "De pie" = standing,
@@ -42,10 +31,10 @@
 6. [Testing and calibration (±5, ±15, ±30…)](#6-testing-and-calibration-5-15-30)
 7. [Standing up](#7-standing-up)
 8. [Routines, gaits and stars](#8-routines-gaits-and-stars)
-9. [Toreto mode and the Hz bar](#9-toreto-mode-and-the-hz-bar)
-10. [Block programming (Scratch-style)](#10-block-programming-scratch-style)
+9. [Block programming (Scratch-style)](#9-block-programming-scratch-style)
+10. [The TV (HDMI)](#10-the-tv-hdmi)
 11. [Metrics: real-time current and power cuts](#11-metrics-real-time-current-and-power-cuts)
-12. [The TV (HDMI)](#12-the-tv-hdmi)
+12. [Toreto mode and the Hz bar](#12-toreto-mode-and-the-hz-bar)
 13. [Setting it up from scratch](#13-setting-it-up-from-scratch)
 14. [Testing without the robot](#14-testing-without-the-robot)
 15. [Lessons, problems and what's left](#15-lessons-problems-and-whats-left)
@@ -205,25 +194,33 @@ Engine details and how to add a routine: [`docs/RUTINAS.md`](docs/RUTINAS.md) (S
 
 ---
 
-## 9. Toreto mode and the Hz bar
-
-**Toreto** ("maximum power, like in Fast and Furious"): every move is a single jump, everything at once, with an
-adjustable **kick** of a few degrees past the target so the servo puts in all its force. The kick only applies to
-big moves (on the small gait steps it made the robot shake).
-
-**Hz bar (50-200)**: more hertz give more torque and more heat. The Pi **estimates the servos' heat**: it rises while
-they hold above 60 Hz and drops at 50 Hz. At 100 % it **goes back to 50 Hz by itself** and won't go up again until they
-cool down. It also refuses to go up while the Pi is short on power.
-
----
-
-## 10. Block programming (Scratch-style)
+## 9. Block programming (Scratch-style)
 
 Blockly 13.3.0 served from the Pi itself (works offline), in Spanish: move a leg or joint, poses, wait, speed,
 repeat, call another routine… Programs are saved as routines and can also be started from the TV (keys 1-9). Any
 generated routine can be opened as blocks to look at or change it.
 
 ![Scratch-style block programming](docs/img/web-bloques.jpg)
+
+---
+
+## 10. The TV (HDMI)
+
+At boot there is a **15 s menu**: [1] text dashboard · [2] the web app in kiosk mode (cage + chromium) · [3] console.
+The **dashboard** shows the 16 outputs with their pulse, the connection, the power, the current, the running routine
+and the popular ones; it's driven from the keyboard:
+
+![The TV text dashboard (captured with the simulator, no real board)](docs/img/tele-panel.jpg)
+
+**P** stand up · **0 / Enter** routines by number (popular first, coloured by family, with stars) · **R** repeat
+forever · **+ / −** speed · **F** Toreto · **N** Nitro · **, .** Hz · **X** stop · **S** release all · **H** help ·
+**A/B** shut down or reboot.
+
+![The routine selector on the TV](docs/img/tele-selector.jpg)
+
+The **lightweight web app** `/lite` (the one the TV browser opens) has the essentials in big buttons:
+
+![The TV web app: stand up, Toreto, Hz, routines by number and popular ones](docs/img/tele-lite.jpg)
 
 ---
 
@@ -243,23 +240,17 @@ It's an **estimate**: measuring it for real would need a sensor (e.g. an INA219)
 
 ---
 
-## 12. The TV (HDMI)
+## 12. Toreto mode and the Hz bar
 
-At boot there is a **15 s menu**: [1] text dashboard · [2] the web app in kiosk mode (cage + chromium) · [3] console.
-The **dashboard** shows the 16 outputs with their pulse, the connection, the power, the current, the running routine
-and the popular ones; it's driven from the keyboard:
+**Toreto** ("maximum power, like in Fast and Furious"): every move is a single jump, everything at once, with an
+adjustable **kick** of a few degrees past the target so the servo puts in all its force. The kick only applies to
+big moves (on the small gait steps it made the robot shake).
 
-![The TV text dashboard (captured with the simulator, no real board)](docs/img/tele-panel.jpg)
+**Hz bar (50-200)**: more hertz give more torque and more heat. The Pi **estimates the servos' heat**: it rises while
+they hold above 60 Hz and drops at 50 Hz. At 100 % it **goes back to 50 Hz by itself** and won't go up again until they
+cool down. It also refuses to go up while the Pi is short on power.
 
-**P** stand up · **0 / Enter** routines by number (popular first, coloured by family, with stars) · **R** repeat
-forever · **+ / −** speed · **F** Toreto · **N** Nitro · **, .** Hz · **X** stop · **S** release all · **H** help ·
-**A/B** shut down or reboot.
-
-![The routine selector on the TV](docs/img/tele-selector.jpg)
-
-The **lightweight web app** `/lite` (the one the TV browser opens) has the essentials in big buttons:
-
-![The TV web app: stand up, Toreto, Hz, routines by number and popular ones](docs/img/tele-lite.jpg)
+<p align="center"><img src="docs/img/web-arriba.jpg" width="480" alt="The web app with the Hz bar at the top, the red Toreto box (the strong gallops) and the winners box"></p>
 
 ---
 
@@ -348,6 +339,15 @@ couldn't lift the body · Toreto shaking because of a too-large kick · CRLF lin
 | `docs/` | Status, routines, API, guide for working with AI, and this README's images |
 
 ---
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Raspberry%20Pi-2%20Model%20B-c51a4a?logo=raspberrypi&logoColor=white" alt="Raspberry Pi 2">
+  <img src="https://img.shields.io/badge/Python-3.13%20no%20frameworks-3776ab?logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/servos-12%20×%20MG996R-555" alt="12 MG996R servos">
+  <img src="https://img.shields.io/badge/PCA9685-I2C%200x40-2e7d32" alt="PCA9685">
+  <img src="https://img.shields.io/badge/works-offline-0a7ea4" alt="Works offline">
+  <img src="https://img.shields.io/badge/routines-80%2B-orange" alt="80+ routines">
+</p>
 
 Made by **Luis** ([@Leci37](https://github.com/Leci37)) with **Iván**, by testing on the robot and rating with stars,
 with help from AI assistants. Inspired by the SpotMicro community, [mike4192/spotMicro](https://github.com/mike4192/spotmicro)

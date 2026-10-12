@@ -14,17 +14,6 @@ y pide el autobús, manejado desde una web y desde la tele, sin internet.</b></p
   <a href="https://youtu.be/Hf6u9rh6BYM"><img src="https://img.shields.io/badge/▶%20Ver%20el%20vídeo-Robot%20perro%20andando-red?style=for-the-badge&logo=youtube&logoColor=white" alt="Ver el vídeo en YouTube"></a>
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Raspberry%20Pi-2%20Model%20B-c51a4a?logo=raspberrypi&logoColor=white" alt="Raspberry Pi 2">
-  <img src="https://img.shields.io/badge/Python-3.13%20sin%20frameworks-3776ab?logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/servos-12%20×%20MG996R-555" alt="12 servos MG996R">
-  <img src="https://img.shields.io/badge/PCA9685-I2C%200x40-2e7d32" alt="PCA9685">
-  <img src="https://img.shields.io/badge/funciona-sin%20internet-0a7ea4" alt="Sin internet">
-  <img src="https://img.shields.io/badge/rutinas-80%2B-orange" alt="80+ rutinas">
-</p>
-
-![La web: barra de Hz, modo Toreto y la caja de rutinas ganadoras con sus estrellas](docs/img/web-arriba.jpg)
-
 ---
 
 ## Índice
@@ -37,10 +26,10 @@ y pide el autobús, manejado desde una web y desde la tele, sin internet.</b></p
 6. [Pruebas y calibración (±5, ±15, ±30…)](#6-pruebas-y-calibración-5-15-30)
 7. [Ponerse de pie](#7-ponerse-de-pie)
 8. [Rutinas, marchas y estrellas](#8-rutinas-marchas-y-estrellas)
-9. [Modo Toreto y barra de Hz](#9-modo-toreto-y-barra-de-hz)
-10. [Programar con bloques (tipo Scratch)](#10-programar-con-bloques-tipo-scratch)
+9. [Programar con bloques (tipo Scratch)](#9-programar-con-bloques-tipo-scratch)
+10. [La tele (HDMI)](#10-la-tele-hdmi)
 11. [Métricas: consumo en tiempo real y cortes de corriente](#11-métricas-consumo-en-tiempo-real-y-cortes-de-corriente)
-12. [La tele (HDMI)](#12-la-tele-hdmi)
+12. [Modo Toreto y barra de Hz](#12-modo-toreto-y-barra-de-hz)
 13. [Puesta en marcha desde cero](#13-puesta-en-marcha-desde-cero)
 14. [Probar sin robot](#14-probar-sin-robot)
 15. [Lo aprendido, problemas y lo que falta](#15-lo-aprendido-problemas-y-lo-que-falta)
@@ -199,25 +188,33 @@ Detalle del motor y de cómo añadir una rutina: [`docs/RUTINAS.md`](docs/RUTINA
 
 ---
 
-## 9. Modo Toreto y barra de Hz
-
-**Toreto** ("máxima potencia, como en Fast and Furious"): cada movimiento va de un salto, todo a la vez, con una
-**patada** ajustable de unos grados más allá del objetivo para que el servo meta toda su fuerza. La patada solo se da
-en los movimientos grandes (en los pasitos de las marchas hacía temblar al robot).
-
-**Barra de Hz (50-200)**: más hercios dan más fuerza y más calor. La Pi **estima el calor** de los servos: sube mientras
-sujetan por encima de 60 Hz y baja a 50 Hz. Si llega al 100 %, **vuelve sola a 50 Hz** y no deja subir hasta que se
-enfríen. Tampoco sube con la Pi en falta de corriente.
-
----
-
-## 10. Programar con bloques (tipo Scratch)
+## 9. Programar con bloques (tipo Scratch)
 
 Blockly 13.3.0 servido desde la propia Pi (funciona sin internet), en español: mover pata o articulación, posturas,
 esperar, velocidad, repetir, llamar a otra rutina… Los programas se guardan como rutinas y se lanzan también desde la
 tele (teclas 1-9). Cualquier rutina generada se puede abrir en bloques para verla o modificarla.
 
 ![Programar con bloques tipo Scratch](docs/img/web-bloques.jpg)
+
+---
+
+## 10. La tele (HDMI)
+
+Al arrancar sale un **menú de 15 s**: [1] panel de texto · [2] la web en kiosco (cage + chromium) · [3] consola.
+El **panel** muestra las 16 salidas con su pulso, la conexión, la alimentación, el consumo, la rutina en marcha y las
+populares; se maneja con el teclado:
+
+![El panel de texto de la tele (captura con el simulador, sin placa real)](docs/img/tele-panel.jpg)
+
+**P** de pie · **0 / Intro** rutinas por número (populares primero, colores por familia y estrellas) · **R** repetir
+sin parar · **+ / −** velocidad · **F** Toreto · **N** Nitro · **, .** Hz · **X** parar · **S** soltar todo ·
+**H** ayuda · **A/B** apagar o reiniciar.
+
+![El selector de rutinas por número en la tele](docs/img/tele-selector.jpg)
+
+La **web ligera** `/lite` (la que abre el navegador de la tele) tiene lo esencial en grande:
+
+![La web ligera de la tele: de pie, Toreto, Hz, rutinas por número y populares](docs/img/tele-lite.jpg)
 
 ---
 
@@ -237,23 +234,17 @@ Es una **estimación**: para medir de verdad haría falta un sensor (p. ej. INA2
 
 ---
 
-## 12. La tele (HDMI)
+## 12. Modo Toreto y barra de Hz
 
-Al arrancar sale un **menú de 15 s**: [1] panel de texto · [2] la web en kiosco (cage + chromium) · [3] consola.
-El **panel** muestra las 16 salidas con su pulso, la conexión, la alimentación, el consumo, la rutina en marcha y las
-populares; se maneja con el teclado:
+**Toreto** ("máxima potencia, como en Fast and Furious"): cada movimiento va de un salto, todo a la vez, con una
+**patada** ajustable de unos grados más allá del objetivo para que el servo meta toda su fuerza. La patada solo se da
+en los movimientos grandes (en los pasitos de las marchas hacía temblar al robot).
 
-![El panel de texto de la tele (captura con el simulador, sin placa real)](docs/img/tele-panel.jpg)
+**Barra de Hz (50-200)**: más hercios dan más fuerza y más calor. La Pi **estima el calor** de los servos: sube mientras
+sujetan por encima de 60 Hz y baja a 50 Hz. Si llega al 100 %, **vuelve sola a 50 Hz** y no deja subir hasta que se
+enfríen. Tampoco sube con la Pi en falta de corriente.
 
-**P** de pie · **0 / Intro** rutinas por número (populares primero, colores por familia y estrellas) · **R** repetir
-sin parar · **+ / −** velocidad · **F** Toreto · **N** Nitro · **, .** Hz · **X** parar · **S** soltar todo ·
-**H** ayuda · **A/B** apagar o reiniciar.
-
-![El selector de rutinas por número en la tele](docs/img/tele-selector.jpg)
-
-La **web ligera** `/lite` (la que abre el navegador de la tele) tiene lo esencial en grande:
-
-![La web ligera de la tele: de pie, Toreto, Hz, rutinas por número y populares](docs/img/tele-lite.jpg)
+<p align="center"><img src="docs/img/web-arriba.jpg" width="480" alt="La web con la barra de Hz arriba, la caja roja del modo Toreto (los Galope fuerte) y la caja de ganadoras"></p>
 
 ---
 
@@ -342,6 +333,15 @@ desde Windows.
 | `docs/` | Estado, rutinas, API, guía para trabajar con IA e imágenes de este README |
 
 ---
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Raspberry%20Pi-2%20Model%20B-c51a4a?logo=raspberrypi&logoColor=white" alt="Raspberry Pi 2">
+  <img src="https://img.shields.io/badge/Python-3.13%20sin%20frameworks-3776ab?logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/servos-12%20×%20MG996R-555" alt="12 servos MG996R">
+  <img src="https://img.shields.io/badge/PCA9685-I2C%200x40-2e7d32" alt="PCA9685">
+  <img src="https://img.shields.io/badge/funciona-sin%20internet-0a7ea4" alt="Sin internet">
+  <img src="https://img.shields.io/badge/rutinas-80%2B-orange" alt="80+ rutinas">
+</p>
 
 Hecho por **Luis** ([@Leci37](https://github.com/Leci37)) con **Iván**, a base de probar en el robot y valorar con estrellas, y con la ayuda de
 asistentes de IA. Inspiración: la comunidad SpotMicro, [mike4192/spotMicro](https://github.com/mike4192/spotmicro) y
