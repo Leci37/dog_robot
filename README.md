@@ -5,14 +5,21 @@
 <p align="center"><b>Un perro robot cuadrúpedo (clon de SpotMicro impreso en 3D) que se pone de pie, anda al galope, da la pata
 y pide el autobús, manejado desde una web y desde la tele, sin internet.</b></p>
 
-<p align="center">
-  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-1.jpg" width="260" alt="El robot perro andando (pulsa para ver el vídeo)"></a>
-  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-2.jpg" width="260" alt="El robot de cerca, andando"></a>
-  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-3.jpg" width="260" alt="Primer plano del robot"></a>
-</p>
-<p align="center">
-  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="https://img.shields.io/badge/▶%20Ver%20el%20vídeo-Robot%20perro%20andando-red?style=for-the-badge&logo=youtube&logoColor=white" alt="Ver el vídeo en YouTube"></a>
-</p>
+<div align="center">
+<table>
+  <tr>
+    <td colspan="3" align="center"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/robot-en-accion.webp" width="480" alt="El robot en acción: se levanta, menea el culo y da la pata (pulsa para ver el vídeo)"></a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-1.jpg" width="240" alt="1 · Se levanta"></a><br><sub><b>1 · Se levanta</b></sub></td>
+    <td align="center"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-2.jpg" width="240" alt="2 · Menea el culo"></a><br><sub><b>2 · Menea el culo</b></sub></td>
+    <td align="center"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-3.jpg" width="240" alt="3 · Da la pata"></a><br><sub><b>3 · Da la pata</b></sub></td>
+  </tr>
+  <tr>
+    <td colspan="3" align="center"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="https://img.shields.io/badge/▶%20Ver%20el%20vídeo%20completo-Robot%20perro%20andando-red?style=for-the-badge&logo=youtube&logoColor=white" alt="Ver el vídeo completo en YouTube"></a></td>
+  </tr>
+</table>
+</div>
 
 ---
 
