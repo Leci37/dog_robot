@@ -23,6 +23,7 @@
 
 ## Contents
 
+0. [For whoever continues the project (people and AI)](#0-for-whoever-continues-the-project-people-and-ai)
 1. [What it is and what it does](#1-what-it-is-and-what-it-does)
 2. [Hardware](#2-hardware)
 3. [Wiring diagram and power](#3-wiring-diagram-and-power)
@@ -38,9 +39,23 @@
 13. [Setting it up from scratch](#13-setting-it-up-from-scratch)
 14. [Testing without the robot](#14-testing-without-the-robot)
 15. [Lessons, problems and what's left](#15-lessons-problems-and-whats-left)
-16. [For whoever continues the project (people and AI)](#16-for-whoever-continues-the-project-people-and-ai)
-17. [Safety](#17-safety)
-18. [Repository layout](#18-repository-layout)
+16. [Safety](#16-safety)
+17. [Repository layout](#17-repository-layout)
+
+---
+
+## 0. For whoever continues the project (people and AI)
+
+> **Continuing the project with an AI (GPT, Claude, Codex…)?** Start here: give it `AGENTS.md` and `docs/ESTADO.md`.
+
+- [`AGENTS.md`](AGENTS.md): **read me first**. A self-contained summary with the golden rules, how to reach the robot,
+  the architecture and how to work without breaking anything (meant to be pasted into GPT, Claude, Codex…).
+- [`docs/ESTADO.md`](docs/ESTADO.md): where we are, where we're going, and what the star ratings taught us.
+- [`docs/RUTINAS.md`](docs/RUTINAS.md) · [`docs/API.md`](docs/API.md) · [`docs/USAR-CON-GPT.md`](docs/USAR-CON-GPT.md).
+- [`AYUDA.md`](AYUDA.md): the user guide (also in the web app, at `/ayuda`, and on the TV with the H key).
+- [`CLAUDE.md`](CLAUDE.md): the long technical context and the **dated log** of everything done.
+
+(These docs are in Spanish; any AI assistant can translate them on the fly.)
 
 ---
 
@@ -301,20 +316,7 @@ couldn't lift the body · Toreto shaking because of a too-large kick · CRLF lin
 
 ---
 
-## 16. For whoever continues the project (people and AI)
-
-- [`AGENTS.md`](AGENTS.md): **read me first**. A self-contained summary with the golden rules, how to reach the robot,
-  the architecture and how to work without breaking anything (meant to be pasted into GPT, Claude, Codex…).
-- [`docs/ESTADO.md`](docs/ESTADO.md): where we are, where we're going, and what the star ratings taught us.
-- [`docs/RUTINAS.md`](docs/RUTINAS.md) · [`docs/API.md`](docs/API.md) · [`docs/USAR-CON-GPT.md`](docs/USAR-CON-GPT.md).
-- [`AYUDA.md`](AYUDA.md): the user guide (also in the web app, at `/ayuda`, and on the TV with the H key).
-- [`CLAUDE.md`](CLAUDE.md): the long technical context and the **dated log** of everything done.
-
-(These docs are in Spanish; any AI assistant can translate them on the fly.)
-
----
-
-## 17. Safety
+## 16. Safety
 
 - The web app has **no password**: use it only on your local network or over a direct cable.
 - The servos run from **their own supply** (5-6 V, ≥10 A) on the PCA9685 terminal, never from the Pi, with a common GND.
@@ -324,7 +326,7 @@ couldn't lift the body · Toreto shaking because of a too-large kick · CRLF lin
 
 ---
 
-## 18. Repository layout
+## 17. Repository layout
 
 | Folder / file | What it is |
 |---|---|

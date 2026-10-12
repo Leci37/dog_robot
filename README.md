@@ -18,6 +18,7 @@ y pide el autobús, manejado desde una web y desde la tele, sin internet.</b></p
 
 ## Índice
 
+0. [Para quien siga el proyecto (personas e IA)](#0-para-quien-siga-el-proyecto-personas-e-ia)
 1. [Qué es y qué hace](#1-qué-es-y-qué-hace)
 2. [Hardware](#2-hardware)
 3. [Esquema de conexiones y alimentación](#3-esquema-de-conexiones-y-alimentación)
@@ -33,9 +34,21 @@ y pide el autobús, manejado desde una web y desde la tele, sin internet.</b></p
 13. [Puesta en marcha desde cero](#13-puesta-en-marcha-desde-cero)
 14. [Probar sin robot](#14-probar-sin-robot)
 15. [Lo aprendido, problemas y lo que falta](#15-lo-aprendido-problemas-y-lo-que-falta)
-16. [Para quien siga el proyecto (personas e IA)](#16-para-quien-siga-el-proyecto-personas-e-ia)
-17. [Seguridad](#17-seguridad)
-18. [Estructura del repositorio](#18-estructura-del-repositorio)
+16. [Seguridad](#16-seguridad)
+17. [Estructura del repositorio](#17-estructura-del-repositorio)
+
+---
+
+## 0. Para quien siga el proyecto (personas e IA)
+
+> **¿Vas a seguir el proyecto con una IA (GPT, Claude, Codex…)?** Empieza aquí: dale `AGENTS.md` y `docs/ESTADO.md`.
+
+- [`AGENTS.md`](AGENTS.md): **léeme primero**. Resumen autosuficiente con las reglas de oro, cómo llegar, la
+  arquitectura y cómo trabajar sin romper nada (sirve para pegarlo en GPT, Claude, Codex…).
+- [`docs/ESTADO.md`](docs/ESTADO.md): dónde estamos y a dónde vamos, y lo aprendido con las estrellas.
+- [`docs/RUTINAS.md`](docs/RUTINAS.md) · [`docs/API.md`](docs/API.md) · [`docs/USAR-CON-GPT.md`](docs/USAR-CON-GPT.md).
+- [`AYUDA.md`](AYUDA.md): la guía de uso (también en la web, en `/ayuda` y en la tele con la tecla H).
+- [`CLAUDE.md`](CLAUDE.md): el contexto técnico largo y el **registro con fechas** de todo lo que se ha hecho.
 
 ---
 
@@ -297,18 +310,7 @@ desde Windows.
 
 ---
 
-## 16. Para quien siga el proyecto (personas e IA)
-
-- [`AGENTS.md`](AGENTS.md): **léeme primero**. Resumen autosuficiente con las reglas de oro, cómo llegar, la
-  arquitectura y cómo trabajar sin romper nada (sirve para pegarlo en GPT, Claude, Codex…).
-- [`docs/ESTADO.md`](docs/ESTADO.md): dónde estamos y a dónde vamos, y lo aprendido con las estrellas.
-- [`docs/RUTINAS.md`](docs/RUTINAS.md) · [`docs/API.md`](docs/API.md) · [`docs/USAR-CON-GPT.md`](docs/USAR-CON-GPT.md).
-- [`AYUDA.md`](AYUDA.md): la guía de uso (también en la web, en `/ayuda` y en la tele con la tecla H).
-- [`CLAUDE.md`](CLAUDE.md): el contexto técnico largo y el **registro con fechas** de todo lo que se ha hecho.
-
----
-
-## 17. Seguridad
+## 16. Seguridad
 
 - La web **no tiene contraseña**: úsala solo en tu red local o por cable directo.
 - Los servos van con **fuente propia** (5-6 V, ≥10 A) en la clema de la PCA9685, nunca desde la Pi, y con GND común.
@@ -318,7 +320,7 @@ desde Windows.
 
 ---
 
-## 18. Estructura del repositorio
+## 17. Estructura del repositorio
 
 | Carpeta / fichero | Qué es |
 |---|---|
