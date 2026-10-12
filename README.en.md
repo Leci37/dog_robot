@@ -8,15 +8,18 @@
 <div align="center">
 <table>
   <tr>
-    <td colspan="3" align="center"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/robot-en-accion.webp" width="480" alt="The robot in action: it stands up, wiggles its butt and gives its paw (click to watch the video)"></a></td>
+    <td colspan="2" align="center"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/robot-global.jpg" width="560" alt="The robot standing: Raspberry Pi 2, PCA9685 board and the 12 servos (click to watch the video)"></a></td>
   </tr>
   <tr>
-    <td align="center"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/momento-1-se-levanta.jpg" width="240" alt="1 · Stands up"></a><br><sub><b>1 · Stands up</b></sub></td>
-    <td align="center"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/momento-2-menea.jpg" width="240" alt="2 · Wiggles its butt"></a><br><sub><b>2 · Wiggles its butt</b></sub></td>
-    <td align="center"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/momento-3-pata.jpg" width="240" alt="3 · Gives its paw"></a><br><sub><b>3 · Gives its paw</b></sub></td>
+    <td align="center" width="50%"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/anim-se-levanta.webp" width="380" alt="1 · Stands up"></a><br><sub><b>1 · Stands up</b></sub></td>
+    <td align="center" width="50%"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/anim-menea.webp" width="380" alt="2 · Wiggles its butt"></a><br><sub><b>2 · Wiggles its butt</b></sub></td>
   </tr>
   <tr>
-    <td colspan="3" align="center"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="https://img.shields.io/badge/▶%20Watch%20the%20full%20video-Robot%20dog%20walking-red?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch the full video on YouTube"></a></td>
+    <td align="center" width="50%"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/anim-pata.webp" width="380" alt="3 · Gives its paw"></a><br><sub><b>3 · Gives its paw</b></sub></td>
+    <td align="center" width="50%"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/anim-anda.webp" width="380" alt="4 · Walks"></a><br><sub><b>4 · Walks</b></sub></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><a href="https://youtu.be/Hf6u9rh6BYM"><img src="https://img.shields.io/badge/▶%20Watch%20the%20full%20video-Robot%20dog%20walking-red?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch the full video on YouTube"></a></td>
   </tr>
 </table>
 </div>
