@@ -6,9 +6,9 @@
 "hails the bus", driven from a web app and from the TV, with no internet needed.</b></p>
 
 <p align="center">
-  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-1.jpg" width="300" alt="The robot dog walking (click to watch the video)"></a>
-  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-2.jpg" width="300" alt="The robot up close, walking"></a>
-  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-3.jpg" width="300" alt="Close-up of the robot"></a>
+  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-1.jpg" width="270" alt="The robot dog walking (click to watch the video)"></a>
+  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-2.jpg" width="270" alt="The robot up close, walking"></a>
+  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-3.jpg" width="270" alt="Close-up of the robot"></a>
 </p>
 <p align="center">
   <a href="https://youtu.be/Hf6u9rh6BYM"><img src="https://img.shields.io/badge/▶%20Watch%20the%20video-Robot%20dog%20walking-red?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch the video on YouTube"></a>

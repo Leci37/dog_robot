@@ -6,9 +6,9 @@
 y pide el autobús, manejado desde una web y desde la tele, sin internet.</b></p>
 
 <p align="center">
-  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-1.jpg" width="300" alt="El robot perro andando (pulsa para ver el vídeo)"></a>
-  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-2.jpg" width="300" alt="El robot de cerca, andando"></a>
-  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-3.jpg" width="300" alt="Primer plano del robot"></a>
+  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-1.jpg" width="270" alt="El robot perro andando (pulsa para ver el vídeo)"></a>
+  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-2.jpg" width="270" alt="El robot de cerca, andando"></a>
+  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-3.jpg" width="270" alt="Primer plano del robot"></a>
 </p>
 <p align="center">
   <a href="https://youtu.be/Hf6u9rh6BYM"><img src="https://img.shields.io/badge/▶%20Ver%20el%20vídeo-Robot%20perro%20andando-red?style=for-the-badge&logo=youtube&logoColor=white" alt="Ver el vídeo en YouTube"></a>
