@@ -1,18 +1,31 @@
-# 🐕 LUIS LECI control: SpotMicro con Raspberry Pi 2
+<p align="center"><b>🇪🇸 Español</b> · <a href="README.en.md">🇬🇧 English</a></p>
 
-**Un perro robot cuadrúpedo (clon de SpotMicro impreso en 3D) que se pone de pie, anda al galope, da la pata y pide el
-autobús, manejado desde una web y desde la tele, sin internet.**
+<h1 align="center">🐕 LUIS LECI control: SpotMicro con Raspberry Pi 2</h1>
 
-![Raspberry Pi 2](https://img.shields.io/badge/Raspberry%20Pi-2%20Model%20B-c51a4a?logo=raspberrypi&logoColor=white)
-![Python](https://img.shields.io/badge/Python-3.13%20sin%20frameworks-3776ab?logo=python&logoColor=white)
-![Servos](https://img.shields.io/badge/servos-12%20×%20MG996R-555)
-![PCA9685](https://img.shields.io/badge/PCA9685-I2C%200x40-2e7d32)
-![Sin internet](https://img.shields.io/badge/funciona-sin%20internet-0a7ea4)
-![Rutinas](https://img.shields.io/badge/rutinas-80%2B-orange)
+<p align="center"><b>Un perro robot cuadrúpedo (clon de SpotMicro impreso en 3D) que se pone de pie, anda al galope, da la pata
+y pide el autobús, manejado desde una web y desde la tele, sin internet.</b></p>
 
-[![Vídeo del robot en YouTube](https://img.youtube.com/vi/Hf6u9rh6BYM/hqdefault.jpg)](https://youtu.be/Hf6u9rh6BYM)
+<p align="center">
+  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="https://img.youtube.com/vi/Hf6u9rh6BYM/sddefault.jpg" width="640"
+    alt="Vídeo: el robot perro andando (pulsa para verlo en YouTube)"></a>
+</p>
+<p align="center">
+  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="https://img.youtube.com/vi/Hf6u9rh6BYM/hq1.jpg" width="210" alt="Fotograma del vídeo 1"></a>
+  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="https://img.youtube.com/vi/Hf6u9rh6BYM/hq2.jpg" width="210" alt="Fotograma del vídeo 2"></a>
+  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="https://img.youtube.com/vi/Hf6u9rh6BYM/hq3.jpg" width="210" alt="Fotograma del vídeo 3"></a>
+</p>
+<p align="center">
+  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="https://img.shields.io/badge/▶%20Ver%20el%20vídeo-Robot%20perro%20andando-red?style=for-the-badge&logo=youtube&logoColor=white" alt="Ver el vídeo en YouTube"></a>
+</p>
 
-▶️ **[Ver el vídeo en YouTube](https://youtu.be/Hf6u9rh6BYM)**
+<p align="center">
+  <img src="https://img.shields.io/badge/Raspberry%20Pi-2%20Model%20B-c51a4a?logo=raspberrypi&logoColor=white" alt="Raspberry Pi 2">
+  <img src="https://img.shields.io/badge/Python-3.13%20sin%20frameworks-3776ab?logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/servos-12%20×%20MG996R-555" alt="12 servos MG996R">
+  <img src="https://img.shields.io/badge/PCA9685-I2C%200x40-2e7d32" alt="PCA9685">
+  <img src="https://img.shields.io/badge/funciona-sin%20internet-0a7ea4" alt="Sin internet">
+  <img src="https://img.shields.io/badge/rutinas-80%2B-orange" alt="80+ rutinas">
+</p>
 
 ![La web: barra de Hz, modo Toreto y la caja de rutinas ganadoras con sus estrellas](docs/img/web-arriba.jpg)
 
