@@ -58,7 +58,7 @@
 <text x="316" y="244" class="ts" text-anchor="start">HDMI → tele: menú, panel, web o consola</text>
 <rect class="pcb" x="660" y="60" width="310" height="190" rx="10"/>
 <text x="676" y="86" class="tb" text-anchor="start">Placa de servos PCA9685</text>
-<text x="676" y="106" class="ts" text-anchor="start">dirección I2C 0x40 · 50 Hz · 16 canales</text>
+<text x="676" y="106" class="ts" text-anchor="start">dirección I2C 0x40 · 50 Hz (hasta 200) · 16 canales</text>
 <line x1="570" y1="130" x2="660" y2="130" class="vcc" stroke-width="3"/>
 <text x="676" y="135" class="tm" text-anchor="start">VCC</text>
 <text x="716" y="135" class="ts" text-anchor="start">← pin 1 · 3,3 V</text>
@@ -76,8 +76,8 @@
 <text x="895" y="239" class="ts" text-anchor="middle">clema V+ | GND</text>
 <rect class="psu" x="660" y="320" width="310" height="92" rx="8"/>
 <text x="676" y="346" class="tb" text-anchor="start">Fuente de los servos</text>
-<text x="676" y="368" class="t" text-anchor="start">ahora 5 A → límite activado en la web</text>
-<text x="676" y="390" class="ts" text-anchor="start">para de pie/andar: 6 V · 15-20 A, cables 1,5 mm²</text>
+<text x="676" y="368" class="t" text-anchor="start">5 V · 20 A (la de 5 A se quedaba corta)</text>
+<text x="676" y="390" class="ts" text-anchor="start">mejor 6 V (+15 % de fuerza) · cables 1,5 mm²</text>
 <line x1="868" y1="320" x2="868" y2="248" class="vplus" stroke-width="5"/>
 <line x1="922" y1="320" x2="922" y2="248" class="gnd" stroke-width="5"/>
 <text x="856" y="290" class="tm" text-anchor="end">V+</text>
@@ -99,51 +99,53 @@
 <rect x="57" y="530" width="14" height="11" rx="2" class="sig"/>
 <rect x="57" y="545" width="14" height="11" rx="2" class="pv"/>
 <rect x="57" y="560" width="14" height="11" rx="2" class="pg"/>
-<rect x="41" y="584" width="46" height="58" rx="5" class="bad" stroke-width="1.2"/>
-<text x="64" y="603" class="tm badt" text-anchor="middle">A3</text>
-<text x="64" y="620" class="ts badt" text-anchor="middle">codo</text>
-<text x="64" y="636" class="ts badt" text-anchor="middle">no va</text>
+<rect x="41" y="584" width="46" height="58" rx="5" class="free" stroke-width="1.2"/>
+<text x="64" y="603" class="tm freet" text-anchor="middle">—</text>
+<text x="64" y="620" class="ts freet" text-anchor="middle">libre</text>
+<text x="64" y="636" class="ts freet" text-anchor="middle">era A3</text>
 <text x="122" y="516" class="tm" text-anchor="middle">1</text>
 <rect x="102" y="524" width="40" height="52" rx="4" class="box"/>
 <rect x="115" y="530" width="14" height="11" rx="2" class="sig"/>
 <rect x="115" y="545" width="14" height="11" rx="2" class="pv"/>
 <rect x="115" y="560" width="14" height="11" rx="2" class="pg"/>
-<rect x="99" y="584" width="46" height="58" rx="5" class="free" stroke-width="1.2"/>
-<text x="122" y="603" class="tm freet" text-anchor="middle">—</text>
-<text x="122" y="620" class="ts freet" text-anchor="middle">libre</text>
-<text x="122" y="636" class="ts freet" text-anchor="middle">era B3</text>
+<rect x="99" y="584" width="46" height="58" rx="5" class="ok" stroke-width="1.2"/>
+<text x="122" y="603" class="tm okt" text-anchor="middle">A3</text>
+<text x="122" y="620" class="ts okt" text-anchor="middle">codo</text>
+<text x="122" y="636" class="ts okt" text-anchor="middle">−15</text>
 <text x="180" y="516" class="tm" text-anchor="middle">2</text>
 <rect x="160" y="524" width="40" height="52" rx="4" class="box"/>
 <rect x="173" y="530" width="14" height="11" rx="2" class="sig"/>
 <rect x="173" y="545" width="14" height="11" rx="2" class="pv"/>
 <rect x="173" y="560" width="14" height="11" rx="2" class="pg"/>
-<rect x="157" y="584" width="46" height="44" rx="5" class="check" stroke-width="1.2"/>
-<text x="180" y="603" class="tm checkt" text-anchor="middle">A2</text>
-<text x="180" y="620" class="ts checkt" text-anchor="middle">hombro</text>
+<rect x="157" y="584" width="46" height="44" rx="5" class="ok" stroke-width="1.2"/>
+<text x="180" y="603" class="tm okt" text-anchor="middle">A2</text>
+<text x="180" y="620" class="ts okt" text-anchor="middle">hombro</text>
 <text x="238" y="516" class="tm" text-anchor="middle">3</text>
 <rect x="218" y="524" width="40" height="52" rx="4" class="box"/>
 <rect x="231" y="530" width="14" height="11" rx="2" class="sig"/>
 <rect x="231" y="545" width="14" height="11" rx="2" class="pv"/>
 <rect x="231" y="560" width="14" height="11" rx="2" class="pg"/>
-<rect x="215" y="584" width="46" height="44" rx="5" class="check" stroke-width="1.2"/>
-<text x="238" y="603" class="tm checkt" text-anchor="middle">B2</text>
-<text x="238" y="620" class="ts checkt" text-anchor="middle">hombro</text>
+<rect x="215" y="584" width="46" height="44" rx="5" class="ok" stroke-width="1.2"/>
+<text x="238" y="603" class="tm okt" text-anchor="middle">B2</text>
+<text x="238" y="620" class="ts okt" text-anchor="middle">hombro</text>
 <text x="296" y="516" class="tm" text-anchor="middle">4</text>
 <rect x="276" y="524" width="40" height="52" rx="4" class="box"/>
 <rect x="289" y="530" width="14" height="11" rx="2" class="sig"/>
 <rect x="289" y="545" width="14" height="11" rx="2" class="pv"/>
 <rect x="289" y="560" width="14" height="11" rx="2" class="pg"/>
-<rect x="273" y="584" width="46" height="44" rx="5" class="check" stroke-width="1.2"/>
-<text x="296" y="603" class="tm checkt" text-anchor="middle">A1</text>
-<text x="296" y="620" class="ts checkt" text-anchor="middle">pectoral</text>
+<rect x="273" y="584" width="46" height="58" rx="5" class="ok" stroke-width="1.2"/>
+<text x="296" y="603" class="tm okt" text-anchor="middle">A1</text>
+<text x="296" y="620" class="ts okt" text-anchor="middle">pectoral</text>
+<text x="296" y="636" class="ts okt" text-anchor="middle">+10</text>
 <text x="354" y="516" class="tm" text-anchor="middle">5</text>
 <rect x="334" y="524" width="40" height="52" rx="4" class="box"/>
 <rect x="347" y="530" width="14" height="11" rx="2" class="sig"/>
 <rect x="347" y="545" width="14" height="11" rx="2" class="pv"/>
 <rect x="347" y="560" width="14" height="11" rx="2" class="pg"/>
-<rect x="331" y="584" width="46" height="44" rx="5" class="check" stroke-width="1.2"/>
-<text x="354" y="603" class="tm checkt" text-anchor="middle">B1</text>
-<text x="354" y="620" class="ts checkt" text-anchor="middle">pectoral</text>
+<rect x="331" y="584" width="46" height="58" rx="5" class="ok" stroke-width="1.2"/>
+<text x="354" y="603" class="tm okt" text-anchor="middle">B1</text>
+<text x="354" y="620" class="ts okt" text-anchor="middle">pectoral</text>
+<text x="354" y="636" class="ts okt" text-anchor="middle">−15</text>
 <text x="412" y="516" class="tm" text-anchor="middle">6</text>
 <rect x="392" y="524" width="40" height="52" rx="4" class="box"/>
 <rect x="405" y="530" width="14" height="11" rx="2" class="sig"/>
@@ -152,7 +154,7 @@
 <rect x="389" y="584" width="46" height="58" rx="5" class="warn" stroke-width="1.2"/>
 <text x="412" y="603" class="tm warnt" text-anchor="middle">B3</text>
 <text x="412" y="620" class="ts warnt" text-anchor="middle">codo</text>
-<text x="412" y="636" class="ts warnt" text-anchor="middle">girado</text>
+<text x="412" y="636" class="ts warnt" text-anchor="middle">+50</text>
 <text x="470" y="516" class="tm" text-anchor="middle">7</text>
 <rect x="450" y="524" width="40" height="52" rx="4" class="box"/>
 <rect x="463" y="530" width="14" height="11" rx="2" class="sig"/>
@@ -182,9 +184,10 @@
 <rect x="637" y="530" width="14" height="11" rx="2" class="sig"/>
 <rect x="637" y="545" width="14" height="11" rx="2" class="pv"/>
 <rect x="637" y="560" width="14" height="11" rx="2" class="pg"/>
-<rect x="621" y="584" width="46" height="44" rx="5" class="ok" stroke-width="1.2"/>
+<rect x="621" y="584" width="46" height="58" rx="5" class="ok" stroke-width="1.2"/>
 <text x="644" y="603" class="tm okt" text-anchor="middle">C1</text>
 <text x="644" y="620" class="ts okt" text-anchor="middle">pectoral</text>
+<text x="644" y="636" class="ts okt" text-anchor="middle">−5</text>
 <text x="702" y="516" class="tm" text-anchor="middle">11</text>
 <rect x="682" y="524" width="40" height="52" rx="4" class="box"/>
 <rect x="695" y="530" width="14" height="11" rx="2" class="sig"/>
@@ -214,27 +217,27 @@
 <rect x="869" y="530" width="14" height="11" rx="2" class="sig"/>
 <rect x="869" y="545" width="14" height="11" rx="2" class="pv"/>
 <rect x="869" y="560" width="14" height="11" rx="2" class="pg"/>
-<rect x="853" y="584" width="46" height="44" rx="5" class="ok" stroke-width="1.2"/>
+<rect x="853" y="584" width="46" height="58" rx="5" class="ok" stroke-width="1.2"/>
 <text x="876" y="603" class="tm okt" text-anchor="middle">C3</text>
 <text x="876" y="620" class="ts okt" text-anchor="middle">codo</text>
+<text x="876" y="636" class="ts okt" text-anchor="middle">−10</text>
 <text x="934" y="516" class="tm" text-anchor="middle">15</text>
 <rect x="914" y="524" width="40" height="52" rx="4" class="box"/>
 <rect x="927" y="530" width="14" height="11" rx="2" class="sig"/>
 <rect x="927" y="545" width="14" height="11" rx="2" class="pv"/>
 <rect x="927" y="560" width="14" height="11" rx="2" class="pg"/>
-<rect x="911" y="584" width="46" height="44" rx="5" class="ok" stroke-width="1.2"/>
-<text x="934" y="603" class="tm okt" text-anchor="middle">D3</text>
-<text x="934" y="620" class="ts okt" text-anchor="middle">codo</text>
+<rect x="911" y="584" width="46" height="58" rx="5" class="check" stroke-width="1.2"/>
+<text x="934" y="603" class="tm checkt" text-anchor="middle">D3</text>
+<text x="934" y="620" class="ts checkt" text-anchor="middle">codo</text>
+<text x="934" y="636" class="ts checkt" text-anchor="middle">−22</text>
 <rect x="40" y="664" width="16" height="16" rx="3" class="ok" stroke-width="1.2"/>
-<text x="62" y="677" class="ts" text-anchor="start">bien (traseras C y D)</text>
-<rect x="222.4" y="664" width="16" height="16" rx="3" class="check" stroke-width="1.2"/>
-<text x="244.4" y="677" class="ts" text-anchor="start">funciona, por revisar (delanteras)</text>
-<rect x="488.0" y="664" width="16" height="16" rx="3" class="warn" stroke-width="1.2"/>
-<text x="510.0" y="677" class="ts" text-anchor="start">girado</text>
-<rect x="574.4" y="664" width="16" height="16" rx="3" class="bad" stroke-width="1.2"/>
-<text x="596.4" y="677" class="ts" text-anchor="start">no responde</text>
-<rect x="692.8" y="664" width="16" height="16" rx="3" class="free" stroke-width="1.2"/>
-<text x="714.8" y="677" class="ts" text-anchor="start">libre</text>
+<text x="62" y="677" class="ts" text-anchor="start">bien (con su ajuste)</text>
+<rect x="216.0" y="664" width="16" height="16" rx="3" class="check" stroke-width="1.2"/>
+<text x="238.0" y="677" class="ts" text-anchor="start">débil (D3)</text>
+<rect x="328.0" y="664" width="16" height="16" rx="3" class="warn" stroke-width="1.2"/>
+<text x="350.0" y="677" class="ts" text-anchor="start">en su tope (B3: recolocar el horn)</text>
+<rect x="593.6" y="664" width="16" height="16" rx="3" class="free" stroke-width="1.2"/>
+<text x="615.6" y="677" class="ts" text-anchor="start">libre</text>
 <text x="30" y="728" class="th" text-anchor="start">EL ROBOT VISTO DESDE ARRIBA (cabeza delante)</text>
 <rect class="body" x="390" y="800" width="220" height="360" rx="18"/>
 <text x="500" y="975" class="ts" text-anchor="middle">cuerpo</text>
@@ -243,30 +246,30 @@
 <text x="518" y="770" class="ts" text-anchor="start">cabeza</text>
 <line x1="390" y1="900" x2="192" y2="900" class="limb" stroke-width="10" stroke-linecap="round"/>
 <text x="168" y="860" class="tb" text-anchor="start">A · delantera izquierda</text>
-<circle cx="356" cy="900" r="24" class="check" stroke-width="2"/>
-<text x="356" y="905" class="tm checkt" text-anchor="middle">4</text>
+<circle cx="356" cy="900" r="24" class="ok" stroke-width="2"/>
+<text x="356" y="905" class="tm okt" text-anchor="middle">4</text>
 <text x="356" y="942" class="ts" text-anchor="middle">pectoral</text>
-<circle cx="274" cy="900" r="24" class="check" stroke-width="2"/>
-<text x="274" y="905" class="tm checkt" text-anchor="middle">2</text>
+<circle cx="274" cy="900" r="24" class="ok" stroke-width="2"/>
+<text x="274" y="905" class="tm okt" text-anchor="middle">2</text>
 <text x="274" y="942" class="ts" text-anchor="middle">hombro</text>
-<circle cx="192" cy="900" r="24" class="bad" stroke-width="2"/>
-<text x="192" y="905" class="tm badt" text-anchor="middle">0</text>
+<circle cx="192" cy="900" r="24" class="ok" stroke-width="2"/>
+<text x="192" y="905" class="tm okt" text-anchor="middle">1</text>
 <text x="192" y="942" class="ts" text-anchor="middle">codo</text>
-<text x="168" y="966" class="ts badt" text-anchor="start">El codo (canal 0) no responde: la placa manda señal,</text>
-<text x="168" y="983" class="ts badt" text-anchor="start">falla el servo o su cable.</text>
+<text x="168" y="966" class="ts okt" text-anchor="start">Codo en el canal 1 (el 0 no iba). Ajuste −15:</text>
+<text x="168" y="983" class="ts okt" text-anchor="start">su horn va 1 diente girado.</text>
 <line x1="610" y1="900" x2="808" y2="900" class="limb" stroke-width="10" stroke-linecap="round"/>
 <text x="620" y="860" class="tb" text-anchor="start">B · delantera derecha</text>
-<circle cx="644" cy="900" r="24" class="check" stroke-width="2"/>
-<text x="644" y="905" class="tm checkt" text-anchor="middle">5</text>
+<circle cx="644" cy="900" r="24" class="ok" stroke-width="2"/>
+<text x="644" y="905" class="tm okt" text-anchor="middle">5</text>
 <text x="644" y="942" class="ts" text-anchor="middle">pectoral</text>
-<circle cx="726" cy="900" r="24" class="check" stroke-width="2"/>
-<text x="726" y="905" class="tm checkt" text-anchor="middle">3</text>
+<circle cx="726" cy="900" r="24" class="ok" stroke-width="2"/>
+<text x="726" y="905" class="tm okt" text-anchor="middle">3</text>
 <text x="726" y="942" class="ts" text-anchor="middle">hombro</text>
 <circle cx="808" cy="900" r="24" class="warn" stroke-width="2"/>
 <text x="808" y="905" class="tm warnt" text-anchor="middle">6</text>
 <text x="808" y="942" class="ts" text-anchor="middle">codo</text>
-<text x="620" y="966" class="ts warnt" text-anchor="start">Codo en el canal 6 (antes en el 1). A 90° queda</text>
-<text x="620" y="983" class="ts warnt" text-anchor="start">muy estirado: horn girado. Calibrar o recolocar.</text>
+<text x="620" y="966" class="ts warnt" text-anchor="start">Codo con ajuste +50 (horn 3 dientes girado): llega a</text>
+<text x="620" y="983" class="ts warnt" text-anchor="start">su tope. Recolocar el horn y bajar el ajuste.</text>
 <line x1="390" y1="1100" x2="192" y2="1100" class="limb" stroke-width="10" stroke-linecap="round"/>
 <text x="168" y="1060" class="tb" text-anchor="start">D · trasera izquierda</text>
 <circle cx="356" cy="1100" r="24" class="ok" stroke-width="2"/>
@@ -275,10 +278,11 @@
 <circle cx="274" cy="1100" r="24" class="ok" stroke-width="2"/>
 <text x="274" y="1105" class="tm okt" text-anchor="middle">13</text>
 <text x="274" y="1142" class="ts" text-anchor="middle">hombro</text>
-<circle cx="192" cy="1100" r="24" class="ok" stroke-width="2"/>
-<text x="192" y="1105" class="tm okt" text-anchor="middle">15</text>
+<circle cx="192" cy="1100" r="24" class="check" stroke-width="2"/>
+<text x="192" y="1105" class="tm checkt" text-anchor="middle">15</text>
 <text x="192" y="1142" class="ts" text-anchor="middle">codo</text>
-<text x="168" y="1166" class="ts okt" text-anchor="start">Bien: a 90° queda recta y coordinada.</text>
+<text x="168" y="1166" class="ts checkt" text-anchor="start">Codo débil (ajuste −22): a veces no acaba de</text>
+<text x="168" y="1183" class="ts checkt" text-anchor="start">levantar; las de pie suaves le dan un toquecito.</text>
 <line x1="610" y1="1100" x2="808" y2="1100" class="limb" stroke-width="10" stroke-linecap="round"/>
 <text x="620" y="1060" class="tb" text-anchor="start">C · trasera derecha</text>
 <circle cx="644" cy="1100" r="24" class="ok" stroke-width="2"/>
@@ -290,9 +294,9 @@
 <circle cx="808" cy="1100" r="24" class="ok" stroke-width="2"/>
 <text x="808" y="1105" class="tm okt" text-anchor="middle">14</text>
 <text x="808" y="1142" class="ts" text-anchor="middle">codo</text>
-<text x="620" y="1166" class="ts okt" text-anchor="start">Bien: a 90° queda recta y coordinada.</text>
+<text x="620" y="1166" class="ts okt" text-anchor="start">Bien.</text>
 <rect class="warnbox" x="30" y="1196" width="940" height="76" rx="8"/>
-<text x="46" y="1220" class="t" text-anchor="start">Delanteras: el cableado sigue otro orden que las traseras (A 4·2·0 y B 5·3·6 frente a C 10·12·14 y D 11·13·15).</text>
-<text x="46" y="1240" class="t" text-anchor="start">Puede haber algún cable cruzado: compruébalo con Probar, canal a canal. Para el codo de A, pasa su conector al canal 7:</text>
-<text x="46" y="1258" class="t" text-anchor="start">si así se mueve, fallaba el canal 0; si no, falla el servo o su cable. Si mueves conectores, hazlo sin corriente.</text>
+<text x="46" y="1220" class="t" text-anchor="start">Los números bajo cada canal son su ajuste de calibración (grados que se suman al ángulo). Se cambian en la web,</text>
+<text x="46" y="1240" class="t" text-anchor="start">en "Afinar patas", con el robot de pie: cada pata igual que su pareja (A con B, D con C). Las derechas van en espejo.</text>
+<text x="46" y="1258" class="t" text-anchor="start">Un horn bien puesto deja el ajuste cerca de 0: MG996R = 25 dientes, 14,4° por diente. Mueve conectores sin corriente.</text>
 </svg>

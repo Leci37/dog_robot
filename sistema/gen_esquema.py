@@ -14,34 +14,34 @@ W, H = 1000, 1290
 
 # canal -> (etiqueta, articulación, estado, nota corta)
 CH = {
-    0: ("A3", "codo", "bad", "no va"),
-    1: ("—", "libre", "free", "era B3"),
-    2: ("A2", "hombro", "check", ""),
-    3: ("B2", "hombro", "check", ""),
-    4: ("A1", "pectoral", "check", ""),
-    5: ("B1", "pectoral", "check", ""),
-    6: ("B3", "codo", "warn", "girado"),
+    0: ("—", "libre", "free", "era A3"),
+    1: ("A3", "codo", "ok", "−15"),
+    2: ("A2", "hombro", "ok", ""),
+    3: ("B2", "hombro", "ok", ""),
+    4: ("A1", "pectoral", "ok", "+10"),
+    5: ("B1", "pectoral", "ok", "−15"),
+    6: ("B3", "codo", "warn", "+50"),
     7: ("—", "libre", "free", ""),
     8: ("—", "libre", "free", ""),
     9: ("—", "libre", "free", ""),
-    10: ("C1", "pectoral", "ok", ""),
+    10: ("C1", "pectoral", "ok", "−5"),
     11: ("D1", "pectoral", "ok", ""),
     12: ("C2", "hombro", "ok", ""),
     13: ("D2", "hombro", "ok", ""),
-    14: ("C3", "codo", "ok", ""),
-    15: ("D3", "codo", "ok", ""),
+    14: ("C3", "codo", "ok", "−10"),
+    15: ("D3", "codo", "check", "−22"),
 }
 LEGS = {  # pata: (nombre, y, sentido x, [(articulación, canal)])
-    "A": ("A · delantera izquierda", 900, -1, [("pectoral", 4), ("hombro", 2), ("codo", 0)]),
+    "A": ("A · delantera izquierda", 900, -1, [("pectoral", 4), ("hombro", 2), ("codo", 1)]),
     "B": ("B · delantera derecha", 900, 1, [("pectoral", 5), ("hombro", 3), ("codo", 6)]),
     "D": ("D · trasera izquierda", 1100, -1, [("pectoral", 11), ("hombro", 13), ("codo", 15)]),
     "C": ("C · trasera derecha", 1100, 1, [("pectoral", 10), ("hombro", 12), ("codo", 14)]),
 }
 LEG_NOTE = {
-    "A": [("bad", "El codo (canal 0) no responde: la placa manda señal,"), ("bad", "falla el servo o su cable.")],
-    "B": [("warn", "Codo en el canal 6 (antes en el 1). A 90° queda"), ("warn", "muy estirado: horn girado. Calibrar o recolocar.")],
-    "D": [("ok", "Bien: a 90° queda recta y coordinada.")],
-    "C": [("ok", "Bien: a 90° queda recta y coordinada.")],
+    "A": [("ok", "Codo en el canal 1 (el 0 no iba). Ajuste −15:"), ("ok", "su horn va 1 diente girado.")],
+    "B": [("warn", "Codo con ajuste +50 (horn 3 dientes girado): llega a"), ("warn", "su tope. Recolocar el horn y bajar el ajuste.")],
+    "D": [("check", "Codo débil (ajuste −22): a veces no acaba de"), ("check", "levantar; las de pie suaves le dan un toquecito.")],
+    "C": [("ok", "Bien.")],
 }
 
 LIGHT_CSS = """
@@ -102,7 +102,7 @@ def build():
 
     a('<rect class="pcb" x="660" y="60" width="310" height="190" rx="10"/>')
     a(text(676, 86, "Placa de servos PCA9685", "tb"))
-    a(text(676, 106, "dirección I2C 0x40 · 50 Hz · 16 canales", "ts"))
+    a(text(676, 106, "dirección I2C 0x40 · 50 Hz (hasta 200) · 16 canales", "ts"))
     wires = [("vcc", "VCC", "pin 1 · 3,3 V", 130), ("sda", "SDA", "pin 3", 152), ("scl", "SCL", "pin 5", 174), ("gnd", "GND", "pin 6", 196)]
     for cls, name, pin, y in wires:
         a(f'<line x1="570" y1="{y}" x2="660" y2="{y}" class="{cls}" stroke-width="3"/>')
@@ -115,8 +115,8 @@ def build():
 
     a('<rect class="psu" x="660" y="320" width="310" height="92" rx="8"/>')
     a(text(676, 346, "Fuente de los servos", "tb"))
-    a(text(676, 368, "ahora 5 A → límite activado en la web", "t"))
-    a(text(676, 390, "para de pie/andar: 6 V · 15-20 A, cables 1,5 mm²", "ts"))
+    a(text(676, 368, "5 V · 20 A (la de 5 A se quedaba corta)", "t"))
+    a(text(676, 390, "mejor 6 V (+15 % de fuerza) · cables 1,5 mm²", "ts"))
     a('<line x1="868" y1="320" x2="868" y2="248" class="vplus" stroke-width="5"/>')
     a('<line x1="922" y1="320" x2="922" y2="248" class="gnd" stroke-width="5"/>')
     a(text(856, 290, "V+", "tm", "end"))
@@ -150,8 +150,8 @@ def build():
         a(text(x + 24, 620, art, f"ts {st}t", "middle"))
         if note:
             a(text(x + 24, 636, note, f"ts {st}t", "middle"))
-    legend = [("ok", "bien (traseras C y D)"), ("check", "funciona, por revisar (delanteras)"), ("warn", "girado"),
-              ("bad", "no responde"), ("free", "libre")]
+    legend = [("ok", "bien (con su ajuste)"), ("check", "débil (D3)"), ("warn", "en su tope (B3: recolocar el horn)"),
+              ("free", "libre")]
     lx = 40
     for st, txt in legend:
         a(f'<rect x="{lx}" y="664" width="16" height="16" rx="3" class="{st}" stroke-width="1.2"/>')
@@ -180,9 +180,9 @@ def build():
             a(text(min(xs) - 24, y + 66 + i * 17, line, f"ts {st}t"))
 
     a('<rect class="warnbox" x="30" y="1196" width="940" height="76" rx="8"/>')
-    a(text(46, 1220, "Delanteras: el cableado sigue otro orden que las traseras (A 4·2·0 y B 5·3·6 frente a C 10·12·14 y D 11·13·15).", "t"))
-    a(text(46, 1240, "Puede haber algún cable cruzado: compruébalo con Probar, canal a canal. Para el codo de A, pasa su conector al canal 7:", "t"))
-    a(text(46, 1258, "si así se mueve, fallaba el canal 0; si no, falla el servo o su cable. Si mueves conectores, hazlo sin corriente.", "t"))
+    a(text(46, 1220, "Los números bajo cada canal son su ajuste de calibración (grados que se suman al ángulo). Se cambian en la web,", "t"))
+    a(text(46, 1240, "en \"Afinar patas\", con el robot de pie: cada pata igual que su pareja (A con B, D con C). Las derechas van en espejo.", "t"))
+    a(text(46, 1258, "Un horn bien puesto deja el ajuste cerca de 0: MG996R = 25 dientes, 14,4° por diente. Mueve conectores sin corriente.", "t"))
     return "\n".join(p)
 
 
