@@ -6,13 +6,9 @@
 "hails the bus", driven from a web app and from the TV, with no internet needed.</b></p>
 
 <p align="center">
-  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="https://img.youtube.com/vi/Hf6u9rh6BYM/sddefault.jpg" width="640"
-    alt="Video: the robot dog walking (click to watch on YouTube)"></a>
-</p>
-<p align="center">
-  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="https://img.youtube.com/vi/Hf6u9rh6BYM/hq1.jpg" width="210" alt="Video frame 1"></a>
-  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="https://img.youtube.com/vi/Hf6u9rh6BYM/hq2.jpg" width="210" alt="Video frame 2"></a>
-  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="https://img.youtube.com/vi/Hf6u9rh6BYM/hq3.jpg" width="210" alt="Video frame 3"></a>
+  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-1.jpg" width="300" alt="The robot dog walking (click to watch the video)"></a>
+  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-2.jpg" width="300" alt="The robot up close, walking"></a>
+  <a href="https://youtu.be/Hf6u9rh6BYM"><img src="docs/img/video-robot-3.jpg" width="300" alt="Close-up of the robot"></a>
 </p>
 <p align="center">
   <a href="https://youtu.be/Hf6u9rh6BYM"><img src="https://img.shields.io/badge/▶%20Watch%20the%20video-Robot%20dog%20walking-red?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch the video on YouTube"></a>
